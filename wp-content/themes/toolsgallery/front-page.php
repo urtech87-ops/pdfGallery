@@ -45,6 +45,49 @@
   <?php echo tg_ad_slot('homepage-leaderboard', 'leaderboard'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 </div>
 
+<!-- How It Works -->
+<section class="tg-section tg-section--gray" aria-labelledby="hiw-heading">
+  <div class="tg-container">
+    <div class="tg-section__header">
+      <div class="tg-section__tag"><?php esc_html_e('HOW IT WORKS', 'toolsgallery'); ?></div>
+      <h2 class="tg-section__title" id="hiw-heading"><?php esc_html_e('Get Started in Seconds', 'toolsgallery'); ?></h2>
+      <p class="tg-section__desc"><?php esc_html_e('No installation, no account, no learning curve.', 'toolsgallery'); ?></p>
+    </div>
+    <div class="tg-hiw-steps">
+      <div class="tg-hiw-step">
+        <div class="tg-hiw-step__number" aria-hidden="true">1</div>
+        <div class="tg-hiw-step__icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div class="tg-hiw-step__title"><?php esc_html_e('Upload', 'toolsgallery'); ?></div>
+        <div class="tg-hiw-step__desc"><?php esc_html_e('Choose a file from your device or drag and drop it into the tool.', 'toolsgallery'); ?></div>
+      </div>
+      <div class="tg-hiw-step">
+        <div class="tg-hiw-step__number" aria-hidden="true">2</div>
+        <div class="tg-hiw-step__icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+          </svg>
+        </div>
+        <div class="tg-hiw-step__title"><?php esc_html_e('Process', 'toolsgallery'); ?></div>
+        <div class="tg-hiw-step__desc"><?php esc_html_e('Your file is processed instantly, right in your browser — nothing is uploaded to a server.', 'toolsgallery'); ?></div>
+      </div>
+      <div class="tg-hiw-step">
+        <div class="tg-hiw-step__number" aria-hidden="true">3</div>
+        <div class="tg-hiw-step__icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </div>
+        <div class="tg-hiw-step__title"><?php esc_html_e('Download', 'toolsgallery'); ?></div>
+        <div class="tg-hiw-step__desc"><?php esc_html_e('Get your result immediately. No waiting, no email required.', 'toolsgallery'); ?></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- PDF Tools Section -->
 <section class="tg-section" aria-labelledby="pdf-tools-heading">
   <div class="tg-container">
@@ -102,7 +145,7 @@
       endif;
       ?>
     </div>
-    <div style="text-align:center;margin-top:2.5rem;">
+    <div class="tg-section__cta">
       <a class="tg-btn tg-btn--outline" href="<?php echo esc_url(home_url('/tools/')); ?>"><?php esc_html_e('View All PDF Tools', 'toolsgallery'); ?></a>
     </div>
   </div>
@@ -136,8 +179,67 @@
         </a>
       <?php endforeach; ?>
     </div>
-    <div style="text-align:center;margin-top:2.5rem;">
+    <div class="tg-section__cta">
       <a class="tg-btn tg-btn--outline" href="<?php echo esc_url(home_url('/tools/')); ?>"><?php esc_html_e('View All Image Tools', 'toolsgallery'); ?></a>
+    </div>
+  </div>
+</section>
+
+<!-- AI Writing Tools Section -->
+<section class="tg-section" aria-labelledby="ai-tools-heading">
+  <div class="tg-container">
+    <div class="tg-section__header">
+      <div class="tg-section__tag"><?php esc_html_e('AI WRITING', 'toolsgallery'); ?></div>
+      <h2 class="tg-section__title" id="ai-tools-heading"><?php esc_html_e('AI Writing Tools', 'toolsgallery'); ?></h2>
+      <p class="tg-section__desc"><?php esc_html_e('Write, edit, and improve content with AI — fast and free.', 'toolsgallery'); ?></p>
+    </div>
+    <div class="tg-tools-grid">
+      <?php
+      $ai_tools_cpt = new WP_Query([
+        'post_type'      => 'tg_tool',
+        'posts_per_page' => 6,
+        'tax_query'      => [['taxonomy' => 'tool_category', 'field' => 'slug', 'terms' => 'ai-tools']],
+        'no_found_rows'  => true,
+      ]);
+
+      if ($ai_tools_cpt->have_posts()) :
+        while ($ai_tools_cpt->have_posts()) : $ai_tools_cpt->the_post();
+      ?>
+        <a class="tg-tool-card" href="<?php the_permalink(); ?>">
+          <div class="tg-tool-card__icon" aria-hidden="true">
+            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '✍️'); ?>
+          </div>
+          <div class="tg-tool-card__title"><?php the_title(); ?></div>
+          <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
+          <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
+        </a>
+      <?php
+        endwhile;
+        wp_reset_postdata();
+      else :
+        $ai_placeholders = [
+          ['title' => 'Grammar Fixer',      'desc' => 'Fix grammar and spelling errors instantly.',    'icon' => '✏️'],
+          ['title' => 'Paraphraser',         'desc' => 'Rewrite any text in a fresh, clear style.',    'icon' => '🔄'],
+          ['title' => 'Article Writer',      'desc' => 'Generate full articles from a simple prompt.', 'icon' => '📰'],
+          ['title' => 'Content Summarizer',  'desc' => 'Summarize long content into key points.',      'icon' => '📋'],
+          ['title' => 'AI Humanizer',        'desc' => 'Make AI-generated text sound more human.',     'icon' => '🤖'],
+          ['title' => 'Essay Writer',        'desc' => 'Write structured essays on any topic fast.',   'icon' => '📝'],
+        ];
+        foreach ($ai_placeholders as $t) :
+      ?>
+        <div class="tg-tool-card">
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
+          <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
+          <span class="tg-tool-card__badge"><?php esc_html_e('FREE', 'toolsgallery'); ?></span>
+        </div>
+      <?php
+        endforeach;
+      endif;
+      ?>
+    </div>
+    <div class="tg-section__cta">
+      <a class="tg-btn tg-btn--outline" href="<?php echo esc_url(home_url('/tools/')); ?>"><?php esc_html_e('View All AI Tools', 'toolsgallery'); ?></a>
     </div>
   </div>
 </section>
@@ -169,9 +271,11 @@
   </div>
 </section>
 
-<!-- In-content Ad -->
-<div class="tg-container" style="text-align:center;padding-bottom:2rem;">
-  <?php echo tg_ad_slot('homepage-in-content', 'rectangle'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+<!-- Homepage Leaderboard Ad -->
+<div class="tg-ad-section">
+  <div class="tg-container tg-ad-section__inner">
+    <?php echo tg_ad_slot('homepage-leaderboard', 'leaderboard'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+  </div>
 </div>
 
 <?php get_footer(); ?>
