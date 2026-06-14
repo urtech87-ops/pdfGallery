@@ -1,0 +1,376 @@
+/* =============================================
+   ToolsGallery — tool.css
+   Single tool page styles
+   ============================================= */
+
+/* Tool hero */
+.tg-tool-hero {
+  background: linear-gradient(135deg, var(--color-primary-bg) 0%, var(--color-white) 70%);
+  padding: 3rem 0 2rem;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.tg-tool-hero__inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 2.5rem;
+}
+
+.tg-tool-hero__icon {
+  width: 72px;
+  height: 72px;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  font-size: 2rem;
+  flex-shrink: 0;
+  border: 2px solid rgba(249,115,22,0.2);
+}
+
+.tg-tool-hero__meta { flex: 1; }
+
+.tg-tool-hero__cat {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-primary);
+  margin-bottom: 0.5rem;
+}
+
+.tg-tool-hero__title {
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+  font-weight: 800;
+  color: var(--color-black);
+  letter-spacing: -0.025em;
+  margin-bottom: 0.75rem;
+  line-height: 1.2;
+}
+
+.tg-tool-hero__desc {
+  font-size: 1rem;
+  color: var(--color-gray-600);
+  line-height: 1.7;
+  max-width: 600px;
+}
+
+/* =============================================
+   TOOL RUNNER AREA
+   ============================================= */
+.tg-tool-runner {
+  background: var(--color-white);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  margin: 2.5rem 0;
+}
+
+.tg-tool-runner__tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-gray-200);
+  background: var(--color-gray-100);
+}
+
+.tg-tool-runner__tab {
+  padding: 0.875rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-gray-600);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition);
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  font-family: var(--font-family);
+}
+
+.tg-tool-runner__tab.is-active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  background: var(--color-white);
+}
+
+.tg-tool-runner__body { padding: 2rem; }
+
+/* Drop zone */
+.tg-dropzone {
+  border: 2px dashed var(--color-gray-300);
+  border-radius: var(--radius-lg);
+  padding: 3.5rem 2rem;
+  text-align: center;
+  transition: border-color var(--transition), background var(--transition);
+  cursor: pointer;
+  position: relative;
+}
+
+.tg-dropzone:hover,
+.tg-dropzone.is-dragover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.tg-dropzone__icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: var(--color-gray-400);
+  transition: color var(--transition);
+}
+
+.tg-dropzone:hover .tg-dropzone__icon,
+.tg-dropzone.is-dragover .tg-dropzone__icon { color: var(--color-primary); }
+
+.tg-dropzone__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--color-gray-900);
+  margin-bottom: 0.375rem;
+}
+
+.tg-dropzone__hint {
+  font-size: 0.875rem;
+  color: var(--color-gray-500);
+}
+
+.tg-dropzone__browse {
+  color: var(--color-primary);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tg-dropzone__input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+/* File list */
+.tg-file-list {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.tg-file-item {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-gray-100);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--color-gray-800);
+}
+
+.tg-file-item__icon { color: var(--color-primary); font-size: 1.25rem; flex-shrink: 0; }
+.tg-file-item__name { flex: 1; font-weight: 500; }
+.tg-file-item__size { color: var(--color-gray-500); }
+.tg-file-item__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-gray-400);
+  font-size: 1.125rem;
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition), background var(--transition);
+  font-family: var(--font-family);
+}
+.tg-file-item__remove:hover { color: var(--color-error); background: #FEF2F2; }
+
+/* Options panel */
+.tg-tool-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.tg-tool-option { display: flex; flex-direction: column; gap: 0.375rem; }
+
+.tg-tool-option__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-gray-700);
+}
+
+.tg-tool-option__input,
+.tg-tool-option__select {
+  padding: 0.625rem 0.875rem;
+  border: 1.5px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  color: var(--color-gray-900);
+  font-family: var(--font-family);
+  outline: none;
+  transition: border-color var(--transition);
+  background: var(--color-white);
+}
+
+.tg-tool-option__input:focus,
+.tg-tool-option__select:focus { border-color: var(--color-primary); }
+
+/* Progress */
+.tg-progress {
+  margin-top: 1.5rem;
+  display: none;
+}
+
+.tg-progress.is-visible { display: block; }
+
+.tg-progress__bar-track {
+  height: 8px;
+  background: var(--color-gray-200);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: 0.625rem;
+}
+
+.tg-progress__bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-dark));
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.tg-progress__label {
+  font-size: 0.8125rem;
+  color: var(--color-gray-600);
+  text-align: center;
+}
+
+/* Result area */
+.tg-tool-result {
+  margin-top: 1.5rem;
+  display: none;
+}
+
+.tg-tool-result.is-visible { display: block; }
+
+.tg-tool-result__success {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
+  background: #F0FDF4;
+  border: 1px solid #BBF7D0;
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+}
+
+.tg-tool-result__success-icon { color: var(--color-success); font-size: 1.25rem; }
+.tg-tool-result__success-msg { font-size: 0.9375rem; font-weight: 600; color: #166534; }
+
+.tg-tool-result__error {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: var(--radius-md);
+}
+
+.tg-tool-result__error-icon { color: var(--color-error); font-size: 1.25rem; }
+.tg-tool-result__error-msg { font-size: 0.9375rem; color: #991B1B; }
+
+.tg-tool-result__download {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* AI textarea */
+.tg-ai-input {
+  width: 100%;
+  min-height: 150px;
+  padding: 1rem 1.25rem;
+  border: 1.5px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  font-size: 1rem;
+  font-family: var(--font-family);
+  color: var(--color-gray-900);
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.tg-ai-input:focus { border-color: var(--color-primary); }
+
+.tg-ai-output {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: var(--color-gray-100);
+  border-radius: var(--radius-lg);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--color-gray-800);
+  white-space: pre-wrap;
+  min-height: 100px;
+  display: none;
+}
+
+.tg-ai-output.is-visible { display: block; }
+
+/* Action bar */
+.tg-tool-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+/* =============================================
+   TOOL CONTENT SECTIONS
+   ============================================= */
+.tg-tool-content { padding: 3rem 0; }
+
+.tg-tool-content__layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 3rem;
+  align-items: start;
+}
+
+.tg-tool-content__main { display: flex; flex-direction: column; gap: 3rem; }
+
+.tg-tool-content__title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--color-black);
+  letter-spacing: -0.02em;
+  margin-bottom: 1.25rem;
+}
+
+/* Related tools */
+.tg-related-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+/* =============================================
+   RESPONSIVE
+   ============================================= */
+@media (max-width: 768px) {
+  .tg-tool-hero__inner { flex-direction: column; gap: 1.5rem; }
+  .tg-tool-content__layout { grid-template-columns: 1fr; }
+  .tg-tool-runner__body { padding: 1.25rem; }
+  .tg-dropzone { padding: 2.5rem 1.25rem; }
+}
