@@ -399,6 +399,69 @@ function tg_build_user_prompt($config, $payload) {
 }
 
 /* =============================================
+   SEO JSON-LD — tool pages (Phase 2)
+   ============================================= */
+add_action('wp_head', 'tg_tool_json_ld', 5);
+function tg_tool_json_ld() {
+    if (!is_singular('tg_tool')) return;
+
+    $post_id   = get_queried_object_id();
+    $title     = get_the_title($post_id);
+    $excerpt   = get_post_field('post_excerpt', $post_id);
+    if (!$excerpt) {
+        $excerpt = wp_trim_words(wp_strip_all_tags(get_post_field('post_content', $post_id)), 30, '…');
+    }
+    $faqs_raw = get_post_meta($post_id, '_tg_faqs', true);
+    $faqs     = $faqs_raw ? json_decode($faqs_raw, true) : [];
+
+    /* BreadcrumbList */
+    $crumb_items = [
+        ['@type' => 'ListItem', 'position' => 1, 'name' => __('Home', 'toolsgallery'),  'item' => home_url('/')],
+        ['@type' => 'ListItem', 'position' => 2, 'name' => __('Tools', 'toolsgallery'), 'item' => home_url('/tools/')],
+    ];
+    $terms = get_the_terms($post_id, 'tool_category');
+    if ($terms && !is_wp_error($terms)) {
+        $crumb_items[] = ['@type' => 'ListItem', 'position' => 3, 'name' => $terms[0]->name, 'item' => get_term_link($terms[0])];
+        $crumb_items[] = ['@type' => 'ListItem', 'position' => 4, 'name' => $title,           'item' => get_permalink($post_id)];
+    } else {
+        $crumb_items[] = ['@type' => 'ListItem', 'position' => 3, 'name' => $title, 'item' => get_permalink($post_id)];
+    }
+    echo '<script type="application/ld+json">' . wp_json_encode([
+        '@context'        => 'https://schema.org',
+        '@type'           => 'BreadcrumbList',
+        'itemListElement' => $crumb_items,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+
+    /* SoftwareApplication */
+    echo '<script type="application/ld+json">' . wp_json_encode([
+        '@context'            => 'https://schema.org',
+        '@type'               => 'SoftwareApplication',
+        'name'                => $title,
+        'applicationCategory' => 'UtilitiesApplication',
+        'operatingSystem'     => 'Web Browser',
+        'offers'              => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'USD'],
+        'description'         => $excerpt,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+
+    /* FAQPage — only if FAQs are set */
+    if (!empty($faqs)) {
+        $entities = [];
+        foreach ($faqs as $faq) {
+            $entities[] = [
+                '@type'          => 'Question',
+                'name'           => $faq['q'] ?? '',
+                'acceptedAnswer' => ['@type' => 'Answer', 'text' => $faq['a'] ?? ''],
+            ];
+        }
+        echo '<script type="application/ld+json">' . wp_json_encode([
+            '@context'   => 'https://schema.org',
+            '@type'      => 'FAQPage',
+            'mainEntity' => $entities,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+    }
+}
+
+/* =============================================
    HELPERS
    ============================================= */
 function tg_get_the_excerpt_safe($length = 140) {
