@@ -148,6 +148,10 @@ while ( have_posts() ) :
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             <?php esc_html_e( 'Done! Your file is ready', 'toolsgallery' ); ?>
                         </div>
+                        <div class="tg-error-banner" hidden>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            <span class="tg-error-msg"></span>
+                        </div>
                         <button class="tg-download-btn"><?php esc_html_e( 'Download File', 'toolsgallery' ); ?></button>
                         <a href="#" class="tg-reset"><?php esc_html_e( 'Process another file', 'toolsgallery' ); ?></a>
                     </div>
