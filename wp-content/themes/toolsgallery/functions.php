@@ -189,6 +189,7 @@ function tg_register_meta_fields() {
         '_tg_handler',
         '_tg_related',
         '_tg_category_slug',
+        '_tg_multi_file',
     ];
 
     foreach ($string_fields as $key) {

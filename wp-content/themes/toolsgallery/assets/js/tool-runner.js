@@ -15,6 +15,7 @@
   var filenameEl  = box.querySelector('.tg-filename');
   var filesizeEl  = box.querySelector('.tg-filesize');
   var removeBtn   = box.querySelector('.tg-remove-file');
+  var fileListEl  = box.querySelector('.tg-file-list');
   var actionBtn   = box.querySelector('.tg-action-btn');
   var progressEl  = box.querySelector('.tg-progress');
   var progressBar = box.querySelector('.tg-progress-bar');
@@ -22,9 +23,13 @@
   var downloadBtn = box.querySelector('.tg-download-btn');
   var resetLink   = box.querySelector('.tg-reset');
 
-  var accept      = box.dataset.accept || '';
-  var currentFile = null;
-  var blobUrl     = null;
+  var accept   = box.dataset.accept || '';
+  var isMulti  = box.dataset.multi === 'true';
+  var MAX_FILES = 20;
+
+  var currentFile  = null;   // single-file mode
+  var currentFiles = [];     // multi-file mode
+  var blobUrl      = null;
 
   if (accept && fileInput) {
     fileInput.setAttribute('accept', accept);
@@ -46,6 +51,9 @@
     });
   }
 
+  /* -----------------------------------------------
+     SINGLE-FILE MODE
+  ----------------------------------------------- */
   function selectFile(file) {
     if (!validateFile(file)) {
       alert('Please select a valid file. Accepted: ' + accept);
@@ -59,17 +67,115 @@
     if (actionBtn)    actionBtn.disabled  = false;
   }
 
+  /* -----------------------------------------------
+     MULTI-FILE MODE
+  ----------------------------------------------- */
+  function addFiles(filesList) {
+    var invalid = [];
+    var added   = 0;
+
+    for (var i = 0; i < filesList.length; i++) {
+      var file = filesList[i];
+      if (!validateFile(file)) { invalid.push(file.name); continue; }
+      if (currentFiles.length >= MAX_FILES) {
+        showMaxFilesMessage();
+        break;
+      }
+      /* Avoid duplicates by name+size */
+      var dup = currentFiles.some(function (f) { return f.name === file.name && f.size === file.size; });
+      if (!dup) { currentFiles.push(file); added++; }
+    }
+
+    if (invalid.length) {
+      alert('Skipped invalid file(s): ' + invalid.join(', ') + '\nAccepted: ' + accept);
+    }
+
+    renderFileList();
+
+    if (uploadZone) uploadZone.hidden = currentFiles.length > 0;
+    if (actionBtn)  actionBtn.disabled = currentFiles.length === 0;
+  }
+
+  function removeFileAt(index) {
+    currentFiles.splice(index, 1);
+    renderFileList();
+    if (uploadZone) uploadZone.hidden = currentFiles.length > 0;
+    if (actionBtn)  actionBtn.disabled = currentFiles.length === 0;
+  }
+
+  function renderFileList() {
+    if (!fileListEl) return;
+    fileListEl.innerHTML = '';
+    if (currentFiles.length === 0) {
+      fileListEl.hidden = true;
+      return;
+    }
+    fileListEl.hidden = false;
+    currentFiles.forEach(function (file, idx) {
+      var row = document.createElement('div');
+      row.className = 'tg-file-list-item';
+
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'tg-file-list-item__name';
+      nameSpan.textContent = file.name;
+      nameSpan.title = file.name;
+
+      var sizeSpan = document.createElement('span');
+      sizeSpan.className = 'tg-file-list-item__size';
+      sizeSpan.textContent = formatBytes(file.size);
+
+      var removeBtn = document.createElement('button');
+      removeBtn.className = 'tg-file-list-item__remove';
+      removeBtn.setAttribute('aria-label', 'Remove ' + file.name);
+      removeBtn.textContent = '×';
+      removeBtn.type = 'button';
+      (function (i) {
+        removeBtn.addEventListener('click', function () { removeFileAt(i); });
+      })(idx);
+
+      row.appendChild(nameSpan);
+      row.appendChild(sizeSpan);
+      row.appendChild(removeBtn);
+      fileListEl.appendChild(row);
+    });
+
+    /* "Add more" hint row */
+    if (currentFiles.length < MAX_FILES) {
+      var hint = document.createElement('div');
+      hint.className = 'tg-file-list-add-hint';
+      hint.textContent = 'Click the upload zone above to add more files';
+      fileListEl.appendChild(hint);
+      if (uploadZone) uploadZone.hidden = false;
+    }
+  }
+
+  function showMaxFilesMessage() {
+    if (!fileListEl) return;
+    var existing = fileListEl.querySelector('.tg-file-list-max-msg');
+    if (existing) return;
+    var msg = document.createElement('p');
+    msg.className = 'tg-file-list-max-msg';
+    msg.textContent = 'Maximum ' + MAX_FILES + ' files';
+    fileListEl.appendChild(msg);
+    setTimeout(function () { if (msg.parentNode) msg.parentNode.removeChild(msg); }, 3000);
+  }
+
+  /* -----------------------------------------------
+     RESET
+  ----------------------------------------------- */
   function resetState() {
-    currentFile = null;
+    currentFile  = null;
+    currentFiles = [];
     if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
     if (uploadZone)   uploadZone.hidden   = false;
     if (fileSelected) fileSelected.hidden = true;
+    if (fileListEl)  { fileListEl.hidden = true; fileListEl.innerHTML = ''; }
     if (actionBtn)   { actionBtn.disabled = true; actionBtn.hidden = false; }
     if (progressEl)   progressEl.hidden  = true;
     if (progressBar)  progressBar.style.width = '0%';
     if (resultEl)     resultEl.hidden    = true;
     if (fileInput)    fileInput.value    = '';
-    delete uploadZone.dataset.dragover;
+    if (uploadZone)   delete uploadZone.dataset.dragover;
   }
 
   /* --- Drag & drop --- */
@@ -88,7 +194,12 @@
     uploadZone.addEventListener('drop', function (e) {
       e.preventDefault();
       delete uploadZone.dataset.dragover;
-      if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]);
+      if (!e.dataTransfer.files.length) return;
+      if (isMulti) {
+        addFiles(e.dataTransfer.files);
+      } else {
+        selectFile(e.dataTransfer.files[0]);
+      }
     });
 
     uploadZone.addEventListener('click', function (e) {
@@ -106,14 +217,17 @@
   if (fileInput) {
     fileInput.addEventListener('click', function (e) { e.stopPropagation(); });
     fileInput.addEventListener('change', function () {
-      if (fileInput.files.length) {
+      if (!fileInput.files.length) return;
+      if (isMulti) {
+        addFiles(fileInput.files);
+      } else {
         selectFile(fileInput.files[0]);
-        fileInput.value = '';
       }
+      fileInput.value = '';
     });
   }
 
-  /* --- Remove file --- */
+  /* --- Remove file (single mode) --- */
   if (removeBtn) {
     removeBtn.addEventListener('click', function () { resetState(); });
   }
@@ -121,12 +235,13 @@
   /* --- Action button → animated progress → placeholder result --- */
   if (actionBtn) {
     actionBtn.addEventListener('click', function () {
-      if (!currentFile) return;
+      var fileForHandler = isMulti ? (currentFiles[0] || null) : currentFile;
+      if (!fileForHandler) return;
 
       var handler = box.dataset.handler;
       if (handler && typeof window[handler] === 'function') {
-        /* Real tool handler loaded by a later phase */
-        window[handler](currentFile, {
+        var filesArg = isMulti ? currentFiles.slice() : fileForHandler;
+        window[handler](filesArg, {
           showProgress: function (pct) {
             if (progressEl)  progressEl.hidden  = false;
             if (progressBar) progressBar.style.width = pct + '%';
@@ -146,6 +261,7 @@
 
       /* Placeholder shell: animate progress then show mock download */
       if (fileSelected) fileSelected.hidden = true;
+      if (fileListEl)   fileListEl.hidden   = true;
       actionBtn.hidden = true;
       if (progressEl) {
         progressEl.hidden = false;
@@ -196,7 +312,9 @@
 
   /* Expose helpers for per-tool scripts loaded in later phases */
   window.TGTool = {
-    getCurrentFile: function () { return currentFile; },
-    resetState:     resetState,
+    getCurrentFile:  function () { return currentFile; },
+    getCurrentFiles: function () { return currentFiles.slice(); },
+    isMulti:         isMulti,
+    resetState:      resetState,
   };
 })();

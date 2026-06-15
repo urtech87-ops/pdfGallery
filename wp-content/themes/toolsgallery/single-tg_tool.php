@@ -18,6 +18,7 @@ while ( have_posts() ) :
     $features_raw = get_post_meta( $post_id, '_tg_features', true );
     $steps_raw    = get_post_meta( $post_id, '_tg_steps', true );
     $related_raw  = get_post_meta( $post_id, '_tg_related', true );
+    $multi_file   = get_post_meta( $post_id, '_tg_multi_file', true ) === 'true';
 
     $faqs        = $faqs_raw     ? json_decode( $faqs_raw,     true ) : [];
     $features    = $features_raw ? json_decode( $features_raw, true ) : [];
@@ -100,20 +101,22 @@ while ( have_posts() ) :
                 <div class="tg-tool-box"
                      data-tool-type="<?php echo esc_attr( $tool_type ); ?>"
                      data-handler="<?php echo esc_attr( $handler ); ?>"
-                     data-accept="<?php echo esc_attr( $accept_types ); ?>">
+                     data-accept="<?php echo esc_attr( $accept_types ); ?>"
+                     data-multi="<?php echo $multi_file ? 'true' : 'false'; ?>">
 
                     <div class="tg-upload-zone" id="upload-zone" role="button" tabindex="0"
-                         aria-label="<?php esc_attr_e( 'Drop your file here or click to browse', 'toolsgallery' ); ?>">
+                         aria-label="<?php echo $multi_file ? esc_attr__( 'Drop your files here or click to browse', 'toolsgallery' ) : esc_attr__( 'Drop your file here or click to browse', 'toolsgallery' ); ?>">
                         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="tg-upload-icon">
                             <polyline points="16 16 12 12 8 16"></polyline>
                             <line x1="12" y1="12" x2="12" y2="21"></line>
                             <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path>
                         </svg>
-                        <p class="tg-upload-title"><?php esc_html_e( 'Drop your file here', 'toolsgallery' ); ?></p>
+                        <p class="tg-upload-title"><?php echo $multi_file ? esc_html__( 'Drop your files here', 'toolsgallery' ) : esc_html__( 'Drop your file here', 'toolsgallery' ); ?></p>
                         <span class="tg-upload-sub"><?php esc_html_e( 'or click to browse', 'toolsgallery' ); ?></span>
-                        <input type="file" id="file-input" hidden>
+                        <input type="file" id="file-input"<?php echo $multi_file ? ' multiple' : ''; ?> hidden>
                     </div>
 
+                    <!-- Single-file selected row (used when data-multi="false") -->
                     <div class="tg-file-selected" hidden>
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="tg-file-icon">
                             <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
@@ -123,6 +126,9 @@ while ( have_posts() ) :
                         <span class="tg-filesize"></span>
                         <button class="tg-remove-file" aria-label="<?php esc_attr_e( 'Remove file', 'toolsgallery' ); ?>">&#x00D7;</button>
                     </div>
+
+                    <!-- Multi-file list (used when data-multi="true") -->
+                    <div class="tg-file-list" hidden></div>
 
                     <div class="tg-options" hidden></div>
 
@@ -220,6 +226,9 @@ while ( have_posts() ) :
                     <?php endif; ?>
                 </div>
             </div>
+
+            <!-- 6b. Mid-content ad — between Features and FAQ -->
+            <?php echo tg_ad_slot( 'tool-mid-content', 'responsive' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 
             <!-- 7. FAQ — only if non-empty -->
             <?php if ( ! empty( $faqs ) ) : ?>
@@ -336,6 +345,9 @@ while ( have_posts() ) :
                     endif; ?>
                 </ul>
             </div>
+
+            <!-- 4. Sidebar bottom ad -->
+            <?php echo tg_ad_slot( 'tool-sidebar-bottom', 'rectangle' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 
         </aside><!-- .tg-tool-page-sidebar -->
 
