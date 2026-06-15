@@ -1,164 +1,202 @@
 /* ToolsGallery — tool-runner.js
-   Handles browser-side PDF/image tool UI (file input, drag-drop, progress).
-   Actual processing libraries are loaded per-tool via wp_enqueue_scripts.
+   Browser-side file tool UI shell.
+   Targets .tg-tool-box[data-tool-type="browser|server"].
+   Real processing handlers are loaded per-tool in later phases.
 */
 (function () {
   'use strict';
 
-  /* --- Dropzone --- */
-  var dropzone = document.querySelector('.tg-dropzone');
-  var fileInput = document.querySelector('.tg-dropzone__input');
-  var fileList  = document.querySelector('.tg-file-list');
-  var files     = [];
+  var box = document.querySelector('.tg-tool-box[data-tool-type="browser"], .tg-tool-box[data-tool-type="server"]');
+  if (!box) return;
 
+  var uploadZone  = box.querySelector('#upload-zone');
+  var fileInput   = box.querySelector('#file-input');
+  var fileSelected = box.querySelector('.tg-file-selected');
+  var filenameEl  = box.querySelector('.tg-filename');
+  var filesizeEl  = box.querySelector('.tg-filesize');
+  var removeBtn   = box.querySelector('.tg-remove-file');
+  var actionBtn   = box.querySelector('.tg-action-btn');
+  var progressEl  = box.querySelector('.tg-progress');
+  var progressBar = box.querySelector('.tg-progress-bar');
+  var resultEl    = box.querySelector('.tg-result');
+  var downloadBtn = box.querySelector('.tg-download-btn');
+  var resetLink   = box.querySelector('.tg-reset');
+
+  var accept      = box.dataset.accept || '';
+  var currentFile = null;
+  var blobUrl     = null;
+
+  if (accept && fileInput) {
+    fileInput.setAttribute('accept', accept);
+  }
+
+  /* --- Helpers --- */
   function formatBytes(bytes) {
-    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024)    return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / 1048576).toFixed(1) + ' MB';
   }
 
-  function renderFileList() {
-    if (!fileList) return;
-    fileList.innerHTML = '';
-    files.forEach(function (f, idx) {
-      var item = document.createElement('div');
-      item.className = 'tg-file-item';
-      item.innerHTML =
-        '<span class="tg-file-item__icon">📄</span>' +
-        '<span class="tg-file-item__name">' + escHtml(f.name) + '</span>' +
-        '<span class="tg-file-item__size">' + formatBytes(f.size) + '</span>' +
-        '<button class="tg-file-item__remove" aria-label="Remove file" data-idx="' + idx + '">✕</button>';
-      fileList.appendChild(item);
-    });
-
-    fileList.querySelectorAll('.tg-file-item__remove').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var i = parseInt(btn.getAttribute('data-idx'), 10);
-        files.splice(i, 1);
-        renderFileList();
-      });
+  function validateFile(file) {
+    if (!accept) return true;
+    var types = accept.split(',').map(function (s) { return s.trim(); });
+    return types.some(function (t) {
+      if (t.charAt(0) === '.') return file.name.toLowerCase().slice(-t.length) === t.toLowerCase();
+      return file.type === t;
     });
   }
 
-  function addFiles(newFiles) {
-    Array.from(newFiles).forEach(function (f) { files.push(f); });
-    renderFileList();
+  function selectFile(file) {
+    if (!validateFile(file)) {
+      alert('Please select a valid file. Accepted: ' + accept);
+      return;
+    }
+    currentFile = file;
+    if (filenameEl) filenameEl.textContent = file.name;
+    if (filesizeEl) filesizeEl.textContent = formatBytes(file.size);
+    if (uploadZone)   uploadZone.hidden   = true;
+    if (fileSelected) fileSelected.hidden = false;
+    if (actionBtn)    actionBtn.disabled  = false;
   }
 
-  if (dropzone && fileInput) {
-    dropzone.addEventListener('dragover', function (e) {
+  function resetState() {
+    currentFile = null;
+    if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+    if (uploadZone)   uploadZone.hidden   = false;
+    if (fileSelected) fileSelected.hidden = true;
+    if (actionBtn)   { actionBtn.disabled = true; actionBtn.hidden = false; }
+    if (progressEl)   progressEl.hidden  = true;
+    if (progressBar)  progressBar.style.width = '0%';
+    if (resultEl)     resultEl.hidden    = true;
+    if (fileInput)    fileInput.value    = '';
+    delete uploadZone.dataset.dragover;
+  }
+
+  /* --- Drag & drop --- */
+  if (uploadZone) {
+    uploadZone.addEventListener('dragover', function (e) {
       e.preventDefault();
-      dropzone.classList.add('is-dragover');
+      uploadZone.dataset.dragover = '';
     });
 
-    dropzone.addEventListener('dragleave', function () {
-      dropzone.classList.remove('is-dragover');
+    uploadZone.addEventListener('dragleave', function (e) {
+      if (!uploadZone.contains(e.relatedTarget)) {
+        delete uploadZone.dataset.dragover;
+      }
     });
 
-    dropzone.addEventListener('drop', function (e) {
+    uploadZone.addEventListener('drop', function (e) {
       e.preventDefault();
-      dropzone.classList.remove('is-dragover');
-      addFiles(e.dataTransfer.files);
+      delete uploadZone.dataset.dragover;
+      if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]);
     });
 
+    uploadZone.addEventListener('click', function (e) {
+      if (fileInput && e.target !== fileInput) fileInput.click();
+    });
+
+    uploadZone.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (fileInput) fileInput.click();
+      }
+    });
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('click', function (e) { e.stopPropagation(); });
     fileInput.addEventListener('change', function () {
-      addFiles(fileInput.files);
-      fileInput.value = '';
+      if (fileInput.files.length) {
+        selectFile(fileInput.files[0]);
+        fileInput.value = '';
+      }
     });
   }
 
-  /* --- Progress helpers --- */
-  function showProgress(pct, label) {
-    var prog = document.querySelector('.tg-progress');
-    if (!prog) return;
-    prog.classList.add('is-visible');
-    var fill = prog.querySelector('.tg-progress__bar-fill');
-    var lbl  = prog.querySelector('.tg-progress__label');
-    if (fill) fill.style.width = pct + '%';
-    if (lbl)  lbl.textContent  = label || pct + '%';
+  /* --- Remove file --- */
+  if (removeBtn) {
+    removeBtn.addEventListener('click', function () { resetState(); });
   }
 
-  function hideProgress() {
-    var prog = document.querySelector('.tg-progress');
-    if (prog) prog.classList.remove('is-visible');
-  }
+  /* --- Action button → animated progress → placeholder result --- */
+  if (actionBtn) {
+    actionBtn.addEventListener('click', function () {
+      if (!currentFile) return;
 
-  function showResult(html, isError) {
-    var result = document.querySelector('.tg-tool-result');
-    if (!result) return;
-    result.innerHTML = html;
-    result.classList.add('is-visible');
-    if (isError) result.classList.add('is-error');
-    else result.classList.remove('is-error');
-  }
-
-  function showSuccess(msg, downloadUrl, filename) {
-    var html =
-      '<div class="tg-tool-result__success">' +
-        '<span class="tg-tool-result__success-icon">✅</span>' +
-        '<span class="tg-tool-result__success-msg">' + escHtml(msg) + '</span>' +
-      '</div>';
-    if (downloadUrl) {
-      html += '<div class="tg-tool-result__download">' +
-        '<a class="tg-btn tg-btn--primary" href="' + escHtml(downloadUrl) + '" download="' + escHtml(filename || 'download') + '">⬇ Download</a>' +
-        '<button class="tg-btn tg-btn--ghost" id="tg-restart-btn">Process another file</button>' +
-      '</div>';
-    }
-    showResult(html, false);
-  }
-
-  function showError(msg) {
-    var html =
-      '<div class="tg-tool-result__error">' +
-        '<span class="tg-tool-result__error-icon">❌</span>' +
-        '<span class="tg-tool-result__error-msg">' + escHtml(msg) + '</span>' +
-      '</div>';
-    showResult(html, true);
-  }
-
-  /* --- Restart button --- */
-  document.addEventListener('click', function (e) {
-    if (e.target && e.target.id === 'tg-restart-btn') {
-      files = [];
-      renderFileList();
-      hideProgress();
-      var result = document.querySelector('.tg-tool-result');
-      if (result) { result.classList.remove('is-visible'); result.innerHTML = ''; }
-    }
-  });
-
-  /* --- Main run button --- */
-  var runBtn = document.querySelector('.tg-run-btn');
-  if (runBtn) {
-    runBtn.addEventListener('click', function () {
-      if (files.length === 0) {
-        alert('Please select at least one file.');
+      var handler = box.dataset.handler;
+      if (handler && typeof window[handler] === 'function') {
+        /* Real tool handler loaded by a later phase */
+        window[handler](currentFile, {
+          showProgress: function (pct) {
+            if (progressEl)  progressEl.hidden  = false;
+            if (progressBar) progressBar.style.width = pct + '%';
+          },
+          showSuccess: function (url, filename) {
+            if (progressEl) progressEl.hidden = true;
+            if (resultEl)   resultEl.hidden   = false;
+            blobUrl = url;
+          },
+          showError: function (msg) {
+            if (progressEl) progressEl.hidden = true;
+            alert(msg);
+          },
+        });
         return;
       }
-      var handler = runBtn.getAttribute('data-handler');
-      if (handler && window[handler] && typeof window[handler] === 'function') {
-        window[handler](files, { showProgress: showProgress, hideProgress: hideProgress, showSuccess: showSuccess, showError: showError });
-      } else {
-        showError('Tool handler not found: ' + (handler || '(none)'));
+
+      /* Placeholder shell: animate progress then show mock download */
+      if (fileSelected) fileSelected.hidden = true;
+      actionBtn.hidden = true;
+      if (progressEl) {
+        progressEl.hidden = false;
+        if (progressBar) progressBar.style.width = '0%';
       }
+
+      var start    = null;
+      var duration = 1500;
+
+      function animate(ts) {
+        if (!start) start = ts;
+        var pct = Math.min(100, ((ts - start) / duration) * 100);
+        if (progressBar) progressBar.style.width = pct + '%';
+        if (pct < 100) {
+          requestAnimationFrame(animate);
+        } else {
+          if (progressEl) progressEl.hidden = true;
+          if (resultEl)   resultEl.hidden   = false;
+          var blob = new Blob(['ToolsGallery placeholder output'], { type: 'text/plain' });
+          blobUrl  = URL.createObjectURL(blob);
+        }
+      }
+      requestAnimationFrame(animate);
     });
   }
 
-  /* --- Utility --- */
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+  /* --- Download button --- */
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', function () {
+      if (!blobUrl) return;
+      var a = document.createElement('a');
+      a.href     = blobUrl;
+      a.download = 'toolsgallery-output.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
   }
 
-  /* Expose helpers globally for per-tool scripts */
+  /* --- Reset / Process another file --- */
+  if (resetLink) {
+    resetLink.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (actionBtn) actionBtn.hidden = false;
+      resetState();
+    });
+  }
+
+  /* Expose helpers for per-tool scripts loaded in later phases */
   window.TGTool = {
-    getFiles: function () { return files; },
-    showProgress: showProgress,
-    hideProgress: hideProgress,
-    showSuccess: showSuccess,
-    showError: showError,
+    getCurrentFile: function () { return currentFile; },
+    resetState:     resetState,
   };
 })();
