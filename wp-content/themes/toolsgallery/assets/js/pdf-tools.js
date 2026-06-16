@@ -312,55 +312,63 @@ window.TGPdfTools = {
     }
 
     /* Build .docx */
+    var _docx = window.docx;
     var children = docParagraphs.map(function (p) {
-      if (p.isBreak) return new docx.Paragraph({ text: '' });
+      if (p.isBreak) return new _docx.Paragraph({ text: '' });
       if (p.fontSize > 14) {
-        return new docx.Paragraph({ text: p.text, heading: docx.HeadingLevel.HEADING_2 });
+        return new _docx.Paragraph({ text: p.text, heading: _docx.HeadingLevel.HEADING_2 });
       }
-      return new docx.Paragraph({ text: p.text });
+      return new _docx.Paragraph({ text: p.text });
     });
 
-    var doc = new docx.Document({ sections: [{ properties: {}, children: children }] });
-    return docx.Packer.toBlob(doc);
+    var doc = new _docx.Document({ sections: [{ properties: {}, children: children }] });
+    return _docx.Packer.toBlob(doc);
   },
 
   /* ── UNLOCK PDF ──────────────────────────────────── */
   unlockPdf: async function (file, password) {
     var ab = await file.arrayBuffer();
-    var loadOpts = password ? { password: password } : { ignoreEncryption: true };
-    var doc;
+    var bytes = new Uint8Array(ab);
+    var decryptLib = window.pdfDecryptLib;
+    if (!decryptLib) throw new Error('PDF decrypt library not loaded.');
+
+    var isEnc = await decryptLib.isEncrypted(bytes);
+    if (!isEnc.encrypted) {
+      /* Non-encrypted — return as-is */
+      return new Blob([bytes], { type: 'application/pdf' });
+    }
+
+    var decrypted;
     try {
-      doc = await PDFLib.PDFDocument.load(ab, loadOpts);
+      decrypted = await decryptLib.decryptPDF(bytes, password || '');
     } catch (e) {
-      if (e.message && /password/i.test(e.message)) throw new Error('WRONG_PASSWORD');
+      if (e && e.message && /password|incorrect/i.test(e.message)) {
+        throw new Error('WRONG_PASSWORD');
+      }
       throw e;
     }
-    /* Re-save without encryption by serialising then re-loading fresh */
-    var bytes = await doc.save();
-    var cleanDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
-    var finalBytes = await cleanDoc.save();
-    return new Blob([finalBytes], { type: 'application/pdf' });
+    return new Blob([decrypted], { type: 'application/pdf' });
   },
 
   /* ── PROTECT PDF ─────────────────────────────────── */
   protectPdf: async function (file, userPassword, ownerPassword, perms) {
     var ab = await file.arrayBuffer();
-    var doc = await PDFLib.PDFDocument.load(ab);
-    await doc.encrypt({
-      userPassword:  userPassword,
-      ownerPassword: ownerPassword,
-      permissions: {
-        printing:             perms.printing  ? 'highResolution' : 'none',
-        modifying:            perms.modifying,
-        copying:              perms.copying,
-        annotating:           perms.annotating,
-        fillingForms:         perms.annotating,
-        contentAccessibility: true,
-        documentAssembly:     false,
-      },
+    var bytes = new Uint8Array(ab);
+    var encryptFn = window.pdfEncryptLib && window.pdfEncryptLib.encryptPDF;
+    if (!encryptFn) throw new Error('PDF encryption library not loaded.');
+    var encrypted = await encryptFn(bytes, userPassword, {
+      ownerPassword:          ownerPassword,
+      algorithm:              'AES-256',
+      allowPrinting:          perms.printing,
+      allowHighQualityPrint:  perms.printing,
+      allowModifying:         perms.modifying,
+      allowCopying:           perms.copying,
+      allowAnnotating:        perms.annotating,
+      allowFillingForms:      perms.annotating,
+      allowExtraction:        perms.copying,
+      allowAssembly:          false,
     });
-    var bytes = await doc.save();
-    return new Blob([bytes], { type: 'application/pdf' });
+    return new Blob([encrypted], { type: 'application/pdf' });
   },
 
   /* ── APPLY EDITS & SAVE (edit-pdf) ───────────────── */

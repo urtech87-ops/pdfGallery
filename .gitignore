@@ -1,3 +1,11 @@
 wp-config.php
 .htaccess
 wp-content/debug.log
+node_modules/
+package-lock.json
+package.json
+pdf-decrypt-entry.js
+pdf-encrypt-entry.js
+pdf-lib-shim.js
+test-protected.pdf
+test-unlocked.pdf

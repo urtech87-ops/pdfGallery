@@ -69,6 +69,14 @@ function tg_enqueue_assets() {
             wp_enqueue_script('mammothjs', 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js', ['tg-pdf-tools'], null, true);
             $tool_runner_deps[] = 'mammothjs';
         }
+        if ($tg_handler === 'protect-pdf') {
+            wp_enqueue_script('tg-pdf-encrypt', get_template_directory_uri() . '/assets/js/pdf-encrypt.js', ['tg-pdf-tools'], $ver, true);
+            $tool_runner_deps[] = 'tg-pdf-encrypt';
+        }
+        if ($tg_handler === 'unlock-pdf') {
+            wp_enqueue_script('tg-pdf-decrypt', get_template_directory_uri() . '/assets/js/pdf-decrypt.js', ['tg-pdf-tools'], $ver, true);
+            $tool_runner_deps[] = 'tg-pdf-decrypt';
+        }
 
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
