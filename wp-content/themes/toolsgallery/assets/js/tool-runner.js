@@ -1181,9 +1181,9 @@
         if (editPdfDeleted.length >= (parseInt(box.dataset.pageCount || '1', 10))) {
           showInlineMsg('Cannot delete all pages — keep at least one page.'); return;
         }
-        /* Save current fabric objects for current page */
+        /* Save current page canvas JSON */
         if (editPdfFabric) {
-          editPdfPageObjects[editPdfPageIdx] = editPdfFabric.getObjects().map(function (obj) { return { json: obj.toJSON(['tgType','tgData']), tgType: obj.tgType, tgData: obj.tgData }; });
+          editPdfPageObjects[editPdfPageIdx] = editPdfFabric.toJSON(['tgType','tgData']);
         }
         startProgress();
         /* Build operations from fabric objects across all pages */
@@ -1193,23 +1193,25 @@
 
         Object.keys(editPdfPageObjects).forEach(function (pgIdx) {
           var pgIdxN = parseInt(pgIdx, 10);
-          var objs = editPdfPageObjects[pgIdx];
+          var canvasJson = editPdfPageObjects[pgIdx];
           var rh = renderedHeights[pgIdx] || 800;
-          objs.forEach(function (o) {
-            var j = o.json;
-            if (o.tgType === 'text') {
-              ops.push({ type: 'text', pageIndex: pgIdxN, text: j.text, x: j.left / scale, y: (rh - j.top - (j.fontSize || 12)) / scale, size: j.fontSize || 12, color: j.fill || '#000000', fontName: o.tgData && o.tgData.fontName ? o.tgData.fontName : 'Helvetica', bold: !!(o.tgData && o.tgData.bold) });
-            } else if (o.tgType === 'whiteout' || o.tgType === 'highlight' || o.tgType === 'rect') {
-              var fill = j.fill || (o.tgType === 'highlight' ? '#FFFF00' : '#FFFFFF');
-              ops.push({ type: 'rect', pageIndex: pgIdxN, x: j.left / scale, y: j.top / scale, width: j.width * (j.scaleX||1) / scale, height: j.height * (j.scaleY||1) / scale, color: fill, fill: true, opacity: j.opacity || (o.tgType === 'highlight' ? 0.3 : 1), borderColor: j.stroke || null, borderWidth: j.strokeWidth || 0 });
-            } else if (o.tgType === 'image' || o.tgType === 'signature') {
-              if (o.tgData && o.tgData.imageData) {
-                ops.push({ type: 'image', pageIndex: pgIdxN, x: j.left / scale, y: j.top / scale, width: j.width * (j.scaleX||1) / scale, height: j.height * (j.scaleY||1) / scale, imageData: o.tgData.imageData, isPng: o.tgData.isPng !== false });
+          var objects = (canvasJson && canvasJson.objects) ? canvasJson.objects : [];
+          objects.forEach(function (j) {
+            var tgType = j.tgType;
+            var tgData = j.tgData || {};
+            if (tgType === 'text') {
+              ops.push({ type: 'text', pageIndex: pgIdxN, text: j.text, x: j.left / scale, y: (rh - j.top - (j.fontSize || 12)) / scale, size: j.fontSize || 12, color: j.fill || '#000000', fontName: tgData.fontName || 'Helvetica', bold: !!tgData.bold });
+            } else if (tgType === 'whiteout' || tgType === 'highlight' || tgType === 'rect') {
+              var fill = j.fill || (tgType === 'highlight' ? '#FFFF00' : '#FFFFFF');
+              ops.push({ type: 'rect', pageIndex: pgIdxN, x: j.left / scale, y: j.top / scale, width: j.width * (j.scaleX||1) / scale, height: j.height * (j.scaleY||1) / scale, color: fill, fill: true, opacity: j.opacity || (tgType === 'highlight' ? 0.3 : 1), borderColor: j.stroke || null, borderWidth: j.strokeWidth || 0 });
+            } else if (tgType === 'image' || tgType === 'signature') {
+              if (tgData && tgData.imageData) {
+                ops.push({ type: 'image', pageIndex: pgIdxN, x: j.left / scale, y: j.top / scale, width: j.width * (j.scaleX||1) / scale, height: j.height * (j.scaleY||1) / scale, imageData: tgData.imageData, isPng: tgData.isPng !== false });
               }
-            } else if (o.tgType === 'line') {
+            } else if (tgType === 'line') {
               ops.push({ type: 'line', pageIndex: pgIdxN, x1: (j.left + j.x1) / scale, y1: j.top / scale, x2: (j.left + j.x2) / scale, y2: (j.top + j.height * (j.scaleY||1)) / scale, color: j.stroke || '#000000', thickness: j.strokeWidth || 1 });
-            } else if (o.tgType === 'ellipse') {
-              ops.push({ type: 'ellipse', pageIndex: pgIdxN, x: (j.left + j.width/2 * (j.scaleX||1)) / scale, y: (rh - j.top - j.height/2*(j.scaleY||1)) / scale, rx: j.rx * (j.scaleX||1) / scale, ry: j.ry * (j.scaleY||1) / scale, color: j.stroke || '#000000', borderWidth: j.strokeWidth || 1 });
+            } else if (tgType === 'ellipse') {
+              ops.push({ type: 'ellipse', pageIndex: pgIdxN, x: (j.left + j.width/2 * (j.scaleX||1)) / scale, y: (rh - j.top - j.height/2*(j.scaleY||1)) / scale, rx: (j.rx || 0) * (j.scaleX||1) / scale, ry: (j.ry || 0) * (j.scaleY||1) / scale, color: j.stroke || '#000000', borderWidth: j.strokeWidth || 1 });
             }
           });
         });
@@ -1599,6 +1601,7 @@
     if (existing) existing.parentNode.removeChild(existing);
 
     editPdfOps = []; editPdfDeleted = []; editPdfRotations = {}; editPdfPageIdx = 0; editPdfPageObjects = {};
+    editPdfUndoHistory = []; editPdfRedoHistory = [];
     box._editPdfRenderedHeights = {};
 
     var wrap = document.createElement('div');
@@ -1606,35 +1609,41 @@
     wrap.style.cssText = 'margin-top:12px';
     wrap.innerHTML =
       /* toolbar */
-      '<div class="tg-edit-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f5f5f5;border-radius:6px;margin-bottom:8px;position:sticky;top:0;z-index:10">' +
-        '<select id="ep-mode" class="tg-select" style="min-width:120px">' +
-          '<option value="text">Text</option>' +
-          '<option value="whiteout">Whiteout</option>' +
-          '<option value="highlight">Highlight</option>' +
-          '<option value="rectangle">Rectangle</option>' +
-          '<option value="ellipse">Ellipse</option>' +
-          '<option value="line">Line</option>' +
-          '<option value="sign">Signature</option>' +
-          '<option value="image">Insert Image</option>' +
-        '</select>' +
-        '<select id="ep-font" class="tg-select"><option value="Helvetica">Helvetica</option><option value="TimesRoman">Times Roman</option><option value="Courier">Courier</option></select>' +
-        '<select id="ep-fontsize" class="tg-select">' +
+      '<div class="tg-edit-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f5f5f5;border-radius:6px;margin-bottom:0;position:sticky;top:0;z-index:10;align-items:center;border-bottom:2px solid #E07B39">' +
+        '<button type="button" class="tg-ep-mode-btn tg-btn-xs" data-mode="text">✏ Text</button>' +
+        '<button type="button" class="tg-ep-mode-btn tg-btn-xs" data-mode="highlight">🖍 Highlight</button>' +
+        '<button type="button" class="tg-ep-mode-btn tg-btn-xs" data-mode="whiteout">⬜ Whiteout</button>' +
+        '<div style="position:relative;display:inline-block">' +
+          '<button type="button" id="ep-shapes-btn" class="tg-btn-xs">⬡ Shapes ▾</button>' +
+          '<div id="ep-shapes-menu" style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #ddd;border-radius:4px;z-index:20;min-width:130px;box-shadow:0 2px 8px rgba(0,0,0,.15);margin-top:2px">' +
+            '<button type="button" class="tg-ep-mode-btn" data-mode="rectangle" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:none;cursor:pointer;font-size:13px">▭ Rectangle</button>' +
+            '<button type="button" class="tg-ep-mode-btn" data-mode="ellipse" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:none;cursor:pointer;font-size:13px">⬤ Ellipse</button>' +
+            '<button type="button" class="tg-ep-mode-btn" data-mode="line" style="display:block;width:100%;text-align:left;padding:7px 12px;border:none;background:none;cursor:pointer;font-size:13px">╱ Line</button>' +
+          '</div>' +
+        '</div>' +
+        '<button type="button" class="tg-ep-mode-btn tg-btn-xs" data-mode="sign">✍ Sign</button>' +
+        '<button type="button" class="tg-btn-xs" id="ep-insert-img" title="Insert image">🖼 Image</button>' +
+        '<span style="width:1px;height:22px;background:#ccc;flex-shrink:0"></span>' +
+        '<select id="ep-font" class="tg-select" style="font-size:12px"><option value="Helvetica">Helvetica</option><option value="TimesRoman">Times Roman</option><option value="Courier">Courier</option></select>' +
+        '<select id="ep-fontsize" class="tg-select" style="font-size:12px;width:58px">' +
           '<option>8</option><option>10</option><option value="12" selected>12</option><option>14</option><option>16</option><option>18</option><option>24</option><option>36</option><option>48</option>' +
         '</select>' +
-        '<input type="color" id="ep-color" value="#000000" title="Color">' +
-        '<label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="ep-bold"> Bold</label>' +
+        '<input type="color" id="ep-color" value="#000000" title="Color" style="width:30px;height:26px;padding:0;border:1px solid #ccc;cursor:pointer;border-radius:3px">' +
+        '<label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" id="ep-bold"> Bold</label>' +
+        '<span style="width:1px;height:22px;background:#ccc;flex-shrink:0"></span>' +
         '<button type="button" class="tg-btn-xs" id="ep-undo">↩ Undo</button>' +
         '<button type="button" class="tg-btn-xs" id="ep-redo">↪ Redo</button>' +
         '<input type="file" id="ep-img-input" accept="image/*" style="display:none">' +
-        '<p style="font-size:11px;color:#888;margin:0;align-self:center">New text uses standard PDF fonts.</p>' +
       '</div>' +
+      /* hint box */
+      '<div id="ep-hint" style="background:#E07B39;color:#fff;padding:7px 14px;font-size:13px;font-weight:500;border-radius:0 0 4px 4px;margin-bottom:8px">💡 Click anywhere on the page to add text</div>' +
       /* body: side panel + main canvas */
       '<div style="display:flex;gap:10px">' +
         '<div class="tg-edit-sidepanel" style="width:110px;flex-shrink:0;overflow-y:auto;max-height:600px;border:1px solid #eee;border-radius:4px;padding:4px" id="ep-side"></div>' +
         '<div style="flex:1;overflow-x:auto">' +
-          '<div style="position:relative;display:inline-block" id="ep-canvas-wrap">' +
-            '<canvas id="ep-pdf-canvas" style="display:block"></canvas>' +
-            '<canvas id="ep-fabric-canvas" style="position:absolute;top:0;left:0"></canvas>' +
+          '<div class="tg-edit-canvas-wrap" style="position:relative;display:inline-block" id="ep-canvas-wrap">' +
+            '<canvas id="pdf-base-canvas" style="display:block"></canvas>' +
+            '<canvas id="pdf-edit-canvas" style="position:absolute;top:0;left:0;cursor:text"></canvas>' +
           '</div>' +
           '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
             '<button type="button" class="tg-btn-xs" id="ep-prev">◀ Prev</button>' +
@@ -1647,7 +1656,7 @@
           '</div>' +
           /* Signature pad (hidden by default) */
           '<div id="ep-sign-pad" style="display:none;margin-top:8px;border:1px solid #ccc;border-radius:4px;padding:8px">' +
-            '<p style="margin:0 0 6px;font-size:13px">Draw your signature:</p>' +
+            '<p style="margin:0 0 6px;font-size:13px;font-weight:600">Draw your signature:</p>' +
             '<canvas id="ep-sig-canvas" width="400" height="120" style="border:1px solid #ddd;background:#fff;cursor:crosshair;touch-action:none"></canvas>' +
             '<div style="margin-top:6px;display:flex;gap:6px">' +
               '<button type="button" class="tg-btn-xs" id="ep-sig-clear">Clear</button>' +
@@ -1659,20 +1668,9 @@
 
     if (actionBtn && actionBtn.parentNode) actionBtn.parentNode.insertBefore(wrap, actionBtn);
 
-    /* Load PDF.js doc */
-    file.arrayBuffer().then(function (ab) {
-      return pdfjsLib.getDocument({ data: ab }).promise;
-    }).then(function (pdfDoc) {
-      editPdfPdfDoc = pdfDoc;
-      box.dataset.pageCount = pdfDoc.numPages;
-      renderEditPage(0);
-      buildEditSidePanel(pdfDoc);
-    }).catch(function () {
-      wrap.innerHTML += '<p style="color:red">Could not load PDF for editing.</p>';
-    });
-
     /* Controls */
-    var modeEl    = wrap.querySelector('#ep-mode');
+    var currentMode = 'text';
+    var hintFirstTextAdded = false;
     var colorEl   = wrap.querySelector('#ep-color');
     var fontEl    = wrap.querySelector('#ep-font');
     var sizeEl    = wrap.querySelector('#ep-fontsize');
@@ -1680,15 +1678,85 @@
     var imgInput  = wrap.querySelector('#ep-img-input');
     var signPad   = wrap.querySelector('#ep-sign-pad');
     var sigCanvas = wrap.querySelector('#ep-sig-canvas');
+    var hintEl    = wrap.querySelector('#ep-hint');
+    var shapesBtn = wrap.querySelector('#ep-shapes-btn');
+    var shapesMenu= wrap.querySelector('#ep-shapes-menu');
+    var modeBtns  = wrap.querySelectorAll('.tg-ep-mode-btn');
 
-    /* Mode change */
-    if (modeEl) modeEl.addEventListener('change', function () {
-      if (modeEl.value === 'sign') { if (signPad) signPad.style.display = ''; }
-      else { if (signPad) signPad.style.display = 'none'; }
-      if (modeEl.value === 'image') { if (imgInput) imgInput.click(); modeEl.value = 'text'; }
+    /* ── Mode management ── */
+    function updateCursor(mode) {
+      /* Fabric wraps our canvas in a container and creates .upper-canvas */
+      var upperCanvas = wrap.querySelector('.upper-canvas');
+      var cursor = (mode === 'text') ? 'text' : (['highlight','whiteout','rectangle','ellipse','line'].indexOf(mode) !== -1 ? 'crosshair' : 'default');
+      if (upperCanvas) upperCanvas.style.cursor = cursor;
+      var editCanvasEl = wrap.querySelector('#pdf-edit-canvas');
+      if (editCanvasEl) editCanvasEl.style.cursor = cursor;
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      /* Button active styles */
+      modeBtns.forEach(function (btn) {
+        var bm = btn.getAttribute('data-mode');
+        if (bm === mode) {
+          btn.style.background = '#E07B39'; btn.style.color = '#fff';
+        } else {
+          btn.style.background = ''; btn.style.color = '';
+        }
+      });
+      /* Shapes parent button highlight */
+      if (shapesBtn) {
+        var isShape = ['rectangle','ellipse','line'].indexOf(mode) !== -1;
+        shapesBtn.style.background = isShape ? '#E07B39' : '';
+        shapesBtn.style.color = isShape ? '#fff' : '';
+      }
+      /* Hint text */
+      if (hintEl) {
+        if (mode === 'text' && !hintFirstTextAdded) {
+          hintEl.textContent = '💡 Click anywhere on the page to add text';
+          hintEl.style.display = '';
+        } else if (mode === 'highlight') {
+          hintEl.textContent = '💡 Click and drag to highlight an area';
+          hintEl.style.display = '';
+        } else if (mode === 'whiteout') {
+          hintEl.textContent = '💡 Click and drag to cover content';
+          hintEl.style.display = '';
+        } else if (['rectangle','ellipse','line'].indexOf(mode) !== -1) {
+          hintEl.textContent = '💡 Click and drag to draw a shape';
+          hintEl.style.display = '';
+        } else if (mode === 'sign') {
+          hintEl.textContent = '💡 Draw your signature below, then drag it into position';
+          hintEl.style.display = '';
+        } else {
+          hintEl.style.display = 'none';
+        }
+      }
+      updateCursor(mode);
+      if (signPad) signPad.style.display = (mode === 'sign') ? '' : 'none';
+    }
+
+    modeBtns.forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        var mode = btn.getAttribute('data-mode');
+        if (!mode) return;
+        if (shapesMenu) shapesMenu.style.display = 'none';
+        setMode(mode);
+        e.stopPropagation();
+      });
     });
 
-    /* Image insert */
+    /* Shapes dropdown */
+    if (shapesBtn) {
+      shapesBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (shapesMenu) shapesMenu.style.display = (shapesMenu.style.display === 'none' || shapesMenu.style.display === '') ? 'block' : 'none';
+      });
+    }
+    document.addEventListener('click', function () { if (shapesMenu) shapesMenu.style.display = 'none'; });
+
+    /* Image insert button */
+    var insertImgBtn = wrap.querySelector('#ep-insert-img');
+    if (insertImgBtn) insertImgBtn.addEventListener('click', function () { if (imgInput) imgInput.click(); });
     if (imgInput) imgInput.addEventListener('change', function () {
       var f = imgInput.files[0]; if (!f) return;
       var reader = new FileReader();
@@ -1699,9 +1767,8 @@
           img.set({ left: 50, top: 50, scaleX: 1, scaleY: 1 });
           img.tgType = 'image';
           img.tgData = { imageData: null, isPng: isPng, dataUrl: dataUrl };
-          /* Store raw bytes */
           f.arrayBuffer().then(function (imgAb) { img.tgData.imageData = new Uint8Array(imgAb); });
-          if (editPdfFabric) editPdfFabric.add(img);
+          if (editPdfFabric) { editPdfFabric.add(img); editPdfFabric.renderAll(); pushUndo(); }
         });
       };
       reader.readAsDataURL(f);
@@ -1717,58 +1784,74 @@
       sigCanvas.addEventListener('mouseup', function () { sigDrawing = false; });
       sigCanvas.addEventListener('mouseleave', function () { sigDrawing = false; });
       sigCtx.strokeStyle = '#000'; sigCtx.lineWidth = 2; sigCtx.lineCap = 'round';
-
       var sigClearBtn = wrap.querySelector('#ep-sig-clear');
       if (sigClearBtn) sigClearBtn.addEventListener('click', function () { sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height); });
-
       var sigAddBtn = wrap.querySelector('#ep-sig-add');
       if (sigAddBtn) sigAddBtn.addEventListener('click', function () {
         var dataUrl2 = sigCanvas.toDataURL('image/png');
         fabric.Image.fromURL(dataUrl2, function (img) {
           img.set({ left: 50, top: 50, scaleX: 0.5, scaleY: 0.5 });
           img.tgType = 'signature';
-          /* Convert dataUrl to bytes */
           var byteStr = atob(dataUrl2.split(',')[1]);
           var arr = new Uint8Array(byteStr.length);
           for (var bi = 0; bi < byteStr.length; bi++) arr[bi] = byteStr.charCodeAt(bi);
           img.tgData = { imageData: arr, isPng: true };
-          if (editPdfFabric) editPdfFabric.add(img);
+          if (editPdfFabric) { editPdfFabric.add(img); editPdfFabric.renderAll(); pushUndo(); }
         });
         if (signPad) signPad.style.display = 'none';
+        setMode('text');
       });
     }
 
-    /* Undo/Redo */
+    /* ── Undo/Redo (snapshot-based) ── */
+    function pushUndo() {
+      if (!editPdfFabric) return;
+      editPdfUndoHistory.push(JSON.stringify(editPdfFabric.toJSON(['tgType','tgData'])));
+      editPdfRedoHistory = [];
+    }
+
+    function doUndo() {
+      if (!editPdfFabric || !editPdfUndoHistory.length) return;
+      editPdfRedoHistory.push(JSON.stringify(editPdfFabric.toJSON(['tgType','tgData'])));
+      var prev = JSON.parse(editPdfUndoHistory.pop());
+      editPdfFabric.loadFromJSON(prev, function () { editPdfFabric.renderAll(); });
+    }
+
+    function doRedo() {
+      if (!editPdfFabric || !editPdfRedoHistory.length) return;
+      editPdfUndoHistory.push(JSON.stringify(editPdfFabric.toJSON(['tgType','tgData'])));
+      var next = JSON.parse(editPdfRedoHistory.pop());
+      editPdfFabric.loadFromJSON(next, function () { editPdfFabric.renderAll(); });
+    }
+
     var undoBtn = wrap.querySelector('#ep-undo');
     var redoBtn = wrap.querySelector('#ep-redo');
-    if (undoBtn) undoBtn.addEventListener('click', function () {
-      if (!editPdfFabric) return;
-      var objs = editPdfFabric.getObjects();
-      if (!objs.length) return;
-      var removed = objs[objs.length - 1];
-      editPdfUndoHistory.push(removed);
-      editPdfFabric.remove(removed);
-    });
-    if (redoBtn) redoBtn.addEventListener('click', function () {
-      if (!editPdfFabric || !editPdfUndoHistory.length) return;
-      var obj = editPdfUndoHistory.pop();
-      editPdfFabric.add(obj);
-    });
+    if (undoBtn) undoBtn.addEventListener('click', doUndo);
+    if (redoBtn) redoBtn.addEventListener('click', doRedo);
 
-    /* Keyboard Undo/Redo */
+    /* Keyboard shortcuts: Undo, Redo, Delete selected object */
     document.addEventListener('keydown', function (e) {
       if (!currentFile || handler !== 'edit-pdf') return;
-      if (e.ctrlKey && !e.shiftKey && e.key === 'z') { if (undoBtn) undoBtn.click(); e.preventDefault(); }
-      if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) { if (redoBtn) redoBtn.click(); e.preventDefault(); }
+      if (e.ctrlKey && !e.shiftKey && e.key === 'z') { doUndo(); e.preventDefault(); return; }
+      if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) { doRedo(); e.preventDefault(); return; }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && editPdfFabric) {
+        var activeObj = editPdfFabric.getActiveObject();
+        if (activeObj && activeObj.type !== 'i-text') {
+          pushUndo();
+          editPdfFabric.remove(activeObj);
+          editPdfFabric.renderAll();
+          e.preventDefault();
+        }
+      }
     });
 
     /* Page nav */
     var prevBtn = wrap.querySelector('#ep-prev');
     var nextBtn = wrap.querySelector('#ep-next');
     var delPageBtn = wrap.querySelector('#ep-del-page');
-    var zoomInBtn = wrap.querySelector('#ep-zoom-in');
+    var zoomInBtn  = wrap.querySelector('#ep-zoom-in');
     var zoomOutBtn = wrap.querySelector('#ep-zoom-out');
-    var rotCwBtn = wrap.querySelector('#ep-rot-cw');
+    var rotCwBtn   = wrap.querySelector('#ep-rot-cw');
 
     if (prevBtn) prevBtn.addEventListener('click', function () { if (editPdfPageIdx > 0) navigateEditPage(editPdfPageIdx - 1); });
     if (nextBtn) nextBtn.addEventListener('click', function () {
@@ -1782,78 +1865,69 @@
       delPageBtn.textContent = editPdfDeleted.indexOf(editPdfPageIdx) !== -1 ? '✓ Restore page' : '🗑 Delete page';
       buildEditSidePanel(editPdfPdfDoc);
     });
-    if (zoomInBtn) zoomInBtn.addEventListener('click', function () { editPdfRenderScale = Math.min(editPdfRenderScale + 0.25, 4); navigateEditPage(editPdfPageIdx); });
+    if (zoomInBtn)  zoomInBtn.addEventListener('click', function () { editPdfRenderScale = Math.min(editPdfRenderScale + 0.25, 4); navigateEditPage(editPdfPageIdx); });
     if (zoomOutBtn) zoomOutBtn.addEventListener('click', function () { editPdfRenderScale = Math.max(editPdfRenderScale - 0.25, 0.5); navigateEditPage(editPdfPageIdx); });
-    if (rotCwBtn) rotCwBtn.addEventListener('click', function () {
+    if (rotCwBtn)   rotCwBtn.addEventListener('click', function () {
       editPdfRotations[editPdfPageIdx] = ((editPdfRotations[editPdfPageIdx] || 0) + 90) % 360;
       rotCwBtn.textContent = '↻ ' + (editPdfRotations[editPdfPageIdx] || 0) + '°';
     });
 
-    /* Canvas click for text/shapes */
-    function onCanvasClick(e) {
+    /* ── Fabric mouse handler ── */
+    function onFabricMouseDown(e) {
       if (!editPdfFabric) return;
-      var mode = modeEl ? modeEl.value : 'text';
-      var color = colorEl ? colorEl.value : '#000000';
-      var fontSize = sizeEl ? parseInt(sizeEl.value) : 12;
+      /* If user clicked an existing object (other than background), let Fabric handle it */
+      if (e.target) return;
+
+      var mode   = currentMode;
+      var color  = colorEl ? colorEl.value : '#000000';
+      var fontSize = sizeEl ? parseInt(sizeEl.value, 10) : 12;
       var fontName = fontEl ? fontEl.value : 'Helvetica';
       var isBold = boldEl ? boldEl.checked : false;
 
       if (mode === 'text') {
-        /* Float a text input at click position */
-        var pointer = editPdfFabric.getPointer(e.e || e);
-        var input = document.createElement('input');
-        input.type = 'text';
-        input.placeholder = 'Type text, press Enter';
-        input.style.cssText = 'position:absolute;left:' + (e.pointer ? e.pointer.x : pointer.x) + 'px;top:' + (e.pointer ? e.pointer.y : pointer.y) + 'px;z-index:100;padding:2px;font-size:' + fontSize + 'px;border:1px dashed #E07B39;background:rgba(255,255,255,.9)';
-        var canvasWrap2 = box.querySelector('#ep-canvas-wrap');
-        if (!canvasWrap2) return;
-        canvasWrap2.style.position = 'relative';
-        canvasWrap2.appendChild(input);
-        input.focus();
-        function commitText() {
-          var txt = input.value.trim();
-          if (txt) {
-            var fbFontName = (isBold ? fontName + '-Bold' : fontName).replace('TimesRoman', 'Times-Roman');
-            var obj = new fabric.Text(txt, {
-              left: pointer.x, top: pointer.y,
-              fontSize: fontSize, fill: color,
-              fontFamily: fbFontName,
-              selectable: true,
-            });
-            obj.tgType = 'text';
-            obj.tgData = { fontName: fontName.replace('TimesRoman','TimesRoman'), bold: isBold };
-            editPdfFabric.add(obj);
-          }
-          if (input.parentNode) input.parentNode.removeChild(input);
-          editPdfFabric.off('mouse:down', onFabricMouseDown);
+        var pointer = editPdfFabric.getPointer(e.e);
+        var fbFontFamily = fontName.replace('TimesRoman', 'Times New Roman');
+        var itext = new fabric.IText('Click to edit', {
+          left: pointer.x,
+          top: pointer.y,
+          fontFamily: fbFontFamily,
+          fontSize: fontSize,
+          fill: color,
+          fontWeight: isBold ? 'bold' : 'normal',
+          editable: true,
+          selectable: true,
+        });
+        itext.tgType = 'text';
+        itext.tgData = { fontName: fontName, bold: isBold };
+        editPdfFabric.add(itext);
+        editPdfFabric.setActiveObject(itext);
+        itext.enterEditing();
+        itext.selectAll();
+        editPdfFabric.renderAll();
+        /* Hide hint after first text is placed */
+        if (!hintFirstTextAdded) {
+          hintFirstTextAdded = true;
+          if (hintEl) hintEl.style.display = 'none';
         }
-        input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') commitText(); if (ev.key === 'Escape') { if (input.parentNode) input.parentNode.removeChild(input); } });
-        input.addEventListener('blur', commitText);
+        itext.on('editing:exited', function () { pushUndo(); });
+        return;
       }
-    }
 
-    function onFabricMouseDown(e) {
-      if (!editPdfFabric) return;
-      var mode = modeEl ? modeEl.value : 'text';
-      var color = colorEl ? colorEl.value : '#000000';
-
-      if (mode === 'text') { onCanvasClick(e); return; }
-
-      var pointer = editPdfFabric.getPointer(e.e);
-      var startX = pointer.x, startY = pointer.y;
+      var pointer2 = editPdfFabric.getPointer(e.e);
+      var startX = pointer2.x, startY = pointer2.y;
       var shape = null;
 
       if (mode === 'whiteout') {
-        shape = new fabric.Rect({ left: startX, top: startY, width: 0, height: 0, fill: '#ffffff', selectable: false, opacity: 1 });
+        shape = new fabric.Rect({ left: startX, top: startY, width: 1, height: 1, fill: 'rgba(255,255,255,1)', selectable: false });
         shape.tgType = 'whiteout';
       } else if (mode === 'highlight') {
-        shape = new fabric.Rect({ left: startX, top: startY, width: 0, height: 0, fill: '#FFFF00', selectable: false, opacity: 0.35 });
+        shape = new fabric.Rect({ left: startX, top: startY, width: 1, height: 1, fill: 'rgba(255,255,0,0.35)', selectable: false });
         shape.tgType = 'highlight';
       } else if (mode === 'rectangle') {
-        shape = new fabric.Rect({ left: startX, top: startY, width: 0, height: 0, fill: 'transparent', stroke: color, strokeWidth: 2, selectable: false });
+        shape = new fabric.Rect({ left: startX, top: startY, width: 1, height: 1, fill: 'transparent', stroke: color, strokeWidth: 2, selectable: false });
         shape.tgType = 'rect';
       } else if (mode === 'ellipse') {
-        shape = new fabric.Ellipse({ left: startX, top: startY, rx: 0, ry: 0, fill: 'transparent', stroke: color, strokeWidth: 2, selectable: false });
+        shape = new fabric.Ellipse({ left: startX, top: startY, rx: 1, ry: 1, fill: 'transparent', stroke: color, strokeWidth: 2, selectable: false });
         shape.tgType = 'ellipse';
       } else if (mode === 'line') {
         shape = new fabric.Line([startX, startY, startX, startY], { stroke: color, strokeWidth: 2, selectable: false });
@@ -1862,38 +1936,41 @@
 
       if (shape) {
         editPdfFabric.add(shape);
-        editPdfFabric.on('mouse:move', function onMove(me) {
+        var onMove = function (me) {
           var p = editPdfFabric.getPointer(me.e);
           if (mode === 'whiteout' || mode === 'highlight' || mode === 'rectangle') {
-            shape.set({ width: Math.abs(p.x - startX), height: Math.abs(p.y - startY), left: Math.min(p.x, startX), top: Math.min(p.y, startY) });
+            shape.set({ width: Math.max(1, Math.abs(p.x - startX)), height: Math.max(1, Math.abs(p.y - startY)), left: Math.min(p.x, startX), top: Math.min(p.y, startY) });
           } else if (mode === 'ellipse') {
-            shape.set({ rx: Math.abs(p.x - startX) / 2, ry: Math.abs(p.y - startY) / 2, left: Math.min(p.x, startX), top: Math.min(p.y, startY) });
+            var rx = Math.max(1, Math.abs(p.x - startX) / 2), ry = Math.max(1, Math.abs(p.y - startY) / 2);
+            shape.set({ rx: rx, ry: ry, left: Math.min(p.x, startX), top: Math.min(p.y, startY) });
           } else if (mode === 'line') {
             shape.set({ x2: p.x, y2: p.y });
           }
           editPdfFabric.renderAll();
-        });
+        };
+        editPdfFabric.on('mouse:move', onMove);
         editPdfFabric.once('mouse:up', function () {
+          editPdfFabric.off('mouse:move', onMove);
           shape.set('selectable', true);
-          editPdfFabric.off('mouse:move');
           editPdfFabric.setActiveObject(shape);
           editPdfFabric.renderAll();
+          pushUndo();
         });
       }
     }
 
     function setupFabricCanvas(w, h) {
-      var existing2 = editPdfFabric;
-      if (existing2) {
-        existing2.off('mouse:down', onFabricMouseDown);
-        existing2.dispose();
+      if (editPdfFabric) {
+        editPdfFabric.off('mouse:down', onFabricMouseDown);
+        editPdfFabric.dispose();
         editPdfFabric = null;
       }
-      var fc = new fabric.Canvas('ep-fabric-canvas', { selection: true, preserveObjectStacking: true });
+      var fc = new fabric.Canvas('pdf-edit-canvas', { selection: true, preserveObjectStacking: true });
       fc.setWidth(w);
       fc.setHeight(h);
       editPdfFabric = fc;
       fc.on('mouse:down', onFabricMouseDown);
+      updateCursor(currentMode);
       return fc;
     }
 
@@ -1902,32 +1979,19 @@
       var pageNum = pageIdx + 1;
       editPdfPdfDoc.getPage(pageNum).then(function (page) {
         var viewport = page.getViewport({ scale: editPdfRenderScale });
-        var pdfCanvas = box.querySelector('#ep-pdf-canvas');
-        var fabCanvasEl = box.querySelector('#ep-fabric-canvas');
-        if (!pdfCanvas || !fabCanvasEl) return;
+        var pdfCanvas = box.querySelector('#pdf-base-canvas');
+        if (!pdfCanvas) return;
         pdfCanvas.width = viewport.width;
         pdfCanvas.height = viewport.height;
-        fabCanvasEl.width = viewport.width;
-        fabCanvasEl.height = viewport.height;
         box._editPdfRenderedHeights[pageIdx] = viewport.height;
 
         var ctx3 = pdfCanvas.getContext('2d');
         page.render({ canvasContext: ctx3, viewport: viewport }).promise.then(function () {
-          setupFabricCanvas(viewport.width, viewport.height);
-          /* Restore objects for this page */
+          var fc = setupFabricCanvas(viewport.width, viewport.height);
+          /* Restore saved canvas JSON for this page */
           if (editPdfPageObjects[pageIdx]) {
-            editPdfPageObjects[pageIdx].forEach(function (saved) {
-              fabric.util.enlivenObjects([saved.json], function (objs) {
-                objs.forEach(function (o) {
-                  o.tgType = saved.tgType;
-                  o.tgData = saved.tgData;
-                  editPdfFabric.add(o);
-                });
-                editPdfFabric.renderAll();
-              });
-            });
+            fc.loadFromJSON(editPdfPageObjects[pageIdx], function () { fc.renderAll(); });
           }
-          /* Update page label */
           var lbl2 = box.querySelector('#ep-page-label');
           if (lbl2) lbl2.textContent = 'Page ' + pageNum + ' of ' + editPdfPdfDoc.numPages;
           var delPg = box.querySelector('#ep-del-page');
@@ -1937,13 +2001,13 @@
     }
 
     function navigateEditPage(newIdx) {
-      /* Save current page fabric objects */
+      /* Persist current page annotations */
       if (editPdfFabric) {
-        editPdfPageObjects[editPdfPageIdx] = editPdfFabric.getObjects().map(function (obj) { return { json: obj.toJSON(['tgType','tgData']), tgType: obj.tgType, tgData: obj.tgData }; });
+        editPdfPageObjects[editPdfPageIdx] = editPdfFabric.toJSON(['tgType','tgData']);
       }
       editPdfPageIdx = newIdx;
+      editPdfUndoHistory = []; editPdfRedoHistory = [];
       renderEditPage(newIdx);
-      /* Highlight side panel thumbnail */
       var cards = box.querySelectorAll('.tg-ep-thumb');
       cards.forEach(function (c, ci) { c.style.borderColor = ci === newIdx ? '#E07B39' : '#ccc'; });
     }
@@ -1956,7 +2020,7 @@
         pages.forEach(function (p, idx) {
           var card2 = document.createElement('div');
           card2.className = 'tg-ep-thumb';
-          card2.style.cssText = 'border:2px solid ' + (idx === editPdfPageIdx ? '#E07B39' : '#ccc') + ';border-radius:4px;padding:3px;margin-bottom:6px;cursor:pointer;text-align:center;position:relative;opacity:' + (editPdfDeleted.indexOf(idx) !== -1 ? '0.4' : '1');
+          card2.style.cssText = 'border:2px solid ' + (idx === editPdfPageIdx ? '#E07B39' : '#ccc') + ';border-radius:4px;padding:3px;margin-bottom:6px;cursor:pointer;text-align:center;opacity:' + (editPdfDeleted.indexOf(idx) !== -1 ? '0.4' : '1');
           var tc = p.canvas.cloneNode(true);
           tc.style.cssText = 'max-width:90px;height:auto;display:block;margin:0 auto';
           card2.appendChild(tc);
@@ -1969,6 +2033,21 @@
         });
       });
     }
+
+    /* Load PDF.js doc */
+    file.arrayBuffer().then(function (ab) {
+      return pdfjsLib.getDocument({ data: ab }).promise;
+    }).then(function (pdfDoc) {
+      editPdfPdfDoc = pdfDoc;
+      box.dataset.pageCount = pdfDoc.numPages;
+      renderEditPage(0);
+      buildEditSidePanel(pdfDoc);
+    }).catch(function () {
+      wrap.innerHTML += '<p style="color:red">Could not load PDF for editing.</p>';
+    });
+
+    /* Activate text mode by default */
+    setMode('text');
   }
 
   /* -----------------------------------------------
