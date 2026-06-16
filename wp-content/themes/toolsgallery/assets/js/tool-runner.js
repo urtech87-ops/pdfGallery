@@ -1066,18 +1066,36 @@
       if (handler === 'word-to-pdf') {
         if (!currentFile) return;
         startProgress();
+        if (!window.mammoth) {
+          finishProgress(true);
+          showErrorResult('Conversion library not loaded. Please refresh the page.');
+          return;
+        }
         currentFile.arrayBuffer().then(function (ab) {
-          return mammoth.convertToHtml({ arrayBuffer: ab });
+          return window.mammoth.convertToHtml({ arrayBuffer: ab });
         }).then(function (result) {
           finishProgress();
           var html = result.value;
-          var printHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' +
-            'body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.5;margin:2cm}' +
-            'h1,h2,h3{page-break-after:avoid}p{page-break-inside:avoid}' +
-            '@media print{body{margin:0}}' +
-            '</style></head><body>' + html + '</body></html>';
+          var printHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + currentFile.name + '</title><style>' +
+            'body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.5;margin:2cm;color:#000}' +
+            'h1,h2,h3{page-break-after:avoid}p{page-break-inside:avoid;margin:0 0 0.5em}' +
+            '@media print{body{margin:0}.no-print{display:none}}' +
+            '</style></head><body>' +
+            '<div class="no-print" style="background:#fff3cd;padding:12px;margin-bottom:20px;border-radius:6px;font-size:13px;">' +
+            '<strong>To save as PDF:</strong> Press Ctrl+P &rarr; Select &ldquo;Save as PDF&rdquo; as printer &rarr; Click Save' +
+            '</div>' +
+            html + '</body></html>';
           /* Store for "Open Document" button */
           box._wordToPdfHtml = printHtml;
+          /* Open in new window immediately */
+          var win = window.open('', '_blank');
+          if (!win) {
+            showErrorResult('Popup blocked. Please allow popups for this site and try again.');
+            return;
+          }
+          win.document.write(printHtml);
+          win.document.close();
+          win.focus();
           /* Show instruction result */
           if (resultEl) {
             resultEl.hidden = false;
@@ -1086,19 +1104,19 @@
           }
           var msgEl = resultEl ? resultEl.querySelector('.tg-success-msg') : null;
           if (msgEl) {
-            msgEl.innerHTML = '<strong>Print to PDF in 3 steps:</strong><ol style="margin:8px 0 0 16px">' +
-              '<li>Click <strong>Open Document</strong> below</li>' +
+            msgEl.innerHTML = '&#10003; Document opened in new tab.<br><strong>To save as PDF:</strong><ol style="margin:8px 0 0 16px">' +
+              '<li>Switch to the new tab that opened</li>' +
               '<li>Press <kbd>Ctrl+P</kbd> (or <kbd>Cmd+P</kbd> on Mac)</li>' +
-              '<li>Choose <strong>Save as PDF</strong> as the printer</li></ol>';
+              '<li>Choose <strong>Save as PDF</strong> as the printer, then Save</li></ol>';
             msgEl.hidden = false;
           }
           if (downloadBtn) {
-            downloadBtn.textContent = 'Open Document';
+            downloadBtn.textContent = 'Open Document Again';
             downloadBtn.hidden = false;
             downloadBtn.onclick = function (e) {
               e.preventDefault();
-              var win = window.open('', '_blank');
-              if (win) { win.document.write(box._wordToPdfHtml || ''); win.document.close(); win.focus(); }
+              var w = window.open('', '_blank');
+              if (w) { w.document.write(box._wordToPdfHtml || ''); w.document.close(); w.focus(); }
             };
           }
         }).catch(function (e) { finishProgress(true); showErrorResult('Could not convert Word file: ' + (e && e.message ? e.message : 'unknown error')); });
