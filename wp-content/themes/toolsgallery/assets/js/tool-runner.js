@@ -39,6 +39,23 @@
   var rotationState    = {};
   var rotationOriginal = {};
 
+  /* Phase 3B state */
+  var editPdfOps       = [];    /* edit-pdf: operation stack */
+  var editPdfDeleted   = [];    /* edit-pdf: deleted page indices */
+  var editPdfRotations = {};    /* edit-pdf: per-page rotation degrees */
+  var editPdfPageIdx   = 0;     /* edit-pdf: current page index (0-based) */
+  var editPdfPdfDoc    = null;  /* edit-pdf: pdfjsLib document */
+  var editPdfFabric    = null;  /* edit-pdf: Fabric.js canvas */
+  var editPdfPageObjects = {};  /* edit-pdf: fabricObjects per page index */
+  var editPdfRenderScale = 1.5;
+  var editPdfUndoHistory = [];
+  var editPdfRedoHistory = [];
+
+  var rearrangeOrder   = [];    /* rearrange-pdf: current page order (0-based indices) */
+  var rearrangeDeleted = {};    /* rearrange-pdf: deleted original indices */
+
+  var extractResults   = null;  /* extract-text: last results */
+
   if (accept && fileInput) fileInput.setAttribute('accept', accept);
 
   /* -----------------------------------------------
@@ -254,6 +271,247 @@
           '</select>' +
         '</div>';
     }
+
+    if (h === 'unlock-pdf') {
+      container.innerHTML =
+        '<label class="tg-opt-label" for="unlock-password">PDF Password</label>' +
+        '<input type="password" id="unlock-password" class="tg-text-input" placeholder="Enter PDF password">' +
+        '<p class="tg-opt-info">Leave blank to remove owner/permissions restrictions only.</p>';
+    }
+
+    if (h === 'protect-pdf') {
+      container.innerHTML =
+        '<label class="tg-opt-label" for="protect-pw">Open Password <span class="tg-opt-hint">(required to open the PDF)</span></label>' +
+        '<input type="password" id="protect-pw" class="tg-text-input" placeholder="Set a password to open this PDF">' +
+        '<label class="tg-opt-label" for="protect-pw2" style="margin-top:10px">Confirm Password</label>' +
+        '<input type="password" id="protect-pw2" class="tg-text-input" placeholder="Repeat the password">' +
+        '<details style="margin-top:12px"><summary class="tg-opt-label" style="cursor:pointer">Advanced permissions</summary>' +
+        '<div class="tg-checkbox-group" style="margin-top:8px">' +
+          '<label><input type="checkbox" id="perm-print" checked> Allow Printing</label>' +
+          '<label><input type="checkbox" id="perm-copy" checked> Allow Copying Text</label>' +
+          '<label><input type="checkbox" id="perm-edit" checked> Allow Editing</label>' +
+          '<label><input type="checkbox" id="perm-comment" checked> Allow Commenting</label>' +
+        '</div></details>';
+    }
+
+    if (h === 'pdf-to-png') {
+      container.innerHTML =
+        '<label class="tg-opt-label">Resolution</label>' +
+        '<div class="tg-radio-group">' +
+          '<label><input type="radio" name="png-res" value="standard" checked> Standard (150 DPI, scale 2×)</label>' +
+          '<label><input type="radio" name="png-res" value="high"> High (300 DPI, scale 4×)</label>' +
+          '<label><input type="radio" name="png-res" value="ultra"> Ultra (600 DPI, scale 8×)</label>' +
+        '</div>' +
+        '<label class="tg-opt-label" style="margin-top:12px">Pages</label>' +
+        '<div class="tg-radio-group">' +
+          '<label><input type="radio" name="png-pages" value="all" checked> All pages</label>' +
+          '<label><input type="radio" name="png-pages" value="specific"> Specific pages</label>' +
+        '</div>' +
+        '<div id="png-pages-wrap" hidden>' +
+          '<input type="text" id="png-pages-input" class="tg-text-input" placeholder="e.g. 1,3,5-8">' +
+        '</div>';
+      container.querySelectorAll('input[name="png-pages"]').forEach(function (r) {
+        r.addEventListener('change', function () {
+          var w = container.querySelector('#png-pages-wrap');
+          if (w) w.hidden = r.value !== 'specific';
+        });
+      });
+    }
+
+    if (h === 'add-watermark') {
+      container.innerHTML =
+        '<div class="tg-tab-group" style="margin-bottom:12px">' +
+          '<button type="button" class="tg-tab-btn tg-tab-btn--active" data-tab="wm-text">Text Watermark</button>' +
+          '<button type="button" class="tg-tab-btn" data-tab="wm-image">Image Watermark</button>' +
+        '</div>' +
+        '<div id="wm-text" class="tg-tab-pane">' +
+          '<label class="tg-opt-label">Watermark Text</label>' +
+          '<input type="text" id="wm-text-input" class="tg-text-input" placeholder="e.g. CONFIDENTIAL">' +
+          '<div class="tg-opt-row" style="margin-top:10px">' +
+            '<label class="tg-opt-label" for="wm-font">Font</label>' +
+            '<select id="wm-font" class="tg-select"><option value="Helvetica" selected>Helvetica</option><option value="Times Roman">Times Roman</option><option value="Courier">Courier</option></select>' +
+          '</div>' +
+          '<div class="tg-opt-row">' +
+            '<label class="tg-opt-label" for="wm-size">Font Size</label>' +
+            '<input type="range" id="wm-size" min="12" max="120" value="48" style="flex:1"> <span id="wm-size-val">48</span>' +
+          '</div>' +
+          '<div class="tg-opt-row">' +
+            '<label class="tg-opt-label" for="wm-color">Color</label>' +
+            '<input type="color" id="wm-color" value="#FF0000">' +
+          '</div>' +
+          '<div class="tg-opt-row">' +
+            '<label class="tg-opt-label" for="wm-opacity">Opacity</label>' +
+            '<input type="range" id="wm-opacity" min="5" max="100" value="30" style="flex:1"> <span id="wm-opacity-val">30%</span>' +
+          '</div>' +
+          '<div class="tg-opt-row">' +
+            '<label class="tg-opt-label" for="wm-rotation">Rotation</label>' +
+            '<input type="range" id="wm-rotation" min="-180" max="180" value="-45" style="flex:1"> <span id="wm-rotation-val">-45°</span>' +
+          '</div>' +
+          '<label class="tg-opt-label" style="margin-top:8px">Position</label>' +
+          '<div class="tg-wm-pos-grid">' +
+            '<button type="button" class="tg-pos-btn" data-pos="top-left">↖ Top Left</button>' +
+            '<button type="button" class="tg-pos-btn" data-pos="top-center">↑ Top Center</button>' +
+            '<button type="button" class="tg-pos-btn" data-pos="top-right">↗ Top Right</button>' +
+            '<button type="button" class="tg-pos-btn" data-pos="middle-left">← Mid Left</button>' +
+            '<button type="button" class="tg-pos-btn tg-pos-btn--active" data-pos="center">Center</button>' +
+            '<button type="button" class="tg-pos-btn" data-pos="middle-right">→ Mid Right</button>' +
+            '<button type="button" class="tg-pos-btn" data-pos="bottom-left">↙ Bot Left</button>' +
+            '<button type="button" class="tg-pos-btn" data-pos="bottom-center">↓ Bot Center</button>' +
+            '<button type="button" class="tg-pos-btn" data-pos="bottom-right">↘ Bot Right</button>' +
+            '<button type="button" class="tg-pos-btn" data-pos="diagonal" style="grid-column:1/-1">⟋ Diagonal (Tiled)</button>' +
+          '</div>' +
+          '<label class="tg-opt-label" style="margin-top:8px">Apply to</label>' +
+          '<div class="tg-radio-group">' +
+            '<label><input type="radio" name="wm-pages" value="all" checked> All pages</label>' +
+            '<label><input type="radio" name="wm-pages" value="first"> First page only</label>' +
+            '<label><input type="radio" name="wm-pages" value="custom"> Custom range</label>' +
+          '</div>' +
+          '<input type="text" id="wm-page-range" class="tg-text-input" placeholder="e.g. 1,3,5-8" hidden>' +
+        '</div>' +
+        '<div id="wm-image" class="tg-tab-pane" hidden>' +
+          '<label class="tg-opt-label">Watermark Image <span class="tg-opt-hint">(PNG recommended for transparency)</span></label>' +
+          '<input type="file" id="wm-image-file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" class="tg-text-input">' +
+          '<div class="tg-opt-row" style="margin-top:10px">' +
+            '<label class="tg-opt-label" for="wm-img-opacity">Opacity</label>' +
+            '<input type="range" id="wm-img-opacity" min="5" max="100" value="30" style="flex:1"> <span id="wm-img-opacity-val">30%</span>' +
+          '</div>' +
+          '<div class="tg-opt-row">' +
+            '<label class="tg-opt-label" for="wm-img-scale">Scale (% of page width)</label>' +
+            '<input type="range" id="wm-img-scale" min="10" max="100" value="50" style="flex:1"> <span id="wm-img-scale-val">50%</span>' +
+          '</div>' +
+          '<label class="tg-opt-label" style="margin-top:8px">Position</label>' +
+          '<div class="tg-wm-pos-grid" id="wm-img-pos-grid">' +
+            '<button type="button" class="tg-pos-btn" data-imgpos="top-left">↖ Top Left</button>' +
+            '<button type="button" class="tg-pos-btn" data-imgpos="top-center">↑ Top Center</button>' +
+            '<button type="button" class="tg-pos-btn" data-imgpos="top-right">↗ Top Right</button>' +
+            '<button type="button" class="tg-pos-btn" data-imgpos="middle-left">← Mid Left</button>' +
+            '<button type="button" class="tg-pos-btn tg-pos-btn--active" data-imgpos="center">Center</button>' +
+            '<button type="button" class="tg-pos-btn" data-imgpos="middle-right">→ Mid Right</button>' +
+            '<button type="button" class="tg-pos-btn" data-imgpos="bottom-left">↙ Bot Left</button>' +
+            '<button type="button" class="tg-pos-btn" data-imgpos="bottom-center">↓ Bot Center</button>' +
+            '<button type="button" class="tg-pos-btn" data-imgpos="bottom-right">↘ Bot Right</button>' +
+          '</div>' +
+          '<label class="tg-opt-label" style="margin-top:8px">Apply to</label>' +
+          '<div class="tg-radio-group">' +
+            '<label><input type="radio" name="wm-img-pages" value="all" checked> All pages</label>' +
+            '<label><input type="radio" name="wm-img-pages" value="first"> First page only</label>' +
+            '<label><input type="radio" name="wm-img-pages" value="custom"> Custom range</label>' +
+          '</div>' +
+          '<input type="text" id="wm-img-page-range" class="tg-text-input" placeholder="e.g. 1,3,5-8" hidden>' +
+        '</div>';
+
+      /* Tab switching */
+      container.querySelectorAll('.tg-tab-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          container.querySelectorAll('.tg-tab-btn').forEach(function (b) { b.classList.remove('tg-tab-btn--active'); });
+          container.querySelectorAll('.tg-tab-pane').forEach(function (p) { p.hidden = true; });
+          btn.classList.add('tg-tab-btn--active');
+          var pane = container.querySelector('#' + btn.dataset.tab);
+          if (pane) pane.hidden = false;
+        });
+      });
+      /* Slider live labels */
+      function linkSlider(id, valId, suffix) {
+        var sl = container.querySelector('#' + id), vl = container.querySelector('#' + valId);
+        if (sl && vl) sl.addEventListener('input', function () { vl.textContent = sl.value + suffix; });
+      }
+      linkSlider('wm-size', 'wm-size-val', '');
+      linkSlider('wm-opacity', 'wm-opacity-val', '%');
+      linkSlider('wm-rotation', 'wm-rotation-val', '°');
+      linkSlider('wm-img-opacity', 'wm-img-opacity-val', '%');
+      linkSlider('wm-img-scale', 'wm-img-scale-val', '%');
+      /* Position buttons */
+      container.querySelectorAll('.tg-pos-btn[data-pos]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          container.querySelectorAll('.tg-pos-btn[data-pos]').forEach(function (b) { b.classList.remove('tg-pos-btn--active'); });
+          btn.classList.add('tg-pos-btn--active');
+        });
+      });
+      container.querySelectorAll('.tg-pos-btn[data-imgpos]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          container.querySelectorAll('.tg-pos-btn[data-imgpos]').forEach(function (b) { b.classList.remove('tg-pos-btn--active'); });
+          btn.classList.add('tg-pos-btn--active');
+        });
+      });
+      /* Custom page range visibility */
+      container.querySelectorAll('input[name="wm-pages"]').forEach(function (r) {
+        r.addEventListener('change', function () {
+          var el = container.querySelector('#wm-page-range');
+          if (el) el.hidden = r.value !== 'custom';
+        });
+      });
+      container.querySelectorAll('input[name="wm-img-pages"]').forEach(function (r) {
+        r.addEventListener('change', function () {
+          var el = container.querySelector('#wm-img-page-range');
+          if (el) el.hidden = r.value !== 'custom';
+        });
+      });
+    }
+
+    if (h === 'add-page-numbers') {
+      container.innerHTML =
+        '<label class="tg-opt-label">Position</label>' +
+        '<div class="tg-pn-pos-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px">' +
+          '<label class="tg-pos-radio"><input type="radio" name="pn-pos" value="top-left"> Top Left</label>' +
+          '<label class="tg-pos-radio"><input type="radio" name="pn-pos" value="top-center"> Top Center</label>' +
+          '<label class="tg-pos-radio"><input type="radio" name="pn-pos" value="top-right"> Top Right</label>' +
+          '<label class="tg-pos-radio"><input type="radio" name="pn-pos" value="bottom-left"> Bottom Left</label>' +
+          '<label class="tg-pos-radio"><input type="radio" name="pn-pos" value="bottom-center" checked> Bottom Center</label>' +
+          '<label class="tg-pos-radio"><input type="radio" name="pn-pos" value="bottom-right"> Bottom Right</label>' +
+        '</div>' +
+        '<div class="tg-opt-row">' +
+          '<label class="tg-opt-label" for="pn-format">Format</label>' +
+          '<select id="pn-format" class="tg-select">' +
+            '<option value="1">1</option><option value="Page 1">Page 1</option>' +
+            '<option value="1 of N">1 of N</option><option value="Page 1 of N">Page 1 of N</option>' +
+            '<option value="- 1 -">- 1 -</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="tg-opt-row">' +
+          '<label class="tg-opt-label" for="pn-start">Starting Number</label>' +
+          '<input type="number" id="pn-start" class="tg-text-input" value="1" min="1" style="width:80px">' +
+        '</div>' +
+        '<div class="tg-opt-row">' +
+          '<label class="tg-opt-label" for="pn-font">Font</label>' +
+          '<select id="pn-font" class="tg-select"><option value="Helvetica" selected>Helvetica</option><option value="Times Roman">Times Roman</option><option value="Courier">Courier</option></select>' +
+        '</div>' +
+        '<div class="tg-opt-row">' +
+          '<label class="tg-opt-label" for="pn-size">Font Size</label>' +
+          '<input type="range" id="pn-size" min="8" max="24" value="10" style="flex:1"> <span id="pn-size-val">10</span>' +
+        '</div>' +
+        '<div class="tg-opt-row">' +
+          '<label class="tg-opt-label" for="pn-color">Color</label>' +
+          '<input type="color" id="pn-color" value="#000000">' +
+        '</div>' +
+        '<div class="tg-opt-row">' +
+          '<label class="tg-opt-label" for="pn-margin">Margin from edge</label>' +
+          '<input type="range" id="pn-margin" min="20" max="60" value="30" style="flex:1"> <span id="pn-margin-val">30pt</span>' +
+        '</div>' +
+        '<label class="tg-opt-label"><input type="checkbox" id="pn-skip-first"> Skip first page (cover page)</label>';
+
+      var sl2 = container.querySelector('#pn-size'), vl2 = container.querySelector('#pn-size-val');
+      if (sl2 && vl2) sl2.addEventListener('input', function () { vl2.textContent = sl2.value; });
+      var sl3 = container.querySelector('#pn-margin'), vl3 = container.querySelector('#pn-margin-val');
+      if (sl3 && vl3) sl3.addEventListener('input', function () { vl3.textContent = sl3.value + 'pt'; });
+    }
+
+    if (h === 'extract-text') {
+      container.innerHTML =
+        '<label class="tg-opt-label">Pages</label>' +
+        '<div class="tg-radio-group">' +
+          '<label><input type="radio" name="et-pages" value="all" checked> All pages</label>' +
+          '<label><input type="radio" name="et-pages" value="specific"> Specific page</label>' +
+        '</div>' +
+        '<div id="et-page-wrap" hidden>' +
+          '<input type="number" id="et-page-num" class="tg-text-input" min="1" value="1" placeholder="Page number" style="width:100px">' +
+        '</div>';
+      container.querySelectorAll('input[name="et-pages"]').forEach(function (r) {
+        r.addEventListener('change', function () {
+          var w = container.querySelector('#et-page-wrap');
+          if (w) w.hidden = r.value !== 'specific';
+        });
+      });
+    }
   }
 
   /* -----------------------------------------------
@@ -283,6 +541,37 @@
 
     if (handler === 'rotate-pdf') {
       buildRotateUI(file);
+    }
+
+    if (handler === 'pdf-to-png' || handler === 'extract-text') {
+      window.TGPdfTools.getPageCount(file).then(function (count) {
+        box.dataset.pageCount = count;
+        var infoEl2 = optionsEl ? optionsEl.querySelector('.tg-page-count-info') : null;
+        if (!infoEl2 && optionsEl) {
+          infoEl2 = document.createElement('p');
+          infoEl2.className = 'tg-opt-info tg-page-count-info';
+          optionsEl.insertBefore(infoEl2, optionsEl.firstChild);
+        }
+        if (infoEl2) infoEl2.textContent = 'Your PDF has ' + count + ' page' + (count !== 1 ? 's' : '') + '.';
+        if (optionsEl) optionsEl.hidden = false;
+        /* update specific-page max */
+        if (handler === 'extract-text') {
+          var etInput = optionsEl ? optionsEl.querySelector('#et-page-num') : null;
+          if (etInput) etInput.max = count;
+        }
+      }).catch(function () { if (optionsEl) optionsEl.hidden = false; });
+    }
+
+    if (handler === 'rearrange-pdf') {
+      buildRearrangeUI(file);
+    }
+
+    if (handler === 'edit-pdf') {
+      buildEditPdfUI(file);
+    }
+
+    if (handler === 'unlock-pdf' || handler === 'protect-pdf' || handler === 'add-watermark' || handler === 'add-page-numbers' || handler === 'word-to-pdf') {
+      if (optionsEl) optionsEl.hidden = false;
     }
   }
 
@@ -518,6 +807,21 @@
     if (rg) rg.parentNode.removeChild(rg);
     thumbnailGrid = null;
     box.dataset.pageCount = '';
+
+    /* Phase 3B cleanup */
+    editPdfOps = []; editPdfDeleted = []; editPdfRotations = {}; editPdfPageIdx = 0;
+    editPdfPdfDoc = null; editPdfPageObjects = {}; editPdfUndoHistory = []; editPdfRedoHistory = [];
+    if (editPdfFabric) { try { editPdfFabric.dispose(); } catch (e) {} editPdfFabric = null; }
+    var editWrap = box.querySelector('.tg-edit-pdf-wrap');
+    if (editWrap) editWrap.parentNode.removeChild(editWrap);
+
+    rearrangeOrder = []; rearrangeDeleted = {};
+    var rrWrap = box.querySelector('.tg-rearrange-wrap');
+    if (rrWrap) rrWrap.parentNode.removeChild(rrWrap);
+
+    extractResults = null;
+    var etWrap = box.querySelector('.tg-extract-result-wrap');
+    if (etWrap) etWrap.parentNode.removeChild(etWrap);
   }
 
   /* -----------------------------------------------
@@ -741,6 +1045,381 @@
         return;
       }
 
+      /* ── PDF TO WORD ── */
+      if (handler === 'pdf-to-word') {
+        if (!currentFile) return;
+        startProgress();
+        window.TGPdfTools.pdfToWord(currentFile, function (done, total) {
+          if (progressBar) progressBar.style.width = Math.round((done / total) * 90) + '%';
+        }).then(function (blob) {
+          blobUrl = URL.createObjectURL(blob);
+          downloadFilename = 'converted.docx';
+          finishProgress();
+          var msgEl = resultEl ? resultEl.querySelector('.tg-success-msg') : null;
+          if (msgEl) { msgEl.textContent = '✓ Text extracted successfully. Complex layouts and images are not preserved — this works best for text-heavy PDFs.'; msgEl.hidden = false; }
+          showSuccessResult();
+        }).catch(function (e) { finishProgress(true); showErrorResult('Could not convert PDF: ' + (e && e.message ? e.message : 'unknown error')); });
+        return;
+      }
+
+      /* ── WORD TO PDF ── */
+      if (handler === 'word-to-pdf') {
+        if (!currentFile) return;
+        startProgress();
+        currentFile.arrayBuffer().then(function (ab) {
+          return mammoth.convertToHtml({ arrayBuffer: ab });
+        }).then(function (result) {
+          finishProgress();
+          var html = result.value;
+          var printHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>' +
+            'body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.5;margin:2cm}' +
+            'h1,h2,h3{page-break-after:avoid}p{page-break-inside:avoid}' +
+            '@media print{body{margin:0}}' +
+            '</style></head><body>' + html + '</body></html>';
+          /* Store for "Open Document" button */
+          box._wordToPdfHtml = printHtml;
+          /* Show instruction result */
+          if (resultEl) {
+            resultEl.hidden = false;
+            if (successBanner) successBanner.hidden = false;
+            if (errorBanner) errorBanner.hidden = true;
+          }
+          var msgEl = resultEl ? resultEl.querySelector('.tg-success-msg') : null;
+          if (msgEl) {
+            msgEl.innerHTML = '<strong>Print to PDF in 3 steps:</strong><ol style="margin:8px 0 0 16px">' +
+              '<li>Click <strong>Open Document</strong> below</li>' +
+              '<li>Press <kbd>Ctrl+P</kbd> (or <kbd>Cmd+P</kbd> on Mac)</li>' +
+              '<li>Choose <strong>Save as PDF</strong> as the printer</li></ol>';
+            msgEl.hidden = false;
+          }
+          if (downloadBtn) {
+            downloadBtn.textContent = 'Open Document';
+            downloadBtn.hidden = false;
+            downloadBtn.onclick = function (e) {
+              e.preventDefault();
+              var win = window.open('', '_blank');
+              if (win) { win.document.write(box._wordToPdfHtml || ''); win.document.close(); win.focus(); }
+            };
+          }
+        }).catch(function (e) { finishProgress(true); showErrorResult('Could not convert Word file: ' + (e && e.message ? e.message : 'unknown error')); });
+        return;
+      }
+
+      /* ── UNLOCK PDF ── */
+      if (handler === 'unlock-pdf') {
+        if (!currentFile) return;
+        var pwInput = optionsEl ? optionsEl.querySelector('#unlock-password') : null;
+        var pw = pwInput ? pwInput.value : '';
+        startProgress();
+        window.TGPdfTools.unlockPdf(currentFile, pw).then(function (blob) {
+          blobUrl = URL.createObjectURL(blob);
+          downloadFilename = 'unlocked.pdf';
+          finishProgress();
+          showSuccessResult();
+        }).catch(function (e) {
+          finishProgress(true);
+          if (e && e.message === 'WRONG_PASSWORD') {
+            showErrorResult('Incorrect password. Please try again.');
+          } else {
+            showErrorResult('Could not unlock PDF: ' + (e && e.message ? e.message : 'unknown error'));
+          }
+        });
+        return;
+      }
+
+      /* ── PROTECT PDF ── */
+      if (handler === 'protect-pdf') {
+        if (!currentFile) return;
+        var pw1El = optionsEl ? optionsEl.querySelector('#protect-pw') : null;
+        var pw2El = optionsEl ? optionsEl.querySelector('#protect-pw2') : null;
+        var pw1 = pw1El ? pw1El.value : '';
+        var pw2 = pw2El ? pw2El.value : '';
+        if (!pw1) { showInlineMsg('Please enter a password.'); return; }
+        if (pw1.length < 4) { showInlineMsg('Password must be at least 4 characters.'); return; }
+        if (pw1 !== pw2) { showInlineMsg('Passwords do not match.'); return; }
+        var perms = {
+          printing:  optionsEl && optionsEl.querySelector('#perm-print')   ? optionsEl.querySelector('#perm-print').checked   : true,
+          copying:   optionsEl && optionsEl.querySelector('#perm-copy')    ? optionsEl.querySelector('#perm-copy').checked    : true,
+          modifying: optionsEl && optionsEl.querySelector('#perm-edit')    ? optionsEl.querySelector('#perm-edit').checked    : true,
+          annotating:optionsEl && optionsEl.querySelector('#perm-comment') ? optionsEl.querySelector('#perm-comment').checked : true,
+        };
+        /* Random owner password */
+        var ownerPw = Array.from(crypto.getRandomValues(new Uint8Array(12))).map(function (b) { return b.toString(16).padStart(2,'0'); }).join('');
+        startProgress();
+        window.TGPdfTools.protectPdf(currentFile, pw1, ownerPw, perms).then(function (blob) {
+          blobUrl = URL.createObjectURL(blob);
+          downloadFilename = 'protected.pdf';
+          finishProgress();
+          var msgEl2 = resultEl ? resultEl.querySelector('.tg-success-msg') : null;
+          if (msgEl2) { msgEl2.textContent = '⚠️ Important: Save your password somewhere safe. If you forget it, the PDF cannot be recovered.'; msgEl2.hidden = false; }
+          showSuccessResult();
+        }).catch(function (e) { finishProgress(true); showErrorResult('Could not protect PDF: ' + (e && e.message ? e.message : 'unknown error')); });
+        return;
+      }
+
+      /* ── EDIT PDF ── */
+      if (handler === 'edit-pdf') {
+        if (!currentFile) return;
+        if (editPdfDeleted.length >= (parseInt(box.dataset.pageCount || '1', 10))) {
+          showInlineMsg('Cannot delete all pages — keep at least one page.'); return;
+        }
+        /* Save current fabric objects for current page */
+        if (editPdfFabric) {
+          editPdfPageObjects[editPdfPageIdx] = editPdfFabric.getObjects().map(function (obj) { return { json: obj.toJSON(['tgType','tgData']), tgType: obj.tgType, tgData: obj.tgData }; });
+        }
+        startProgress();
+        /* Build operations from fabric objects across all pages */
+        var scale = editPdfRenderScale;
+        var ops = [];
+        var renderedHeights = box._editPdfRenderedHeights || {};
+
+        Object.keys(editPdfPageObjects).forEach(function (pgIdx) {
+          var pgIdxN = parseInt(pgIdx, 10);
+          var objs = editPdfPageObjects[pgIdx];
+          var rh = renderedHeights[pgIdx] || 800;
+          objs.forEach(function (o) {
+            var j = o.json;
+            if (o.tgType === 'text') {
+              ops.push({ type: 'text', pageIndex: pgIdxN, text: j.text, x: j.left / scale, y: (rh - j.top - (j.fontSize || 12)) / scale, size: j.fontSize || 12, color: j.fill || '#000000', fontName: o.tgData && o.tgData.fontName ? o.tgData.fontName : 'Helvetica', bold: !!(o.tgData && o.tgData.bold) });
+            } else if (o.tgType === 'whiteout' || o.tgType === 'highlight' || o.tgType === 'rect') {
+              var fill = j.fill || (o.tgType === 'highlight' ? '#FFFF00' : '#FFFFFF');
+              ops.push({ type: 'rect', pageIndex: pgIdxN, x: j.left / scale, y: j.top / scale, width: j.width * (j.scaleX||1) / scale, height: j.height * (j.scaleY||1) / scale, color: fill, fill: true, opacity: j.opacity || (o.tgType === 'highlight' ? 0.3 : 1), borderColor: j.stroke || null, borderWidth: j.strokeWidth || 0 });
+            } else if (o.tgType === 'image' || o.tgType === 'signature') {
+              if (o.tgData && o.tgData.imageData) {
+                ops.push({ type: 'image', pageIndex: pgIdxN, x: j.left / scale, y: j.top / scale, width: j.width * (j.scaleX||1) / scale, height: j.height * (j.scaleY||1) / scale, imageData: o.tgData.imageData, isPng: o.tgData.isPng !== false });
+              }
+            } else if (o.tgType === 'line') {
+              ops.push({ type: 'line', pageIndex: pgIdxN, x1: (j.left + j.x1) / scale, y1: j.top / scale, x2: (j.left + j.x2) / scale, y2: (j.top + j.height * (j.scaleY||1)) / scale, color: j.stroke || '#000000', thickness: j.strokeWidth || 1 });
+            } else if (o.tgType === 'ellipse') {
+              ops.push({ type: 'ellipse', pageIndex: pgIdxN, x: (j.left + j.width/2 * (j.scaleX||1)) / scale, y: (rh - j.top - j.height/2*(j.scaleY||1)) / scale, rx: j.rx * (j.scaleX||1) / scale, ry: j.ry * (j.scaleY||1) / scale, color: j.stroke || '#000000', borderWidth: j.strokeWidth || 1 });
+            }
+          });
+        });
+
+        window.TGPdfTools.applyEditsAndSave(currentFile, ops, editPdfDeleted.slice(), editPdfRotations).then(function (blob) {
+          blobUrl = URL.createObjectURL(blob);
+          downloadFilename = 'edited.pdf';
+          finishProgress();
+          showSuccessResult();
+        }).catch(function (e) { finishProgress(true); showErrorResult('Could not save edited PDF: ' + (e && e.message ? e.message : 'unknown error')); });
+        return;
+      }
+
+      /* ── PDF TO PNG ── */
+      if (handler === 'pdf-to-png') {
+        if (!currentFile) return;
+        var scaleMapPng = { standard: 2.0, high: 4.0, ultra: 8.0 };
+        var resInp = optionsEl ? optionsEl.querySelector('input[name="png-res"]:checked') : null;
+        var pngScale = scaleMapPng[resInp ? resInp.value : 'standard'] || 2.0;
+        var pngPageModeInp = optionsEl ? optionsEl.querySelector('input[name="png-pages"]:checked') : null;
+        var pngPageMode = pngPageModeInp ? pngPageModeInp.value : 'all';
+        var totalPngPages = parseInt(box.dataset.pageCount || '1', 10);
+        var pngPages = [];
+        if (pngPageMode === 'all') {
+          for (var pi2 = 1; pi2 <= totalPngPages; pi2++) pngPages.push(pi2);
+        } else {
+          var pngSpecInp = optionsEl ? optionsEl.querySelector('#png-pages-input') : null;
+          try { pngPages = parseSimpleRange(pngSpecInp ? pngSpecInp.value.trim() : '1', totalPngPages); } catch (e2) { showInlineMsg(e2.message); return; }
+        }
+        startProgress();
+        window.TGPdfTools.pdfToPng(currentFile, pngPages, pngScale, function (done, total) {
+          if (progressBar) progressBar.style.width = Math.round((done / total) * 90) + '%';
+        }).then(function (results) {
+          finishProgress();
+          if (results.length === 1) {
+            blobUrl = URL.createObjectURL(results[0].blob);
+            downloadFilename = 'page-1.png';
+            showSuccessResult();
+          } else {
+            var zip = new JSZip();
+            results.forEach(function (r) { zip.file(r.name, r.blob); });
+            zip.generateAsync({ type: 'blob' }).then(function (zb) {
+              blobUrl = URL.createObjectURL(zb);
+              downloadFilename = 'pdf-images-png.zip';
+              showSuccessResult();
+            });
+          }
+        }).catch(function (e) { finishProgress(true); showErrorResult('Could not convert to PNG: ' + (e && e.message ? e.message : 'unknown error')); });
+        return;
+      }
+
+      /* ── ADD WATERMARK ── */
+      if (handler === 'add-watermark') {
+        if (!currentFile) return;
+        var activeTab = optionsEl ? optionsEl.querySelector('.tg-tab-btn--active') : null;
+        var isImgTab = activeTab && activeTab.dataset.tab === 'wm-image';
+
+        if (!isImgTab) {
+          var wmText = optionsEl ? (optionsEl.querySelector('#wm-text-input') ? optionsEl.querySelector('#wm-text-input').value.trim() : '') : '';
+          if (!wmText) { showInlineMsg('Please enter watermark text.'); return; }
+          var wmOpts = {
+            type: 'text',
+            text: wmText,
+            font: optionsEl && optionsEl.querySelector('#wm-font') ? optionsEl.querySelector('#wm-font').value : 'Helvetica',
+            fontSize: optionsEl && optionsEl.querySelector('#wm-size') ? parseInt(optionsEl.querySelector('#wm-size').value) : 48,
+            color: optionsEl && optionsEl.querySelector('#wm-color') ? optionsEl.querySelector('#wm-color').value : '#FF0000',
+            opacity: optionsEl && optionsEl.querySelector('#wm-opacity') ? parseInt(optionsEl.querySelector('#wm-opacity').value) : 30,
+            rotation: optionsEl && optionsEl.querySelector('#wm-rotation') ? parseInt(optionsEl.querySelector('#wm-rotation').value) : -45,
+            position: (function () { var pb = optionsEl ? optionsEl.querySelector('.tg-pos-btn[data-pos].tg-pos-btn--active') : null; return pb ? pb.dataset.pos : 'center'; })(),
+            pages: (function () { var pr = optionsEl ? optionsEl.querySelector('input[name="wm-pages"]:checked') : null; return pr ? pr.value : 'all'; })(),
+            pageRange: optionsEl && optionsEl.querySelector('#wm-page-range') ? optionsEl.querySelector('#wm-page-range').value : '',
+          };
+          startProgress();
+          window.TGPdfTools.addWatermark(currentFile, wmOpts).then(function (blob) {
+            blobUrl = URL.createObjectURL(blob); downloadFilename = 'watermarked.pdf'; finishProgress(); showSuccessResult();
+          }).catch(function (e) { finishProgress(true); showErrorResult('Could not add watermark: ' + (e && e.message ? e.message : 'unknown error')); });
+        } else {
+          var wmImgFile = optionsEl && optionsEl.querySelector('#wm-image-file') ? optionsEl.querySelector('#wm-image-file').files[0] : null;
+          if (!wmImgFile) { showInlineMsg('Please select a watermark image.'); return; }
+          var wmImgOpts = {
+            type: 'image',
+            imageFile: wmImgFile,
+            opacity: optionsEl && optionsEl.querySelector('#wm-img-opacity') ? parseInt(optionsEl.querySelector('#wm-img-opacity').value) : 30,
+            scale: optionsEl && optionsEl.querySelector('#wm-img-scale') ? parseInt(optionsEl.querySelector('#wm-img-scale').value) : 50,
+            position: (function () { var pb2 = optionsEl ? optionsEl.querySelector('.tg-pos-btn[data-imgpos].tg-pos-btn--active') : null; return pb2 ? pb2.dataset.imgpos : 'center'; })(),
+            pages: (function () { var pr2 = optionsEl ? optionsEl.querySelector('input[name="wm-img-pages"]:checked') : null; return pr2 ? pr2.value : 'all'; })(),
+            pageRange: optionsEl && optionsEl.querySelector('#wm-img-page-range') ? optionsEl.querySelector('#wm-img-page-range').value : '',
+          };
+          startProgress();
+          window.TGPdfTools.addWatermark(currentFile, wmImgOpts).then(function (blob) {
+            blobUrl = URL.createObjectURL(blob); downloadFilename = 'watermarked.pdf'; finishProgress(); showSuccessResult();
+          }).catch(function (e) { finishProgress(true); showErrorResult('Could not add image watermark: ' + (e && e.message ? e.message : 'unknown error')); });
+        }
+        return;
+      }
+
+      /* ── ADD PAGE NUMBERS ── */
+      if (handler === 'add-page-numbers') {
+        if (!currentFile) return;
+        var startVal = optionsEl && optionsEl.querySelector('#pn-start') ? parseInt(optionsEl.querySelector('#pn-start').value) : 1;
+        if (!startVal || startVal < 1) { showInlineMsg('Starting number must be at least 1.'); return; }
+        var pnOpts = {
+          position:    (function () { var r = optionsEl ? optionsEl.querySelector('input[name="pn-pos"]:checked') : null; return r ? r.value : 'bottom-center'; })(),
+          format:      optionsEl && optionsEl.querySelector('#pn-format') ? optionsEl.querySelector('#pn-format').value : '1',
+          startNumber: startVal,
+          font:        optionsEl && optionsEl.querySelector('#pn-font') ? optionsEl.querySelector('#pn-font').value : 'Helvetica',
+          fontSize:    optionsEl && optionsEl.querySelector('#pn-size') ? parseInt(optionsEl.querySelector('#pn-size').value) : 10,
+          color:       optionsEl && optionsEl.querySelector('#pn-color') ? optionsEl.querySelector('#pn-color').value : '#000000',
+          margin:      optionsEl && optionsEl.querySelector('#pn-margin') ? parseInt(optionsEl.querySelector('#pn-margin').value) : 30,
+          skipFirst:   optionsEl && optionsEl.querySelector('#pn-skip-first') ? optionsEl.querySelector('#pn-skip-first').checked : false,
+        };
+        startProgress();
+        window.TGPdfTools.addPageNumbers(currentFile, pnOpts).then(function (blob) {
+          blobUrl = URL.createObjectURL(blob); downloadFilename = 'numbered.pdf'; finishProgress(); showSuccessResult();
+        }).catch(function (e) { finishProgress(true); showErrorResult('Could not add page numbers: ' + (e && e.message ? e.message : 'unknown error')); });
+        return;
+      }
+
+      /* ── EXTRACT TEXT ── */
+      if (handler === 'extract-text') {
+        if (!currentFile) return;
+        var etPageMode = optionsEl ? optionsEl.querySelector('input[name="et-pages"]:checked') : null;
+        var etTargetPage = null;
+        if (etPageMode && etPageMode.value === 'specific') {
+          var etNumInp = optionsEl ? optionsEl.querySelector('#et-page-num') : null;
+          etTargetPage = etNumInp ? parseInt(etNumInp.value) : 1;
+          if (!etTargetPage || etTargetPage < 1) { showInlineMsg('Please enter a valid page number.'); return; }
+        }
+        startProgress();
+        window.TGPdfTools.extractText(currentFile, etTargetPage, function (done, total) {
+          if (progressBar) progressBar.style.width = Math.round((done / total) * 90) + '%';
+        }).then(function (results) {
+          finishProgress();
+          extractResults = results;
+          var allText = results.map(function (r) { return '--- Page ' + r.page + ' ---\n' + r.text; }).join('\n\n');
+          if (!allText.trim()) {
+            showErrorResult('No text found. This PDF may contain scanned images only.');
+            return;
+          }
+          /* Build result UI */
+          var existing = box.querySelector('.tg-extract-result-wrap');
+          if (existing) existing.parentNode.removeChild(existing);
+          var etWrap2 = document.createElement('div');
+          etWrap2.className = 'tg-extract-result-wrap';
+          etWrap2.innerHTML =
+            '<div class="tg-tab-group" style="margin-bottom:8px">' +
+              '<button type="button" class="tg-tab-btn tg-tab-btn--active" data-etfmt="plain">Plain Text</button>' +
+              '<button type="button" class="tg-tab-btn" data-etfmt="markdown">Markdown</button>' +
+              '<button type="button" class="tg-tab-btn" data-etfmt="json">JSON</button>' +
+            '</div>' +
+            '<div style="display:flex;gap:8px;margin-bottom:8px">' +
+              '<button type="button" class="tg-btn-secondary et-copy-btn">Copy All</button>' +
+              '<button type="button" class="tg-btn-secondary et-dl-txt-btn">Download .txt</button>' +
+              '<button type="button" class="tg-btn-secondary et-dl-md-btn">Download .md</button>' +
+              '<button type="button" class="tg-btn-secondary et-dl-json-btn">Download .json</button>' +
+            '</div>' +
+            '<textarea class="tg-extract-textarea" readonly style="width:100%;height:300px;font-family:monospace;font-size:12px;resize:vertical;box-sizing:border-box"></textarea>' +
+            '<p class="tg-opt-info et-stats" style="margin-top:6px"></p>';
+          if (actionBtn && actionBtn.parentNode) {
+            actionBtn.parentNode.insertBefore(etWrap2, actionBtn);
+          }
+
+          function getFormattedText(fmt) {
+            if (fmt === 'json') return JSON.stringify(results, null, 2);
+            if (fmt === 'markdown') {
+              return results.map(function (r) {
+                return '## Page ' + r.page + '\n\n' +
+                  r.lines.map(function (l) { return l.fontSize > 14 ? '### ' + l.text : l.text; }).join('\n') + '\n';
+              }).join('\n---\n\n');
+            }
+            return allText;
+          }
+
+          var ta = etWrap2.querySelector('.tg-extract-textarea');
+          var stats = etWrap2.querySelector('.et-stats');
+          function updateDisplay(fmt) {
+            var txt = getFormattedText(fmt);
+            ta.value = txt;
+            stats.textContent = txt.length + ' characters · ' + txt.split(/\s+/).filter(Boolean).length + ' words';
+          }
+          updateDisplay('plain');
+
+          etWrap2.querySelectorAll('.tg-tab-btn[data-etfmt]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              etWrap2.querySelectorAll('.tg-tab-btn[data-etfmt]').forEach(function (b) { b.classList.remove('tg-tab-btn--active'); });
+              btn.classList.add('tg-tab-btn--active');
+              updateDisplay(btn.dataset.etfmt);
+            });
+          });
+
+          function dlText(filename, content) {
+            var b = new Blob([content], { type: 'text/plain' });
+            var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          }
+
+          var copyBtn = etWrap2.querySelector('.et-copy-btn');
+          if (copyBtn) copyBtn.addEventListener('click', function () {
+            navigator.clipboard.writeText(ta.value).then(function () { copyBtn.textContent = 'Copied!'; setTimeout(function () { copyBtn.textContent = 'Copy All'; }, 2000); }).catch(function () { ta.select(); document.execCommand('copy'); });
+          });
+          var dlTxtBtn = etWrap2.querySelector('.et-dl-txt-btn');
+          if (dlTxtBtn) dlTxtBtn.addEventListener('click', function () { dlText('extracted-text.txt', getFormattedText('plain')); });
+          var dlMdBtn = etWrap2.querySelector('.et-dl-md-btn');
+          if (dlMdBtn) dlMdBtn.addEventListener('click', function () { dlText('extracted-text.md', getFormattedText('markdown')); });
+          var dlJsonBtn = etWrap2.querySelector('.et-dl-json-btn');
+          if (dlJsonBtn) dlJsonBtn.addEventListener('click', function () { dlText('extracted-text.json', getFormattedText('json')); });
+
+          /* Show result area without download button */
+          if (resultEl) resultEl.hidden = false;
+          if (successBanner) successBanner.hidden = false;
+          if (errorBanner) errorBanner.hidden = true;
+          if (downloadBtn) downloadBtn.hidden = true;
+        }).catch(function (e) { finishProgress(true); showErrorResult('Could not extract text: ' + (e && e.message ? e.message : 'unknown error')); });
+        return;
+      }
+
+      /* ── REARRANGE PDF ── */
+      if (handler === 'rearrange-pdf') {
+        if (!currentFile) return;
+        var active = rearrangeOrder.filter(function (idx) { return !rearrangeDeleted[idx]; });
+        if (active.length === 0) { showInlineMsg('Cannot delete all pages — keep at least one page.'); return; }
+        startProgress();
+        window.TGPdfTools.rearrangePdf(currentFile, active).then(function (blob) {
+          blobUrl = URL.createObjectURL(blob); downloadFilename = 'rearranged.pdf'; finishProgress(); showSuccessResult();
+        }).catch(function (e) { finishProgress(true); showErrorResult('Could not rearrange PDF: ' + (e && e.message ? e.message : 'unknown error')); });
+        return;
+      }
+
       /* ── PLACEHOLDER for all other handlers ── */
       var fileForHandler = isMulti ? (currentFiles[0] || null) : currentFile;
       if (!fileForHandler) return;
@@ -787,12 +1466,501 @@
   }
 
   /* -----------------------------------------------
+     REARRANGE PDF UI
+  ----------------------------------------------- */
+  function buildRearrangeUI(file) {
+    var existing = box.querySelector('.tg-rearrange-wrap');
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var wrap = document.createElement('div');
+    wrap.className = 'tg-rearrange-wrap';
+    wrap.innerHTML =
+      '<div class="tg-rearrange-toolbar" style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button type="button" class="tg-btn-secondary" id="rr-reverse">⇅ Reverse Order</button>' +
+        '<button type="button" class="tg-btn-secondary" id="rr-select-all">Select All</button>' +
+        '<button type="button" class="tg-btn-secondary" id="rr-deselect">Deselect All</button>' +
+        '<button type="button" class="tg-btn-secondary" id="rr-to-front">Move to Front</button>' +
+      '</div>' +
+      '<div class="tg-rearrange-grid" style="display:flex;flex-wrap:wrap;gap:10px"></div>' +
+      '<p class="tg-opt-info" style="margin-top:8px">Drag thumbnails to reorder · Click thumbnail to select · 🗑 to delete</p>';
+
+    if (actionBtn && actionBtn.parentNode) actionBtn.parentNode.insertBefore(wrap, actionBtn);
+
+    var grid = wrap.querySelector('.tg-rearrange-grid');
+    grid.innerHTML = '<p class="tg-opt-info">Rendering thumbnails…</p>';
+
+    window.TGPdfTools.renderAllThumbnails(file, 0.2, null).then(function (pages) {
+      grid.innerHTML = '';
+      rearrangeOrder = pages.map(function (p) { return p.pageNum - 1; });
+      rearrangeDeleted = {};
+      var selectedSet = {};
+
+      function renderCards() {
+        grid.innerHTML = '';
+        rearrangeOrder.forEach(function (origIdx, pos) {
+          var card = document.createElement('div');
+          card.className = 'tg-rr-card' + (selectedSet[origIdx] ? ' tg-rr-card--selected' : '') + (rearrangeDeleted[origIdx] ? ' tg-rr-card--deleted' : '');
+          card.dataset.origIdx = origIdx;
+          card.dataset.pos = pos;
+          card.draggable = true;
+          card.style.cssText = 'position:relative;border:2px solid #ccc;border-radius:6px;padding:4px;cursor:grab;width:100px;text-align:center;flex-shrink:0;opacity:' + (rearrangeDeleted[origIdx] ? '0.4' : '1');
+          if (selectedSet[origIdx]) card.style.borderColor = '#E07B39';
+
+          var thumb = pages[origIdx].canvas.cloneNode(true);
+          thumb.style.cssText = 'max-width:90px;height:auto;display:block;margin:0 auto';
+          card.appendChild(thumb);
+
+          var lbl = document.createElement('p');
+          lbl.style.cssText = 'margin:4px 0 0;font-size:11px;color:#555';
+          lbl.textContent = 'Page ' + (pos + 1);
+          card.appendChild(lbl);
+
+          var delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.title = 'Delete page';
+          delBtn.textContent = '🗑';
+          delBtn.style.cssText = 'position:absolute;top:2px;right:2px;background:rgba(255,255,255,.8);border:none;cursor:pointer;font-size:14px;padding:0 2px;border-radius:3px';
+          delBtn.addEventListener('click', function (e) { e.stopPropagation(); rearrangeDeleted[origIdx] = !rearrangeDeleted[origIdx]; renderCards(); });
+          card.appendChild(delBtn);
+
+          /* Selection */
+          card.addEventListener('click', function (e) {
+            if (e.shiftKey && Object.keys(selectedSet).length > 0) {
+              var lastSel = parseInt(Object.keys(selectedSet).pop(), 10);
+              var from = Math.min(rearrangeOrder.indexOf(lastSel), pos);
+              var to   = Math.max(rearrangeOrder.indexOf(lastSel), pos);
+              for (var si = from; si <= to; si++) selectedSet[rearrangeOrder[si]] = true;
+            } else {
+              selectedSet[origIdx] ? delete selectedSet[origIdx] : (selectedSet[origIdx] = true);
+            }
+            renderCards();
+          });
+
+          /* Drag */
+          card.addEventListener('dragstart', function () { card.style.opacity = '0.4'; card.dataset.dragging = '1'; });
+          card.addEventListener('dragend', function () { card.style.opacity = rearrangeDeleted[origIdx] ? '0.4' : '1'; delete card.dataset.dragging; });
+          card.addEventListener('dragover', function (e) { e.preventDefault(); card.style.borderStyle = 'dashed'; card.style.borderColor = '#E07B39'; });
+          card.addEventListener('dragleave', function () { card.style.borderStyle = 'solid'; card.style.borderColor = selectedSet[origIdx] ? '#E07B39' : '#ccc'; });
+          card.addEventListener('drop', function (e) {
+            e.preventDefault();
+            card.style.borderStyle = 'solid'; card.style.borderColor = '#ccc';
+            var dragged = grid.querySelector('[data-dragging="1"]');
+            if (!dragged || dragged === card) return;
+            var fromPos = parseInt(dragged.dataset.pos, 10);
+            var toPos = parseInt(card.dataset.pos, 10);
+            var moved = rearrangeOrder.splice(fromPos, 1)[0];
+            rearrangeOrder.splice(toPos, 0, moved);
+            renderCards();
+          });
+
+          grid.appendChild(card);
+        });
+      }
+
+      renderCards();
+
+      wrap.querySelector('#rr-reverse').addEventListener('click', function () { rearrangeOrder.reverse(); renderCards(); });
+      wrap.querySelector('#rr-select-all').addEventListener('click', function () { rearrangeOrder.forEach(function (i) { selectedSet[i] = true; }); renderCards(); });
+      wrap.querySelector('#rr-deselect').addEventListener('click', function () { selectedSet = {}; renderCards(); });
+      wrap.querySelector('#rr-to-front').addEventListener('click', function () {
+        var sel = rearrangeOrder.filter(function (i) { return selectedSet[i]; });
+        var rest = rearrangeOrder.filter(function (i) { return !selectedSet[i]; });
+        rearrangeOrder = sel.concat(rest);
+        renderCards();
+      });
+    }).catch(function () {
+      grid.innerHTML = '<p style="color:red">Could not render thumbnails.</p>';
+    });
+  }
+
+  /* -----------------------------------------------
+     EDIT PDF — FABRIC.JS EDITOR
+  ----------------------------------------------- */
+  function buildEditPdfUI(file) {
+    var existing = box.querySelector('.tg-edit-pdf-wrap');
+    if (existing) existing.parentNode.removeChild(existing);
+
+    editPdfOps = []; editPdfDeleted = []; editPdfRotations = {}; editPdfPageIdx = 0; editPdfPageObjects = {};
+    box._editPdfRenderedHeights = {};
+
+    var wrap = document.createElement('div');
+    wrap.className = 'tg-edit-pdf-wrap';
+    wrap.style.cssText = 'margin-top:12px';
+    wrap.innerHTML =
+      /* toolbar */
+      '<div class="tg-edit-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f5f5f5;border-radius:6px;margin-bottom:8px;position:sticky;top:0;z-index:10">' +
+        '<select id="ep-mode" class="tg-select" style="min-width:120px">' +
+          '<option value="text">Text</option>' +
+          '<option value="whiteout">Whiteout</option>' +
+          '<option value="highlight">Highlight</option>' +
+          '<option value="rectangle">Rectangle</option>' +
+          '<option value="ellipse">Ellipse</option>' +
+          '<option value="line">Line</option>' +
+          '<option value="sign">Signature</option>' +
+          '<option value="image">Insert Image</option>' +
+        '</select>' +
+        '<select id="ep-font" class="tg-select"><option value="Helvetica">Helvetica</option><option value="TimesRoman">Times Roman</option><option value="Courier">Courier</option></select>' +
+        '<select id="ep-fontsize" class="tg-select">' +
+          '<option>8</option><option>10</option><option value="12" selected>12</option><option>14</option><option>16</option><option>18</option><option>24</option><option>36</option><option>48</option>' +
+        '</select>' +
+        '<input type="color" id="ep-color" value="#000000" title="Color">' +
+        '<label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="checkbox" id="ep-bold"> Bold</label>' +
+        '<button type="button" class="tg-btn-xs" id="ep-undo">↩ Undo</button>' +
+        '<button type="button" class="tg-btn-xs" id="ep-redo">↪ Redo</button>' +
+        '<input type="file" id="ep-img-input" accept="image/*" style="display:none">' +
+        '<p style="font-size:11px;color:#888;margin:0;align-self:center">New text uses standard PDF fonts.</p>' +
+      '</div>' +
+      /* body: side panel + main canvas */
+      '<div style="display:flex;gap:10px">' +
+        '<div class="tg-edit-sidepanel" style="width:110px;flex-shrink:0;overflow-y:auto;max-height:600px;border:1px solid #eee;border-radius:4px;padding:4px" id="ep-side"></div>' +
+        '<div style="flex:1;overflow-x:auto">' +
+          '<div style="position:relative;display:inline-block" id="ep-canvas-wrap">' +
+            '<canvas id="ep-pdf-canvas" style="display:block"></canvas>' +
+            '<canvas id="ep-fabric-canvas" style="position:absolute;top:0;left:0"></canvas>' +
+          '</div>' +
+          '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+            '<button type="button" class="tg-btn-xs" id="ep-prev">◀ Prev</button>' +
+            '<span id="ep-page-label" style="font-size:13px">Page 1</span>' +
+            '<button type="button" class="tg-btn-xs" id="ep-next">Next ▶</button>' +
+            '<button type="button" class="tg-btn-xs" id="ep-del-page" style="margin-left:12px;color:#c00">🗑 Delete page</button>' +
+            '<button type="button" class="tg-btn-xs" id="ep-zoom-in">🔍+</button>' +
+            '<button type="button" class="tg-btn-xs" id="ep-zoom-out">🔍−</button>' +
+            '<button type="button" class="tg-btn-xs" id="ep-rot-cw">↻ Rotate</button>' +
+          '</div>' +
+          /* Signature pad (hidden by default) */
+          '<div id="ep-sign-pad" style="display:none;margin-top:8px;border:1px solid #ccc;border-radius:4px;padding:8px">' +
+            '<p style="margin:0 0 6px;font-size:13px">Draw your signature:</p>' +
+            '<canvas id="ep-sig-canvas" width="400" height="120" style="border:1px solid #ddd;background:#fff;cursor:crosshair;touch-action:none"></canvas>' +
+            '<div style="margin-top:6px;display:flex;gap:6px">' +
+              '<button type="button" class="tg-btn-xs" id="ep-sig-clear">Clear</button>' +
+              '<button type="button" class="tg-btn-xs" id="ep-sig-add">Add to PDF</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    if (actionBtn && actionBtn.parentNode) actionBtn.parentNode.insertBefore(wrap, actionBtn);
+
+    /* Load PDF.js doc */
+    file.arrayBuffer().then(function (ab) {
+      return pdfjsLib.getDocument({ data: ab }).promise;
+    }).then(function (pdfDoc) {
+      editPdfPdfDoc = pdfDoc;
+      box.dataset.pageCount = pdfDoc.numPages;
+      renderEditPage(0);
+      buildEditSidePanel(pdfDoc);
+    }).catch(function () {
+      wrap.innerHTML += '<p style="color:red">Could not load PDF for editing.</p>';
+    });
+
+    /* Controls */
+    var modeEl    = wrap.querySelector('#ep-mode');
+    var colorEl   = wrap.querySelector('#ep-color');
+    var fontEl    = wrap.querySelector('#ep-font');
+    var sizeEl    = wrap.querySelector('#ep-fontsize');
+    var boldEl    = wrap.querySelector('#ep-bold');
+    var imgInput  = wrap.querySelector('#ep-img-input');
+    var signPad   = wrap.querySelector('#ep-sign-pad');
+    var sigCanvas = wrap.querySelector('#ep-sig-canvas');
+
+    /* Mode change */
+    if (modeEl) modeEl.addEventListener('change', function () {
+      if (modeEl.value === 'sign') { if (signPad) signPad.style.display = ''; }
+      else { if (signPad) signPad.style.display = 'none'; }
+      if (modeEl.value === 'image') { if (imgInput) imgInput.click(); modeEl.value = 'text'; }
+    });
+
+    /* Image insert */
+    if (imgInput) imgInput.addEventListener('change', function () {
+      var f = imgInput.files[0]; if (!f) return;
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        var dataUrl = ev.target.result;
+        var isPng = f.name.toLowerCase().endsWith('.png');
+        fabric.Image.fromURL(dataUrl, function (img) {
+          img.set({ left: 50, top: 50, scaleX: 1, scaleY: 1 });
+          img.tgType = 'image';
+          img.tgData = { imageData: null, isPng: isPng, dataUrl: dataUrl };
+          /* Store raw bytes */
+          f.arrayBuffer().then(function (imgAb) { img.tgData.imageData = new Uint8Array(imgAb); });
+          if (editPdfFabric) editPdfFabric.add(img);
+        });
+      };
+      reader.readAsDataURL(f);
+      imgInput.value = '';
+    });
+
+    /* Signature pad */
+    if (sigCanvas) {
+      var sigCtx = sigCanvas.getContext('2d');
+      var sigDrawing = false;
+      sigCanvas.addEventListener('mousedown', function (e) { sigDrawing = true; sigCtx.beginPath(); sigCtx.moveTo(e.offsetX, e.offsetY); });
+      sigCanvas.addEventListener('mousemove', function (e) { if (!sigDrawing) return; sigCtx.lineTo(e.offsetX, e.offsetY); sigCtx.stroke(); });
+      sigCanvas.addEventListener('mouseup', function () { sigDrawing = false; });
+      sigCanvas.addEventListener('mouseleave', function () { sigDrawing = false; });
+      sigCtx.strokeStyle = '#000'; sigCtx.lineWidth = 2; sigCtx.lineCap = 'round';
+
+      var sigClearBtn = wrap.querySelector('#ep-sig-clear');
+      if (sigClearBtn) sigClearBtn.addEventListener('click', function () { sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height); });
+
+      var sigAddBtn = wrap.querySelector('#ep-sig-add');
+      if (sigAddBtn) sigAddBtn.addEventListener('click', function () {
+        var dataUrl2 = sigCanvas.toDataURL('image/png');
+        fabric.Image.fromURL(dataUrl2, function (img) {
+          img.set({ left: 50, top: 50, scaleX: 0.5, scaleY: 0.5 });
+          img.tgType = 'signature';
+          /* Convert dataUrl to bytes */
+          var byteStr = atob(dataUrl2.split(',')[1]);
+          var arr = new Uint8Array(byteStr.length);
+          for (var bi = 0; bi < byteStr.length; bi++) arr[bi] = byteStr.charCodeAt(bi);
+          img.tgData = { imageData: arr, isPng: true };
+          if (editPdfFabric) editPdfFabric.add(img);
+        });
+        if (signPad) signPad.style.display = 'none';
+      });
+    }
+
+    /* Undo/Redo */
+    var undoBtn = wrap.querySelector('#ep-undo');
+    var redoBtn = wrap.querySelector('#ep-redo');
+    if (undoBtn) undoBtn.addEventListener('click', function () {
+      if (!editPdfFabric) return;
+      var objs = editPdfFabric.getObjects();
+      if (!objs.length) return;
+      var removed = objs[objs.length - 1];
+      editPdfUndoHistory.push(removed);
+      editPdfFabric.remove(removed);
+    });
+    if (redoBtn) redoBtn.addEventListener('click', function () {
+      if (!editPdfFabric || !editPdfUndoHistory.length) return;
+      var obj = editPdfUndoHistory.pop();
+      editPdfFabric.add(obj);
+    });
+
+    /* Keyboard Undo/Redo */
+    document.addEventListener('keydown', function (e) {
+      if (!currentFile || handler !== 'edit-pdf') return;
+      if (e.ctrlKey && !e.shiftKey && e.key === 'z') { if (undoBtn) undoBtn.click(); e.preventDefault(); }
+      if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) { if (redoBtn) redoBtn.click(); e.preventDefault(); }
+    });
+
+    /* Page nav */
+    var prevBtn = wrap.querySelector('#ep-prev');
+    var nextBtn = wrap.querySelector('#ep-next');
+    var delPageBtn = wrap.querySelector('#ep-del-page');
+    var zoomInBtn = wrap.querySelector('#ep-zoom-in');
+    var zoomOutBtn = wrap.querySelector('#ep-zoom-out');
+    var rotCwBtn = wrap.querySelector('#ep-rot-cw');
+
+    if (prevBtn) prevBtn.addEventListener('click', function () { if (editPdfPageIdx > 0) navigateEditPage(editPdfPageIdx - 1); });
+    if (nextBtn) nextBtn.addEventListener('click', function () {
+      if (editPdfPdfDoc && editPdfPageIdx < editPdfPdfDoc.numPages - 1) navigateEditPage(editPdfPageIdx + 1);
+    });
+    if (delPageBtn) delPageBtn.addEventListener('click', function () {
+      var actv = (editPdfPdfDoc ? editPdfPdfDoc.numPages : 1) - editPdfDeleted.length;
+      if (actv <= 1) { showInlineMsg('Cannot delete all pages — keep at least one page.'); return; }
+      if (editPdfDeleted.indexOf(editPdfPageIdx) === -1) editPdfDeleted.push(editPdfPageIdx);
+      else editPdfDeleted.splice(editPdfDeleted.indexOf(editPdfPageIdx), 1);
+      delPageBtn.textContent = editPdfDeleted.indexOf(editPdfPageIdx) !== -1 ? '✓ Restore page' : '🗑 Delete page';
+      buildEditSidePanel(editPdfPdfDoc);
+    });
+    if (zoomInBtn) zoomInBtn.addEventListener('click', function () { editPdfRenderScale = Math.min(editPdfRenderScale + 0.25, 4); navigateEditPage(editPdfPageIdx); });
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', function () { editPdfRenderScale = Math.max(editPdfRenderScale - 0.25, 0.5); navigateEditPage(editPdfPageIdx); });
+    if (rotCwBtn) rotCwBtn.addEventListener('click', function () {
+      editPdfRotations[editPdfPageIdx] = ((editPdfRotations[editPdfPageIdx] || 0) + 90) % 360;
+      rotCwBtn.textContent = '↻ ' + (editPdfRotations[editPdfPageIdx] || 0) + '°';
+    });
+
+    /* Canvas click for text/shapes */
+    function onCanvasClick(e) {
+      if (!editPdfFabric) return;
+      var mode = modeEl ? modeEl.value : 'text';
+      var color = colorEl ? colorEl.value : '#000000';
+      var fontSize = sizeEl ? parseInt(sizeEl.value) : 12;
+      var fontName = fontEl ? fontEl.value : 'Helvetica';
+      var isBold = boldEl ? boldEl.checked : false;
+
+      if (mode === 'text') {
+        /* Float a text input at click position */
+        var pointer = editPdfFabric.getPointer(e.e || e);
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Type text, press Enter';
+        input.style.cssText = 'position:absolute;left:' + (e.pointer ? e.pointer.x : pointer.x) + 'px;top:' + (e.pointer ? e.pointer.y : pointer.y) + 'px;z-index:100;padding:2px;font-size:' + fontSize + 'px;border:1px dashed #E07B39;background:rgba(255,255,255,.9)';
+        var canvasWrap2 = box.querySelector('#ep-canvas-wrap');
+        if (!canvasWrap2) return;
+        canvasWrap2.style.position = 'relative';
+        canvasWrap2.appendChild(input);
+        input.focus();
+        function commitText() {
+          var txt = input.value.trim();
+          if (txt) {
+            var fbFontName = (isBold ? fontName + '-Bold' : fontName).replace('TimesRoman', 'Times-Roman');
+            var obj = new fabric.Text(txt, {
+              left: pointer.x, top: pointer.y,
+              fontSize: fontSize, fill: color,
+              fontFamily: fbFontName,
+              selectable: true,
+            });
+            obj.tgType = 'text';
+            obj.tgData = { fontName: fontName.replace('TimesRoman','TimesRoman'), bold: isBold };
+            editPdfFabric.add(obj);
+          }
+          if (input.parentNode) input.parentNode.removeChild(input);
+          editPdfFabric.off('mouse:down', onFabricMouseDown);
+        }
+        input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') commitText(); if (ev.key === 'Escape') { if (input.parentNode) input.parentNode.removeChild(input); } });
+        input.addEventListener('blur', commitText);
+      }
+    }
+
+    function onFabricMouseDown(e) {
+      if (!editPdfFabric) return;
+      var mode = modeEl ? modeEl.value : 'text';
+      var color = colorEl ? colorEl.value : '#000000';
+
+      if (mode === 'text') { onCanvasClick(e); return; }
+
+      var pointer = editPdfFabric.getPointer(e.e);
+      var startX = pointer.x, startY = pointer.y;
+      var shape = null;
+
+      if (mode === 'whiteout') {
+        shape = new fabric.Rect({ left: startX, top: startY, width: 0, height: 0, fill: '#ffffff', selectable: false, opacity: 1 });
+        shape.tgType = 'whiteout';
+      } else if (mode === 'highlight') {
+        shape = new fabric.Rect({ left: startX, top: startY, width: 0, height: 0, fill: '#FFFF00', selectable: false, opacity: 0.35 });
+        shape.tgType = 'highlight';
+      } else if (mode === 'rectangle') {
+        shape = new fabric.Rect({ left: startX, top: startY, width: 0, height: 0, fill: 'transparent', stroke: color, strokeWidth: 2, selectable: false });
+        shape.tgType = 'rect';
+      } else if (mode === 'ellipse') {
+        shape = new fabric.Ellipse({ left: startX, top: startY, rx: 0, ry: 0, fill: 'transparent', stroke: color, strokeWidth: 2, selectable: false });
+        shape.tgType = 'ellipse';
+      } else if (mode === 'line') {
+        shape = new fabric.Line([startX, startY, startX, startY], { stroke: color, strokeWidth: 2, selectable: false });
+        shape.tgType = 'line';
+      }
+
+      if (shape) {
+        editPdfFabric.add(shape);
+        editPdfFabric.on('mouse:move', function onMove(me) {
+          var p = editPdfFabric.getPointer(me.e);
+          if (mode === 'whiteout' || mode === 'highlight' || mode === 'rectangle') {
+            shape.set({ width: Math.abs(p.x - startX), height: Math.abs(p.y - startY), left: Math.min(p.x, startX), top: Math.min(p.y, startY) });
+          } else if (mode === 'ellipse') {
+            shape.set({ rx: Math.abs(p.x - startX) / 2, ry: Math.abs(p.y - startY) / 2, left: Math.min(p.x, startX), top: Math.min(p.y, startY) });
+          } else if (mode === 'line') {
+            shape.set({ x2: p.x, y2: p.y });
+          }
+          editPdfFabric.renderAll();
+        });
+        editPdfFabric.once('mouse:up', function () {
+          shape.set('selectable', true);
+          editPdfFabric.off('mouse:move');
+          editPdfFabric.setActiveObject(shape);
+          editPdfFabric.renderAll();
+        });
+      }
+    }
+
+    function setupFabricCanvas(w, h) {
+      var existing2 = editPdfFabric;
+      if (existing2) {
+        existing2.off('mouse:down', onFabricMouseDown);
+        existing2.dispose();
+        editPdfFabric = null;
+      }
+      var fc = new fabric.Canvas('ep-fabric-canvas', { selection: true, preserveObjectStacking: true });
+      fc.setWidth(w);
+      fc.setHeight(h);
+      editPdfFabric = fc;
+      fc.on('mouse:down', onFabricMouseDown);
+      return fc;
+    }
+
+    function renderEditPage(pageIdx) {
+      if (!editPdfPdfDoc) return;
+      var pageNum = pageIdx + 1;
+      editPdfPdfDoc.getPage(pageNum).then(function (page) {
+        var viewport = page.getViewport({ scale: editPdfRenderScale });
+        var pdfCanvas = box.querySelector('#ep-pdf-canvas');
+        var fabCanvasEl = box.querySelector('#ep-fabric-canvas');
+        if (!pdfCanvas || !fabCanvasEl) return;
+        pdfCanvas.width = viewport.width;
+        pdfCanvas.height = viewport.height;
+        fabCanvasEl.width = viewport.width;
+        fabCanvasEl.height = viewport.height;
+        box._editPdfRenderedHeights[pageIdx] = viewport.height;
+
+        var ctx3 = pdfCanvas.getContext('2d');
+        page.render({ canvasContext: ctx3, viewport: viewport }).promise.then(function () {
+          setupFabricCanvas(viewport.width, viewport.height);
+          /* Restore objects for this page */
+          if (editPdfPageObjects[pageIdx]) {
+            editPdfPageObjects[pageIdx].forEach(function (saved) {
+              fabric.util.enlivenObjects([saved.json], function (objs) {
+                objs.forEach(function (o) {
+                  o.tgType = saved.tgType;
+                  o.tgData = saved.tgData;
+                  editPdfFabric.add(o);
+                });
+                editPdfFabric.renderAll();
+              });
+            });
+          }
+          /* Update page label */
+          var lbl2 = box.querySelector('#ep-page-label');
+          if (lbl2) lbl2.textContent = 'Page ' + pageNum + ' of ' + editPdfPdfDoc.numPages;
+          var delPg = box.querySelector('#ep-del-page');
+          if (delPg) delPg.textContent = editPdfDeleted.indexOf(pageIdx) !== -1 ? '✓ Restore page' : '🗑 Delete page';
+        });
+      });
+    }
+
+    function navigateEditPage(newIdx) {
+      /* Save current page fabric objects */
+      if (editPdfFabric) {
+        editPdfPageObjects[editPdfPageIdx] = editPdfFabric.getObjects().map(function (obj) { return { json: obj.toJSON(['tgType','tgData']), tgType: obj.tgType, tgData: obj.tgData }; });
+      }
+      editPdfPageIdx = newIdx;
+      renderEditPage(newIdx);
+      /* Highlight side panel thumbnail */
+      var cards = box.querySelectorAll('.tg-ep-thumb');
+      cards.forEach(function (c, ci) { c.style.borderColor = ci === newIdx ? '#E07B39' : '#ccc'; });
+    }
+
+    function buildEditSidePanel(pdfDoc) {
+      var side = box.querySelector('#ep-side');
+      if (!side) return;
+      side.innerHTML = '';
+      window.TGPdfTools.renderAllThumbnails(file, 0.15, null).then(function (pages) {
+        pages.forEach(function (p, idx) {
+          var card2 = document.createElement('div');
+          card2.className = 'tg-ep-thumb';
+          card2.style.cssText = 'border:2px solid ' + (idx === editPdfPageIdx ? '#E07B39' : '#ccc') + ';border-radius:4px;padding:3px;margin-bottom:6px;cursor:pointer;text-align:center;position:relative;opacity:' + (editPdfDeleted.indexOf(idx) !== -1 ? '0.4' : '1');
+          var tc = p.canvas.cloneNode(true);
+          tc.style.cssText = 'max-width:90px;height:auto;display:block;margin:0 auto';
+          card2.appendChild(tc);
+          var pg2 = document.createElement('span');
+          pg2.style.cssText = 'font-size:10px;color:#666';
+          pg2.textContent = idx + 1;
+          card2.appendChild(pg2);
+          card2.addEventListener('click', function () { navigateEditPage(idx); });
+          side.appendChild(card2);
+        });
+      });
+    }
+  }
+
+  /* -----------------------------------------------
      INIT — inject options for tools that need them up-front
   ----------------------------------------------- */
   if (optionsEl) {
     tgInjectOptions(handler, optionsEl);
-    /* compress & jpg-to-pdf show options immediately; others wait for file */
-    if (handler === 'compress' || handler === 'jpg-to-pdf') {
+    /* These tools show options immediately (before file select) */
+    var showOptsImmediately = ['compress', 'jpg-to-pdf', 'protect-pdf', 'add-watermark', 'add-page-numbers'];
+    if (showOptsImmediately.indexOf(handler) !== -1) {
       optionsEl.hidden = false;
     } else {
       optionsEl.hidden = true;
