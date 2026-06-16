@@ -40,6 +40,10 @@ function tg_enqueue_assets() {
     wp_enqueue_style('tg-main', get_template_directory_uri() . '/assets/css/main.css', ['tg-fonts'], $ver);
     wp_enqueue_script('tg-main', get_template_directory_uri() . '/assets/js/main.js', [], $ver, true);
 
+    if (is_page('tools')) {
+        wp_enqueue_script('tg-tools-search', get_template_directory_uri() . '/assets/js/tools-search.js', ['tg-main'], $ver, true);
+    }
+
     if (is_singular('tg_tool')) {
         wp_enqueue_style('tg-tool', get_template_directory_uri() . '/assets/css/tool.css', ['tg-main'], $ver);
         wp_enqueue_script('pdf-lib', 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', [], null, true);
