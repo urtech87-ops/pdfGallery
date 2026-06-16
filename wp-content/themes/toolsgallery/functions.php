@@ -45,6 +45,8 @@ function tg_enqueue_assets() {
     }
 
     if (is_singular('tg_tool')) {
+        $tg_handler = get_post_meta(get_the_ID(), '_tg_handler', true);
+
         wp_enqueue_style('tg-tool', get_template_directory_uri() . '/assets/css/tool.css', ['tg-main'], $ver);
         wp_enqueue_script('pdf-lib', 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js', [], null, true);
         wp_enqueue_script('pdfjs', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', ['pdf-lib'], null, true);
@@ -52,13 +54,29 @@ function tg_enqueue_assets() {
         wp_enqueue_script('jszip', 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', ['pdfjs'], null, true);
         wp_enqueue_script('downloadjs', 'https://cdnjs.cloudflare.com/ajax/libs/downloadjs/1.4.7/download.min.js', ['jszip'], null, true);
         wp_enqueue_script('tg-pdf-tools', get_template_directory_uri() . '/assets/js/pdf-tools.js', ['downloadjs'], $ver, true);
-        wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', ['tg-pdf-tools'], $ver, true);
+
+        /* Conditional libraries — Phase 3B */
+        $tool_runner_deps = ['tg-pdf-tools'];
+        if ($tg_handler === 'edit-pdf') {
+            wp_enqueue_script('fabricjs', 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js', ['tg-pdf-tools'], null, true);
+            $tool_runner_deps[] = 'fabricjs';
+        }
+        if ($tg_handler === 'pdf-to-word') {
+            wp_enqueue_script('docxjs', 'https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.umd.min.js', ['tg-pdf-tools'], null, true);
+            $tool_runner_deps[] = 'docxjs';
+        }
+        if ($tg_handler === 'word-to-pdf') {
+            wp_enqueue_script('mammothjs', 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js', ['tg-pdf-tools'], null, true);
+            $tool_runner_deps[] = 'mammothjs';
+        }
+
+        wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 
         wp_localize_script('tg-ai-tool-runner', 'tgAiConfig', [
             'ajaxUrl'     => admin_url('admin-ajax.php'),
             'nonce'       => wp_create_nonce('tg_tool_nonce'),
-            'toolKey'     => get_post_meta(get_the_ID(), '_tg_handler', true),
+            'toolKey'     => $tg_handler,
             'actionLabel' => get_post_meta(get_the_ID(), '_tg_action_label', true) ?: __('Run Tool', 'toolsgallery'),
         ]);
     }
