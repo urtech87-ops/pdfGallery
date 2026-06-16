@@ -312,17 +312,24 @@ window.TGPdfTools = {
     }
 
     /* Build .docx */
-    var _docx = window.docx;
+    if (!window.docx || !window.docx.Document) {
+      throw new Error('Document library not loaded. Please refresh the page.');
+    }
     var children = docParagraphs.map(function (p) {
-      if (p.isBreak) return new _docx.Paragraph({ text: '' });
-      if (p.fontSize > 14) {
-        return new _docx.Paragraph({ text: p.text, heading: _docx.HeadingLevel.HEADING_2 });
+      if (p.isBreak) {
+        return new window.docx.Paragraph({ children: [new window.docx.TextRun({ text: '' })] });
       }
-      return new _docx.Paragraph({ text: p.text });
+      if (p.fontSize > 14) {
+        return new window.docx.Paragraph({
+          heading: window.docx.HeadingLevel ? window.docx.HeadingLevel.HEADING_2 : undefined,
+          children: [new window.docx.TextRun({ text: p.text })]
+        });
+      }
+      return new window.docx.Paragraph({ children: [new window.docx.TextRun({ text: p.text })] });
     });
 
-    var doc = new _docx.Document({ sections: [{ properties: {}, children: children }] });
-    return _docx.Packer.toBlob(doc);
+    var doc = new window.docx.Document({ sections: [{ properties: {}, children: children }] });
+    return window.docx.Packer.toBlob(doc);
   },
 
   /* ── UNLOCK PDF ──────────────────────────────────── */
