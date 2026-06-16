@@ -1968,6 +1968,15 @@
       var fc = new fabric.Canvas('pdf-edit-canvas', { selection: true, preserveObjectStacking: true });
       fc.setWidth(w);
       fc.setHeight(h);
+      /* Fabric wraps canvas in a div (wrapperEl) with position:relative by default,
+         which places it in document flow after the PDF base canvas instead of overlaying it.
+         Force it to absolute so it sits on top of #pdf-base-canvas. */
+      if (fc.wrapperEl) {
+        fc.wrapperEl.style.position = 'absolute';
+        fc.wrapperEl.style.top = '0';
+        fc.wrapperEl.style.left = '0';
+        fc.wrapperEl.style.zIndex = '10';
+      }
       editPdfFabric = fc;
       fc.on('mouse:down', onFabricMouseDown);
       updateCursor(currentMode);
@@ -1985,6 +1994,12 @@
         pdfCanvas.height = viewport.height;
         box._editPdfRenderedHeights[pageIdx] = viewport.height;
 
+        /* Size the wrapper to match the base canvas so the Fabric overlay aligns exactly */
+        var canvasWrap = box.querySelector('#ep-canvas-wrap');
+        if (canvasWrap) {
+          canvasWrap.style.width = viewport.width + 'px';
+          canvasWrap.style.height = viewport.height + 'px';
+        }
         var ctx3 = pdfCanvas.getContext('2d');
         page.render({ canvasContext: ctx3, viewport: viewport }).promise.then(function () {
           var fc = setupFabricCanvas(viewport.width, viewport.height);
