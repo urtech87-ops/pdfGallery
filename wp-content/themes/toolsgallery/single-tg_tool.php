@@ -58,7 +58,56 @@ while ( have_posts() ) :
             <?php endif; ?>
 
             <!-- 3. TOOL UI BOX -->
-            <?php if ( $tool_type === 'ai' ) : ?>
+            <?php if ( $tool_type === 'url-input' ) : ?>
+
+                <!-- URL Input Tool Box -->
+                <div class="tg-tool-box"
+                     data-tool-type="url-input"
+                     data-handler="<?php echo esc_attr( $handler ); ?>"
+                     data-accept="">
+
+                    <div class="tg-url-input-box" style="margin-bottom:16px;">
+                        <label for="tg-url-field" style="display:block;font-weight:600;margin-bottom:6px;"><?php esc_html_e( 'Enter website URL', 'toolsgallery' ); ?></label>
+                        <div class="tg-url-input-wrap" style="display:flex;align-items:center;border:1px solid #ccc;border-radius:6px;overflow:hidden;">
+                            <span class="tg-url-prefix" style="padding:0 10px;background:#f5f5f5;font-size:18px;line-height:42px;">&#127760;</span>
+                            <input type="url" class="tg-url-input" id="tg-url-field"
+                                placeholder="https://example.com"
+                                pattern="https?://.+"
+                                autocomplete="url"
+                                style="flex:1;border:none;padding:10px;font-size:15px;outline:none;">
+                        </div>
+                        <p class="tg-url-hint" style="font-size:13px;color:#666;margin:4px 0 0;"><?php esc_html_e( 'Enter the full URL including https://', 'toolsgallery' ); ?></p>
+                    </div>
+
+                    <div class="tg-options" hidden></div>
+
+                    <button class="tg-action-btn" disabled>
+                        <?php echo esc_html( $action_label ); ?>
+                    </button>
+
+                    <div class="tg-progress" hidden>
+                        <div class="tg-progress-track">
+                            <div class="tg-progress-bar"></div>
+                        </div>
+                        <span class="tg-progress-label"><?php esc_html_e( 'Fetching page...', 'toolsgallery' ); ?></span>
+                    </div>
+
+                    <div class="tg-result" hidden>
+                        <div class="tg-success-banner">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <?php esc_html_e( 'Page fetched! Follow the steps in the print window to save as PDF.', 'toolsgallery' ); ?>
+                        </div>
+                        <div class="tg-error-banner" hidden>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            <span class="tg-error-msg"></span>
+                        </div>
+                        <a href="#" class="tg-reset"><?php esc_html_e( 'Convert another URL', 'toolsgallery' ); ?></a>
+                    </div>
+
+                    <?php wp_nonce_field( 'tg_tool_nonce', 'tg_nonce' ); ?>
+                </div>
+
+            <?php elseif ( $tool_type === 'ai' ) : ?>
 
                 <!-- AI Tool Box -->
                 <div class="tg-tool-box tg-ai-box"

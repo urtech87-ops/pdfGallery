@@ -78,6 +78,46 @@ function tg_enqueue_assets() {
             $tool_runner_deps[] = 'tg-pdf-decrypt';
         }
 
+        /* Phase 3C — individual tool files */
+        $tool_files_3c = [
+            'pdf-to-excel'     => 'pdf-to-excel.js',
+            'excel-to-pdf'     => 'excel-to-pdf.js',
+            'pdf-to-ppt'       => 'pdf-to-ppt.js',
+            'ppt-to-pdf'       => 'ppt-to-pdf.js',
+            'pdf-to-epub'      => 'pdf-to-epub.js',
+            'epub-to-pdf'      => 'epub-to-pdf.js',
+            'add-signature'    => 'add-signature.js',
+            'crop-pdf'         => 'crop-pdf.js',
+            'remove-watermark' => 'remove-watermark.js',
+            'pdf-translate'    => 'pdf-translate.js',
+            'pdf-summarize'    => 'pdf-summarize.js',
+            'extract-images'   => 'extract-images.js',
+            'redact-pdf'       => 'redact-pdf.js',
+            'url-to-pdf'       => 'url-to-pdf.js',
+        ];
+        if (isset($tool_files_3c[$tg_handler])) {
+            wp_enqueue_script(
+                'tg-tool-' . $tg_handler,
+                get_template_directory_uri() . '/assets/js/tools/' . $tool_files_3c[$tg_handler],
+                ['tg-pdf-tools'],
+                $ver,
+                true
+            );
+            $tool_runner_deps[] = 'tg-tool-' . $tg_handler;
+        }
+
+        /* SheetJS — for Excel tools */
+        if (in_array($tg_handler, ['pdf-to-excel', 'excel-to-pdf'], true)) {
+            wp_enqueue_script('sheetjs', 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', ['tg-pdf-tools'], null, true);
+            $tool_runner_deps[] = 'sheetjs';
+        }
+
+        /* PptxGenJS — for PPT tools */
+        if (in_array($tg_handler, ['pdf-to-ppt', 'ppt-to-pdf'], true)) {
+            wp_enqueue_script('pptxgenjs', 'https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundled.js', ['tg-pdf-tools'], null, true);
+            $tool_runner_deps[] = 'pptxgenjs';
+        }
+
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 
@@ -426,13 +466,31 @@ function tg_call_openrouter($tool, $payload) {
 }
 
 function tg_get_tool_prompts() {
-    return [];
+    return [
+        'pdf-translate' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 4000,
+            'system'        => 'You are a professional translator. Translate the provided text accurately. Preserve paragraph structure, headings, and formatting. Return only the translated text with the same structure as the input.',
+            'user_template' => "Translate the following text to {language}:\n\n{text}",
+        ],
+        'pdf-summarize' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 2000,
+            'system'        => 'You are an expert document analyst. Summarize the provided document concisely and accurately. Do not add information that is not in the document.',
+            'user_template' => "Summarize this document {format}:\n\n{text}",
+        ],
+    ];
 }
 
 function tg_build_user_prompt($config, $payload) {
     $template = $config['user_template'] ?? '{text}';
     $text     = sanitize_textarea_field(wp_unslash($payload['text'] ?? ''));
-    return str_replace('{text}', $text, $template);
+    $language = sanitize_text_field(wp_unslash($payload['language'] ?? 'English'));
+    $format   = sanitize_text_field(wp_unslash($payload['format'] ?? 'in bullet points'));
+    $result   = str_replace('{text}', $text, $template);
+    $result   = str_replace('{language}', $language, $result);
+    $result   = str_replace('{format}', $format, $result);
+    return $result;
 }
 
 /* =============================================
@@ -496,6 +554,49 @@ function tg_tool_json_ld() {
             'mainEntity' => $entities,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
     }
+}
+
+/* =============================================
+   URL TO PDF PROXY (Phase 3C)
+   ============================================= */
+add_action('wp_ajax_tg_url_to_pdf', 'tg_url_to_pdf_handler');
+add_action('wp_ajax_nopriv_tg_url_to_pdf', 'tg_url_to_pdf_handler');
+
+function tg_url_to_pdf_handler() {
+    check_ajax_referer('tg_tool_nonce', 'nonce');
+
+    $url = esc_url_raw(wp_unslash($_POST['url'] ?? ''));
+    if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
+        wp_send_json_error(['message' => 'Please enter a valid URL including https://']);
+    }
+
+    // Security: block private/reserved IP ranges
+    $host = parse_url($url, PHP_URL_HOST);
+    if (!$host) {
+        wp_send_json_error(['message' => 'Invalid URL format']);
+    }
+    $ip = gethostbyname($host);
+    if (filter_var($ip, FILTER_VALIDATE_IP, ['flags' => FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE]) === false) {
+        wp_send_json_error(['message' => 'Private or internal URLs are not allowed for security reasons']);
+    }
+
+    $response = wp_remote_get($url, [
+        'timeout'    => 30,
+        'user-agent' => 'Mozilla/5.0 (compatible; ToolsGallery/1.0)',
+        'sslverify'  => false,
+    ]);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error(['message' => 'Could not fetch the URL: ' . $response->get_error_message()]);
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    if ($code !== 200) {
+        wp_send_json_error(['message' => 'URL returned error ' . $code . '. Please check the URL and try again.']);
+    }
+
+    $html = wp_remote_retrieve_body($response);
+    wp_send_json_success(['html' => $html, 'url' => $url]);
 }
 
 /* =============================================

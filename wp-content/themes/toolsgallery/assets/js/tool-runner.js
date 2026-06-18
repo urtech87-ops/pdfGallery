@@ -5,6 +5,91 @@
 (function () {
   'use strict';
 
+  /* ── URL-input tool type handler (Phase 3C) ── */
+  var urlBox = document.querySelector('.tg-tool-box[data-tool-type="url-input"]');
+  if (urlBox) {
+    var urlField      = urlBox.querySelector('#tg-url-field');
+    var urlActionBtn  = urlBox.querySelector('.tg-action-btn');
+    var urlProgress   = urlBox.querySelector('.tg-progress');
+    var urlResult     = urlBox.querySelector('.tg-result');
+    var urlError      = urlBox.querySelector('.tg-error-banner');
+    var urlErrorMsg   = urlBox.querySelector('.tg-error-msg');
+    var urlSuccess    = urlBox.querySelector('.tg-success-banner');
+    var urlReset      = urlBox.querySelector('.tg-reset');
+
+    if (urlField && urlActionBtn) {
+      urlField.addEventListener('input', function () {
+        urlActionBtn.disabled = !urlField.value.match(/^https?:\/\/.+/);
+      });
+
+      urlActionBtn.addEventListener('click', function () {
+        var url = urlField.value.trim();
+        if (!url.match(/^https?:\/\/.+/)) return;
+        urlActionBtn.disabled = true;
+        if (urlProgress) urlProgress.hidden = false;
+
+        var nonceEl = urlBox.querySelector('#tg_nonce');
+        var nonce = nonceEl ? nonceEl.value : '';
+        var ajaxUrl = (typeof tgAiConfig !== 'undefined' && tgAiConfig.ajaxUrl)
+          ? tgAiConfig.ajaxUrl : '/wp-admin/admin-ajax.php';
+
+        var formData = new FormData();
+        formData.append('action', 'tg_url_to_pdf');
+        formData.append('nonce', nonce);
+        formData.append('url', url);
+
+        fetch(ajaxUrl, { method: 'POST', body: formData })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (urlProgress) urlProgress.hidden = true;
+            if (data.success) {
+              var win = window.open('', '_blank', 'width=900,height=700');
+              if (win) {
+                win.document.write(
+                  '<!DOCTYPE html><html><head><title>Print to PDF</title>' +
+                  '<style>body{font-family:sans-serif;padding:20px;}@media print{.no-print{display:none}}</style></head><body>' +
+                  '<div class="no-print" style="background:#f0f0f0;padding:15px;margin-bottom:20px;border-radius:8px;">' +
+                    '<strong>How to save as PDF:</strong>' +
+                    '<ol><li>Press Ctrl+P (or Cmd+P on Mac)</li><li>Select "Save as PDF"</li><li>Click Save</li></ol>' +
+                  '</div>' +
+                  data.data.html +
+                  '</body></html>'
+                );
+                win.document.close();
+              }
+              if (urlResult)  urlResult.hidden  = false;
+              if (urlSuccess) urlSuccess.hidden = false;
+              if (urlError)   urlError.hidden   = true;
+            } else {
+              if (urlResult)  urlResult.hidden  = false;
+              if (urlSuccess) urlSuccess.hidden = true;
+              if (urlError)   urlError.hidden   = false;
+              if (urlErrorMsg) urlErrorMsg.textContent =
+                (data.data && data.data.message) ? data.data.message : 'An error occurred';
+              urlActionBtn.disabled = false;
+            }
+          })
+          .catch(function () {
+            if (urlProgress) urlProgress.hidden = true;
+            if (urlResult)  urlResult.hidden  = false;
+            if (urlSuccess) urlSuccess.hidden = true;
+            if (urlError)   urlError.hidden   = false;
+            if (urlErrorMsg) urlErrorMsg.textContent = 'Network error. Please try again.';
+            urlActionBtn.disabled = false;
+          });
+      });
+
+      if (urlReset) {
+        urlReset.addEventListener('click', function (e) {
+          e.preventDefault();
+          urlField.value = '';
+          urlActionBtn.disabled = true;
+          if (urlResult) urlResult.hidden = true;
+        });
+      }
+    }
+  }
+
   var box = document.querySelector('.tg-tool-box[data-tool-type="browser"], .tg-tool-box[data-tool-type="server"]');
   if (!box) return;
 
@@ -511,6 +596,15 @@
           if (w) w.hidden = r.value !== 'specific';
         });
       });
+    }
+
+    /* Phase 3C: delegate to TGTools */
+    if (window.TGTools && window.TGTools[h]) {
+      var t3c = window.TGTools[h];
+      if (t3c.getOptionsHTML) {
+        container.innerHTML = t3c.getOptionsHTML(0);
+        container.hidden = false;
+      }
     }
   }
 
@@ -1440,7 +1534,39 @@
         return;
       }
 
-      /* ── PLACEHOLDER for all other handlers ── */
+      /* ── Generic TGTools dispatcher for Phase 3C tools ── */
+      if (window.TGTools && window.TGTools[handler]) {
+        var tool3c = window.TGTools[handler];
+        var toolFile = isMulti ? currentFiles[0] : currentFile;
+        if (!toolFile && handler !== 'url-to-pdf') return;
+
+        var opts3c = tool3c.getOptions ? tool3c.getOptions(optionsEl) : {};
+
+        if (fileSelected) fileSelected.hidden = true;
+        if (fileListEl)   fileListEl.hidden   = true;
+        actionBtn.hidden = true;
+        startProgress();
+
+        tool3c.run(toolFile, opts3c, function (pct, msg) {
+          if (progressBar) progressBar.style.width = (pct * 100) + '%';
+          var labelEl = progressEl ? progressEl.querySelector('.tg-progress-label') : null;
+          if (labelEl && msg) labelEl.textContent = msg;
+        }).then(function (result) {
+          blobUrl = URL.createObjectURL(result.blob);
+          downloadFilename = result.filename || 'output';
+          finishProgress();
+          showSuccessResult();
+        }).catch(function (e) {
+          finishProgress(true);
+          actionBtn.hidden = false;
+          if (fileSelected && currentFile) fileSelected.hidden = false;
+          if (fileListEl && isMulti && currentFiles.length) fileListEl.hidden = false;
+          showErrorResult(e && e.message ? e.message : 'An error occurred. Please try again.');
+        });
+        return;
+      }
+
+      /* ── FALLBACK placeholder ── */
       var fileForHandler = isMulti ? (currentFiles[0] || null) : currentFile;
       if (!fileForHandler) return;
       if (fileSelected) fileSelected.hidden = true;
