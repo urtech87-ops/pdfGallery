@@ -96,6 +96,51 @@ function tg_enqueue_assets() {
 }
 add_action('wp_enqueue_scripts', 'tg_enqueue_assets');
 
+/* Per-tool JS file — loaded only on the matching tool page */
+function tg_enqueue_tool_script() {
+    if (!is_singular('tg_tool')) return;
+    $post_id = get_the_ID();
+    $handler = get_post_meta($post_id, '_tg_handler', true);
+    if (!$handler) return;
+
+    $tool_files = [
+        'merge'               => 'merge-pdf',
+        'compress'            => 'compress-pdf',
+        'split'               => 'split-pdf',
+        'pdf-to-jpg'          => 'pdf-to-jpg',
+        'jpg-to-pdf'          => 'jpg-to-pdf',
+        'rotate-pdf'          => 'rotate-pdf',
+        'edit-pdf'            => 'edit-pdf',
+        'unlock-pdf'          => 'unlock-pdf',
+        'protect-pdf'         => 'protect-pdf',
+        'pdf-to-word'         => 'pdf-to-word',
+        'word-to-pdf'         => 'word-to-pdf',
+        'pdf-to-png'          => 'pdf-to-png',
+        'add-watermark'       => 'add-watermark',
+        'add-page-numbers'    => 'add-page-numbers',
+        'extract-text'        => 'extract-text',
+        'rearrange-pdf'       => 'rearrange-pdf',
+        'grammar-fixer'       => 'grammar-fixer',
+        'paraphraser'         => 'paraphraser',
+        'ai-humanizer'        => 'ai-humanizer',
+        'summarizer'          => 'summarizer',
+        'essay-writer'        => 'essay-writer',
+        'article-writer'      => 'article-writer',
+        'blog-post-generator' => 'blog-post-generator',
+        'translate'           => 'translate',
+    ];
+
+    $file = $tool_files[$handler] ?? null;
+    if (!$file) return;
+
+    $uri  = get_template_directory_uri() . '/assets/js/tools/' . $file . '.js';
+    $path = get_template_directory()     . '/assets/js/tools/' . $file . '.js';
+    if (!file_exists($path)) return;
+
+    wp_enqueue_script('tg-tool-' . $handler, $uri, ['tg-tool-runner'], filemtime($path), true);
+}
+add_action('wp_enqueue_scripts', 'tg_enqueue_tool_script');
+
 /* Preconnect for Google Fonts */
 function tg_preconnect_fonts() {
     echo '<link rel="preconnect" href="https://fonts.googleapis.com">' . "\n";

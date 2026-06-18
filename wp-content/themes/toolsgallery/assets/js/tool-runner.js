@@ -178,8 +178,20 @@
   /* -----------------------------------------------
      OPTIONS INJECTION
   ----------------------------------------------- */
-  function tgInjectOptions(h, container) {
+  function tgInjectOptions(h, container, fileCount) {
     if (!container) return;
+
+    /* New path: delegate to individual tool file */
+    var tool = window.TGTools && window.TGTools[h];
+    if (tool && typeof tool.getOptionsHTML === 'function') {
+      var html = tool.getOptionsHTML(fileCount || 0);
+      container.innerHTML = html || '';
+      container.hidden = !container.innerHTML.trim();
+      if (tool.afterOptionsInjected) tool.afterOptionsInjected(container);
+      return;
+    }
+
+    /* Legacy fallback for any handler not yet in TGTools */
     container.innerHTML = '';
 
     if (h === 'compress') {
@@ -518,6 +530,17 @@
      PAGE COUNT & ASYNC FILE INIT
   ----------------------------------------------- */
   function onFileReadyForPageCountTools(file) {
+    /* New path: let individual tool file build its UI */
+    var tool = window.TGTools && window.TGTools[handler];
+    if (tool && typeof tool.onFileReady === 'function') {
+      tool.onFileReady(file, box);
+    }
+
+    /* Show options immediately for tools that need them */
+    if (optionsEl && !optionsEl.innerHTML.trim()) {
+      tgInjectOptions(handler, optionsEl);
+    }
+
     if (handler === 'split' || handler === 'pdf-to-jpg') {
       window.TGPdfTools.getPageCount(file).then(function (count) {
         box.dataset.pageCount = count;
@@ -822,6 +845,10 @@
     extractResults = null;
     var etWrap = box.querySelector('.tg-extract-result-wrap');
     if (etWrap) etWrap.parentNode.removeChild(etWrap);
+
+    /* Delegate cleanup to registered tool module */
+    var _resetTool = window.TGTools && window.TGTools[handler];
+    if (_resetTool && typeof _resetTool.reset === 'function') _resetTool.reset(box);
   }
 
   /* -----------------------------------------------
@@ -864,6 +891,68 @@
   if (actionBtn) {
     actionBtn.addEventListener('click', function () {
       clearInlineMsg();
+
+      /* ── TGTools dispatch (new per-tool file architecture) ── */
+      var _tool = window.TGTools && window.TGTools[handler];
+      if (_tool && typeof _tool.run === 'function') {
+        var _files = isMulti ? currentFiles.slice() : (currentFile ? [currentFile] : []);
+        if (!_files.length) return;
+
+        var _options = _tool.getOptions ? _tool.getOptions() : {};
+
+        var _callbacks = {
+          onProgress: function (percent, message) {
+            if (progressBar) progressBar.style.width = percent + '%';
+          },
+          onSuccess: function (blob, filename, extra) {
+            /* word-to-pdf and extract-text pass null blob — they manage their own UI */
+            if (blob) {
+              blobUrl = URL.createObjectURL(blob);
+              downloadFilename = filename;
+            }
+            finishProgress();
+            if (extra) {
+              var _msgEl = resultEl ? resultEl.querySelector('.tg-success-msg') : null;
+              if (_msgEl) {
+                if (extra.reduction !== undefined) {
+                  var _origKB = (extra.originalSize / 1024).toFixed(1);
+                  var _compKB = (extra.compressedSize / 1024).toFixed(1);
+                  _msgEl.textContent = extra.compressedSize < extra.originalSize
+                    ? 'Original: ' + _origKB + ' KB → Compressed: ' + _compKB + ' KB (' + extra.reduction + '% smaller)'
+                    : 'Your PDF is already well-optimized (' + _origKB + ' KB). Downloaded anyway.';
+                  _msgEl.hidden = false;
+                } else if (extra.message) {
+                  _msgEl.textContent = extra.message;
+                  _msgEl.hidden = false;
+                }
+              }
+            }
+            /* extract-text manages result display itself; skip showSuccessResult */
+            if (blob !== null) showSuccessResult();
+          },
+          onError: function (message) {
+            finishProgress(true);
+            showErrorResult(message);
+          },
+          onInlineError: function (message) {
+            showInlineMsg(message);
+          },
+          getBox:          function () { return box; },
+          getActionBtn:    function () { return actionBtn; },
+          getResultEl:     function () { return resultEl; },
+          getSuccessBanner:function () { return successBanner; },
+          getErrorBanner:  function () { return errorBanner; },
+          getDownloadBtn:  function () { return downloadBtn; },
+          getProgressBar:  function () { return progressBar; },
+        };
+
+        startProgress();
+        Promise.resolve(_tool.run(_files, _options, _callbacks)).catch(function (err) {
+          finishProgress(true);
+          showErrorResult(err && err.message ? err.message : 'An error occurred.');
+        });
+        return;
+      }
 
       /* ── MERGE ── */
       if (handler === 'merge' && isMulti) {
