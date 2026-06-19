@@ -62,7 +62,7 @@ function tg_enqueue_assets() {
             $tool_runner_deps[] = 'fabricjs';
         }
         if ($tg_handler === 'pdf-to-word') {
-            wp_enqueue_script('docxjs', 'https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.umd.min.js', ['tg-pdf-tools'], null, true);
+            wp_enqueue_script('docxjs', 'https://unpkg.com/docx@7.8.2/build/index.umd.js', ['tg-pdf-tools'], null, true);
             $tool_runner_deps[] = 'docxjs';
         }
         if ($tg_handler === 'word-to-pdf') {
@@ -94,16 +94,27 @@ function tg_enqueue_assets() {
             'extract-images'   => 'extract-images.js',
             'redact-pdf'       => 'redact-pdf.js',
             'url-to-pdf'       => 'url-to-pdf.js',
+            'pdf-to-word'      => 'pdf-to-word.js',
         ];
         if (isset($tool_files_3c[$tg_handler])) {
+            $tool_script_deps = ['tg-pdf-tools'];
+            if ($tg_handler === 'pdf-to-word') {
+                $tool_script_deps[] = 'docxjs';
+            }
             wp_enqueue_script(
                 'tg-tool-' . $tg_handler,
                 get_template_directory_uri() . '/assets/js/tools/' . $tool_files_3c[$tg_handler],
-                ['tg-pdf-tools'],
+                $tool_script_deps,
                 $ver,
                 true
             );
             $tool_runner_deps[] = 'tg-tool-' . $tg_handler;
+        }
+
+        /* html2canvas — for URL to PDF */
+        if ($tg_handler === 'url-to-pdf') {
+            wp_enqueue_script('html2canvas', 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', ['tg-pdf-tools'], null, true);
+            $tool_runner_deps[] = 'html2canvas';
         }
 
         /* SheetJS — for Excel tools */
@@ -114,7 +125,7 @@ function tg_enqueue_assets() {
 
         /* PptxGenJS — for PPT tools */
         if (in_array($tg_handler, ['pdf-to-ppt', 'ppt-to-pdf'], true)) {
-            wp_enqueue_script('pptxgenjs', 'https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundled.js', ['tg-pdf-tools'], null, true);
+            wp_enqueue_script('pptxgenjs', 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js', ['tg-pdf-tools'], null, true);
             $tool_runner_deps[] = 'pptxgenjs';
         }
 
@@ -439,10 +450,18 @@ function tg_call_openrouter($tool, $payload) {
     $config  = $prompts[$tool] ?? null;
     if (!$config) return ['error' => 'Unknown tool'];
 
+    $language = sanitize_text_field(wp_unslash($payload['language'] ?? 'English'));
+    $format   = sanitize_text_field(wp_unslash($payload['format'] ?? 'bullet points'));
+    $length   = sanitize_text_field(wp_unslash($payload['length'] ?? 'standard'));
+    $system   = $config['system'] ?? '';
+    $system   = str_replace('{language}', $language, $system);
+    $system   = str_replace('{format}',   $format,   $system);
+    $system   = str_replace('{length}',   $length,   $system);
+
     $body = [
         'model'      => $config['model'] ?? 'google/gemini-flash-1.5',
         'messages'   => [
-            ['role' => 'system', 'content' => $config['system']],
+            ['role' => 'system', 'content' => $system],
             ['role' => 'user',   'content' => tg_build_user_prompt($config, $payload)],
         ],
         'max_tokens' => $config['max_tokens'] ?? 2000,
@@ -476,8 +495,8 @@ function tg_get_tool_prompts() {
         'pdf-summarize' => [
             'model'         => 'google/gemini-flash-1.5',
             'max_tokens'    => 2000,
-            'system'        => 'You are an expert document analyst. Summarize the provided document concisely and accurately. Do not add information that is not in the document.',
-            'user_template' => "Summarize this document {format}:\n\n{text}",
+            'system'        => 'You are an expert document analyst. Summarize the provided document text clearly and accurately. Format: {format}. Length: {length}. Focus on key points, main arguments, and important conclusions. Do not add information not present in the document.',
+            'user_template' => "Please summarize this document:\n\n{text}",
         ],
     ];
 }
@@ -486,10 +505,12 @@ function tg_build_user_prompt($config, $payload) {
     $template = $config['user_template'] ?? '{text}';
     $text     = sanitize_textarea_field(wp_unslash($payload['text'] ?? ''));
     $language = sanitize_text_field(wp_unslash($payload['language'] ?? 'English'));
-    $format   = sanitize_text_field(wp_unslash($payload['format'] ?? 'in bullet points'));
-    $result   = str_replace('{text}', $text, $template);
+    $format   = sanitize_text_field(wp_unslash($payload['format'] ?? 'bullet points'));
+    $length   = sanitize_text_field(wp_unslash($payload['length'] ?? 'standard'));
+    $result   = str_replace('{text}',     $text,     $template);
     $result   = str_replace('{language}', $language, $result);
-    $result   = str_replace('{format}', $format, $result);
+    $result   = str_replace('{format}',   $format,   $result);
+    $result   = str_replace('{length}',   $length,   $result);
     return $result;
 }
 

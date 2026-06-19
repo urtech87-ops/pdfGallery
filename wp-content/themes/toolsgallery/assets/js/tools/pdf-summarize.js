@@ -82,11 +82,16 @@
       if (pageText) textParts.push(pageText);
     }
 
-    if (!textParts.length) throw new Error('No text found in PDF. It may contain only images.');
+    var fullText = textParts.join('\n\n');
+    if (!fullText || fullText.trim().length < 50) {
+      callbacks.onError ?
+        callbacks.onError('Could not extract text from this PDF. The document may contain only images or be scanned. Text-based PDFs work best for summarization.') :
+        (() => { throw new Error('Could not extract text from this PDF. The document may contain only images or be scanned.'); })();
+      return;
+    }
 
-    var text = textParts.join('\n\n');
     var maxChars = options.length === 'brief' ? 2000 : options.length === 'detailed' ? 5000 : 3500;
-    if (text.length > maxChars) text = text.substring(0, maxChars) + '...\n[Text truncated]';
+    var text = fullText.length > maxChars ? fullText.substring(0, maxChars) + '...\n[Text truncated]' : fullText;
 
     onProgress && onProgress(0.5, 'Generating summary...');
 
@@ -101,6 +106,7 @@
     formData.append('tool', 'pdf-summarize');
     formData.append('payload[text]', text);
     formData.append('payload[format]', formatStr);
+    formData.append('payload[length]', options.length || 'standard');
 
     var response = await fetch(tgAiConfig.ajaxUrl, { method: 'POST', body: formData });
     var data = await response.json();
@@ -108,7 +114,7 @@
     if (!data.success) throw new Error((data.data && data.data.message) ? data.data.message : 'Summarization failed. Please try again.');
 
     var summary = (data.data && data.data.result) ? data.data.result : '';
-    if (!summary) throw new Error('Summary returned empty result.');
+    if (!summary) throw new Error('AI returned an empty summary. Please try again or use a different PDF.');
 
     onProgress && onProgress(0.9, 'Displaying summary...');
 

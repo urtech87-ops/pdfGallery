@@ -11,68 +11,51 @@
   };
 
   function getOptionsHTML(pageCount) {
-    return '<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:12px;margin-bottom:12px;">' +
-      '<strong>Note:</strong> Direct PPTX-to-PDF conversion in the browser is not possible without installing PowerPoint or LibreOffice. ' +
-      'We will provide your file and step-by-step instructions.' +
-    '</div>' +
-    '<div class="tg-opt-row">' +
-      '<label class="tg-opt-label">Conversion method</label>' +
-      '<div class="tg-radio-group">' +
-        '<label><input type="radio" name="ppt2pdf-method" value="instructions" checked> Show print instructions (recommended)</label>' +
-        '<label><input type="radio" name="ppt2pdf-method" value="download"> Download original + instructions</label>' +
-      '</div>' +
-    '</div>';
+    return '<p class="tg-opt-info">Upload your PowerPoint file and click Convert to see step-by-step instructions for saving it as a PDF.</p>';
   }
 
   function getOptions(optionsEl) {
-    if (!optionsEl) return {};
-    var method = optionsEl.querySelector('input[name="ppt2pdf-method"]:checked');
-    return { method: method ? method.value : 'instructions' };
+    return {};
   }
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(0.3, 'Preparing instructions...');
+    onProgress && onProgress(0.5, 'Preparing instructions...');
 
-    var instrHTML = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PPT to PDF Instructions</title>' +
-      '<style>body{font-family:Arial,sans-serif;max-width:600px;margin:40px auto;padding:20px;line-height:1.6;}' +
-      'h1{color:#333;}ol li{margin-bottom:10px;}' +
-      '.note{background:#e3f2fd;padding:12px;border-radius:6px;margin-top:20px;}' +
-      '</style></head><body>' +
-      '<h1>How to Convert PPTX to PDF</h1>' +
-      '<p>Browser-based PPTX to PDF conversion requires your local presentation software. Follow these steps:</p>' +
-      '<h2>Option 1: Using Microsoft PowerPoint</h2>' +
-      '<ol>' +
-        '<li>Open your PPTX file in Microsoft PowerPoint</li>' +
-        '<li>Click <strong>File → Export → Create PDF/XPS</strong></li>' +
-        '<li>Choose a save location and click <strong>Publish</strong></li>' +
-      '</ol>' +
-      '<h2>Option 2: Using LibreOffice (Free)</h2>' +
-      '<ol>' +
-        '<li>Open your PPTX file in LibreOffice Impress</li>' +
-        '<li>Click <strong>File → Export as PDF...</strong></li>' +
-        '<li>Configure options and click <strong>Export</strong></li>' +
-      '</ol>' +
-      '<h2>Option 3: Print to PDF</h2>' +
-      '<ol>' +
-        '<li>Open your PPTX file in any presentation software</li>' +
-        '<li>Press <strong>Ctrl+P</strong> to open print dialog</li>' +
-        '<li>Select <strong>"Save as PDF"</strong> as the printer/destination</li>' +
-        '<li>Click <strong>Save</strong></li>' +
-      '</ol>' +
-      '<div class="note"><strong>Online alternative:</strong> You can also use LibreOffice online at <a href="https://www.libreoffice.org/download/libreoffice-online/" target="_blank">libreoffice.org</a> for free conversion.</div>' +
-      '</body></html>';
+    var instrHTML =
+      '<div class="tg-ppt-instructions" style="font-family:inherit;">' +
+        '<h3 style="margin-top:0;color:#1a1a2e;font-size:1.1em;">Convert your PowerPoint to PDF:</h3>' +
+        '<div class="tg-instruction-step" style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">' +
+          '<span class="step-num" style="background:#667eea;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0;">1</span>' +
+          '<div>' +
+            '<strong>Open in LibreOffice (Free)</strong>' +
+            '<p style="margin:4px 0 8px;color:#555;">Download LibreOffice free, open your PPTX file, then go to <strong>File → Export as PDF</strong></p>' +
+            '<a href="https://www.libreoffice.org/download/libreoffice/" target="_blank" rel="noopener" style="display:inline-block;padding:6px 14px;background:#667eea;color:#fff;text-decoration:none;border-radius:4px;font-size:0.875em;">Download LibreOffice Free →</a>' +
+          '</div>' +
+        '</div>' +
+        '<div class="tg-instruction-step" style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">' +
+          '<span class="step-num" style="background:#667eea;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0;">2</span>' +
+          '<div>' +
+            '<strong>Use Microsoft PowerPoint</strong>' +
+            '<p style="margin:4px 0;color:#555;">Open your file in PowerPoint, then click <strong>File → Save As</strong> and choose <strong>PDF (*.pdf)</strong> as the format.</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="tg-instruction-step" style="display:flex;gap:12px;align-items:flex-start;">' +
+          '<span class="step-num" style="background:#667eea;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0;">3</span>' +
+          '<div>' +
+            '<strong>Use Google Slides (Free)</strong>' +
+            '<p style="margin:4px 0 8px;color:#555;">Upload your file to Google Drive, open with Google Slides, then <strong>File → Download → PDF Document (.pdf)</strong></p>' +
+            '<a href="https://drive.google.com" target="_blank" rel="noopener" style="display:inline-block;padding:6px 14px;background:#34a853;color:#fff;text-decoration:none;border-radius:4px;font-size:0.875em;">Open Google Drive →</a>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
 
-    onProgress && onProgress(0.6, 'Opening instructions...');
+    onProgress && onProgress(1.0, 'Done');
 
-    var win = window.open('', '_blank', 'width=700,height=600');
-    if (win) {
-      win.document.write(instrHTML);
-      win.document.close();
-    }
-
-    // Return the original file for download
-    var blob = new Blob([await file.arrayBuffer()], { type: file.type || 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
-    return { blob: blob, filename: file.name || CONFIG.downloadName };
+    return {
+      blob: null,
+      filename: null,
+      html: instrHTML,
+    };
   }
 
   window.TGTools = window.TGTools || {};
