@@ -38,44 +38,121 @@
         formData.append('nonce', nonce);
         formData.append('url', url);
 
-        fetch(ajaxUrl, { method: 'POST', body: formData })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
+        function urlShowError(msg) {
             if (urlProgress) urlProgress.hidden = true;
-            if (data.success) {
-              var win = window.open('', '_blank', 'width=900,height=700');
-              if (win) {
+            if (urlResult)   urlResult.hidden   = false;
+            if (urlSuccess)  urlSuccess.hidden  = true;
+            if (urlError)    urlError.hidden    = false;
+            if (urlErrorMsg) urlErrorMsg.textContent = msg;
+            urlActionBtn.disabled = false;
+        }
+
+        function urlFallbackPrint(html, fetchedUrl) {
+            var win = window.open('', '_blank', 'width=900,height=700');
+            if (win) {
                 win.document.write(
                   '<!DOCTYPE html><html><head><title>Print to PDF</title>' +
+                  '<base href="' + fetchedUrl + '">' +
                   '<style>body{font-family:sans-serif;padding:20px;}@media print{.no-print{display:none}}</style></head><body>' +
-                  '<div class="no-print" style="background:#f0f0f0;padding:15px;margin-bottom:20px;border-radius:8px;">' +
-                    '<strong>How to save as PDF:</strong>' +
-                    '<ol><li>Press Ctrl+P (or Cmd+P on Mac)</li><li>Select "Save as PDF"</li><li>Click Save</li></ol>' +
+                  '<div class="no-print" style="background:#fff3cd;border:1px solid #ffe082;padding:15px;margin-bottom:20px;border-radius:8px;">' +
+                    '<strong>Note:</strong> Some pages cannot be captured directly due to browser security. ' +
+                    'To save as PDF: Press Ctrl+P → Select "Save as PDF" → Click Save.' +
                   '</div>' +
-                  data.data.html +
+                  html +
                   '</body></html>'
                 );
                 win.document.close();
-              }
-              if (urlResult)  urlResult.hidden  = false;
-              if (urlSuccess) urlSuccess.hidden = false;
-              if (urlError)   urlError.hidden   = true;
-            } else {
-              if (urlResult)  urlResult.hidden  = false;
-              if (urlSuccess) urlSuccess.hidden = true;
-              if (urlError)   urlError.hidden   = false;
-              if (urlErrorMsg) urlErrorMsg.textContent =
-                (data.data && data.data.message) ? data.data.message : 'An error occurred';
-              urlActionBtn.disabled = false;
+            }
+            if (urlResult)  urlResult.hidden  = false;
+            if (urlSuccess) urlSuccess.hidden = false;
+            if (urlError)   urlError.hidden   = true;
+            urlActionBtn.disabled = false;
+        }
+
+        function updateUrlProgress(msg) {
+            var bar = urlBox.querySelector('.tg-progress-label');
+            if (bar) bar.textContent = msg;
+        }
+
+        fetch(ajaxUrl, { method: 'POST', body: formData })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data.success) {
+              urlShowError((data.data && data.data.message) ? data.data.message : 'An error occurred');
+              return;
+            }
+
+            var html = data.data.html;
+            var fetchedUrl = data.data.url || url;
+
+            updateUrlProgress('Rendering page...');
+
+            // Render HTML in hidden iframe, capture with html2canvas, produce PDF
+            var iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1280px;height:900px;border:none;';
+            document.body.appendChild(iframe);
+
+            iframe.onload = function () {
+                updateUrlProgress('Generating PDF...');
+                if (typeof html2canvas === 'undefined') {
+                    document.body.removeChild(iframe);
+                    urlFallbackPrint(html, fetchedUrl);
+                    return;
+                }
+                html2canvas(iframe.contentDocument.body, {
+                    width: 1280,
+                    scale: 1,
+                    useCORS: true,
+                    allowTaint: true,
+                    logging: false,
+                }).then(function (canvas) {
+                    var imgData = canvas.toDataURL('image/jpeg', 0.85);
+                    return fetch(imgData).then(function (r) { return r.arrayBuffer(); })
+                      .then(function (imgBytes) {
+                        return PDFLib.PDFDocument.create().then(function (pdfDoc) {
+                            return pdfDoc.embedJpg(imgBytes).then(function (jpgImg) {
+                                var page = pdfDoc.addPage([jpgImg.width, jpgImg.height]);
+                                page.drawImage(jpgImg, { x: 0, y: 0, width: jpgImg.width, height: jpgImg.height });
+                                return pdfDoc.save();
+                            });
+                        });
+                      });
+                }).then(function (pdfBytes) {
+                    document.body.removeChild(iframe);
+                    var blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    if (typeof download === 'function') {
+                        download(blob, 'webpage.pdf', 'application/pdf');
+                    } else {
+                        var a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = 'webpage.pdf';
+                        a.click();
+                    }
+                    if (urlProgress) urlProgress.hidden = true;
+                    if (urlResult)   urlResult.hidden   = false;
+                    if (urlSuccess)  urlSuccess.hidden  = false;
+                    if (urlError)    urlError.hidden    = true;
+                    urlActionBtn.disabled = false;
+                }).catch(function () {
+                    document.body.removeChild(iframe);
+                    urlFallbackPrint(html, fetchedUrl);
+                });
+            };
+
+            try {
+                iframe.contentDocument.open();
+                iframe.contentDocument.write(
+                    '<!DOCTYPE html><html><head><base href="' + fetchedUrl + '"></head><body>' +
+                    html + '</body></html>'
+                );
+                iframe.contentDocument.close();
+            } catch (e) {
+                document.body.removeChild(iframe);
+                urlFallbackPrint(html, fetchedUrl);
             }
           })
           .catch(function () {
-            if (urlProgress) urlProgress.hidden = true;
-            if (urlResult)  urlResult.hidden  = false;
-            if (urlSuccess) urlSuccess.hidden = true;
-            if (urlError)   urlError.hidden   = false;
-            if (urlErrorMsg) urlErrorMsg.textContent = 'Network error. Please try again.';
-            urlActionBtn.disabled = false;
+            urlShowError('Network error. Please try again.');
           });
       });
 
@@ -1552,10 +1629,26 @@
           var labelEl = progressEl ? progressEl.querySelector('.tg-progress-label') : null;
           if (labelEl && msg) labelEl.textContent = msg;
         }).then(function (result) {
-          blobUrl = URL.createObjectURL(result.blob);
-          downloadFilename = result.filename || 'output';
           finishProgress();
-          showSuccessResult();
+          if (result && result.html && !result.blob) {
+            // Inline HTML result (e.g. ppt-to-pdf instructions panel)
+            var inlineWrap = document.createElement('div');
+            inlineWrap.className = 'tg-inline-html-result';
+            inlineWrap.innerHTML = result.html;
+            if (resultEl) {
+              resultEl.hidden = false;
+              var sb = resultEl.querySelector('.tg-success-banner');
+              if (sb) sb.after(inlineWrap);
+              else resultEl.appendChild(inlineWrap);
+            }
+            if (successBanner) successBanner.hidden = false;
+            if (errorBanner)   errorBanner.hidden   = true;
+            if (downloadBtn)   downloadBtn.hidden   = true;
+          } else {
+            blobUrl = URL.createObjectURL(result.blob);
+            downloadFilename = result.filename || 'output';
+            showSuccessResult();
+          }
         }).catch(function (e) {
           finishProgress(true);
           actionBtn.hidden = false;
