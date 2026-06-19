@@ -129,6 +129,98 @@ function tg_enqueue_assets() {
             $tool_runner_deps[] = 'pptxgenjs';
         }
 
+        /* =============================================
+           Phase 4 — Image Tools
+           ============================================= */
+        $tool_files_4 = [
+            'img-compress'         => 'img-compress.js',
+            'img-resize'           => 'img-resize.js',
+            'img-crop'             => 'img-crop.js',
+            'img-flip'             => 'img-flip.js',
+            'img-rotate'           => 'img-rotate.js',
+            'img-add-text'         => 'img-add-text.js',
+            'img-add-border'       => 'img-add-border.js',
+            'img-convert'          => 'img-convert.js',
+            'img-grayscale'        => 'img-grayscale.js',
+            'img-sharpen'          => 'img-sharpen.js',
+            'img-remove-bg'        => 'img-remove-bg.js',
+            'img-colorize'         => 'img-colorize.js',
+            'img-restore'          => 'img-restore.js',
+            'img-upscale'          => 'img-upscale.js',
+            'img-blur-bg'          => 'img-blur-bg.js',
+            'img-remove-watermark' => 'img-remove-watermark.js',
+            'img-remove-objects'   => 'img-remove-objects.js',
+            'img-ocr'              => 'img-ocr.js',
+            'img-translate-text'   => 'img-translate-text.js',
+            'img-change-bg'        => 'img-change-bg.js',
+            'img-split'            => 'img-split.js',
+            'img-combine'          => 'img-combine.js',
+            'img-collage'          => 'img-collage.js',
+            'img-round'            => 'img-round.js',
+            'img-profile'          => 'img-profile.js',
+            'img-pixelate'         => 'img-pixelate.js',
+            'img-watermark'        => 'img-watermark.js',
+            'img-meme'             => 'img-meme.js',
+            'img-chart'            => 'img-chart.js',
+            'img-qr'               => 'img-qr.js',
+            // Format converters (reuse img-convert.js)
+            'img-to-jpg'           => 'img-convert.js',
+            'img-to-png'           => 'img-convert.js',
+            'img-to-webp'          => 'img-convert.js',
+            'img-to-gif'           => 'img-convert.js',
+            'img-to-bmp'           => 'img-convert.js',
+            'img-to-ico'           => 'img-convert.js',
+            'img-to-svg'           => 'img-convert.js',
+            'img-to-tiff'          => 'img-convert.js',
+            'img-to-avif'          => 'img-convert.js',
+            'img-to-heic'          => 'img-convert.js',
+        ];
+
+        if (isset($tool_files_4[$tg_handler])) {
+            $img_tool_deps = ['tg-pdf-tools'];
+
+            /* Cropper.js — for crop and profile-photo tools */
+            if (in_array($tg_handler, ['img-crop', 'img-profile'], true)) {
+                wp_enqueue_style('cropperjs-css', 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css', [], null);
+                wp_enqueue_script('cropperjs', 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js', [], null, true);
+                $img_tool_deps[] = 'cropperjs';
+            }
+
+            /* Fabric.js — for add-text tool */
+            if ($tg_handler === 'img-add-text') {
+                wp_enqueue_script('fabricjs', 'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js', ['tg-pdf-tools'], null, true);
+                $img_tool_deps[] = 'fabricjs';
+            }
+
+            /* heic2any — for HEIC conversion */
+            if (in_array($tg_handler, ['img-convert', 'img-to-heic', 'img-to-jpg', 'img-to-png', 'img-to-webp'], true)) {
+                wp_enqueue_script('heic2any', 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js', [], null, true);
+                $img_tool_deps[] = 'heic2any';
+            }
+
+            /* Chart.js — for chart maker */
+            if ($tg_handler === 'img-chart') {
+                wp_enqueue_script('chartjs', 'https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js', [], null, true);
+                $img_tool_deps[] = 'chartjs';
+            }
+
+            /* QRCode.js — for QR code generator */
+            if ($tg_handler === 'img-qr') {
+                wp_enqueue_script('qrcodejs', 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js', [], null, true);
+                $img_tool_deps[] = 'qrcodejs';
+            }
+
+            $img_script_handle = 'tg-tool-' . $tg_handler;
+            wp_enqueue_script(
+                $img_script_handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $tool_files_4[$tg_handler],
+                $img_tool_deps,
+                $ver,
+                true
+            );
+            $tool_runner_deps[] = $img_script_handle;
+        }
+
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 
@@ -295,6 +387,16 @@ function tg_register_meta_fields() {
             'type'         => 'string',
             'show_in_rest' => true,
             'sanitize_callback' => 'wp_kses_post',
+        ]);
+    }
+
+    // Phase 4 extra fields
+    foreach (['_tg_input_format', '_tg_output_format'] as $key) {
+        register_post_meta('tg_tool', $key, [
+            'single'            => true,
+            'type'              => 'string',
+            'show_in_rest'      => true,
+            'sanitize_callback' => 'sanitize_text_field',
         ]);
     }
 }
@@ -512,6 +614,161 @@ function tg_build_user_prompt($config, $payload) {
     $result   = str_replace('{format}',   $format,   $result);
     $result   = str_replace('{length}',   $length,   $result);
     return $result;
+}
+
+/* =============================================
+   IMAGE AI PROXY (Phase 4)
+   Handles OCR, translation, colorize, etc.
+   via OpenRouter vision API
+   ============================================= */
+add_action('wp_ajax_tg_image_ai', 'tg_image_ai_handler');
+add_action('wp_ajax_nopriv_tg_image_ai', 'tg_image_ai_handler');
+
+function tg_image_ai_handler() {
+    check_ajax_referer('tg_tool_nonce', 'nonce');
+
+    if (!defined('OPENROUTER_API_KEY')) {
+        wp_send_json_error(['message' => 'API not configured'], 500);
+    }
+
+    $tool       = sanitize_text_field(wp_unslash($_POST['tool'] ?? ''));
+    $image_b64  = isset($_POST['image']) ? wp_unslash($_POST['image']) : '';
+    $lang       = sanitize_text_field(wp_unslash($_POST['language'] ?? 'English'));
+
+    if (empty($image_b64)) {
+        wp_send_json_error(['message' => 'No image data provided'], 400);
+    }
+
+    // Strip data URI prefix if present
+    $image_b64 = preg_replace('/^data:image\/[a-z+]+;base64,/', '', $image_b64);
+
+    $tool_configs = [
+        'img-ocr' => [
+            'system' => 'You are an OCR engine. Extract all text from the image exactly as it appears. Preserve line breaks and paragraph structure. Return only the extracted text with no commentary.',
+            'user'   => 'Extract all text from this image.',
+        ],
+        'img-translate-text' => [
+            'system' => 'You are an OCR engine and professional translator. First extract all text from the image, then translate it to ' . $lang . '. Return format: ORIGINAL TEXT:\n{original}\n\nTRANSLATED TEXT:\n{translation}',
+            'user'   => 'Extract and translate all text in this image to ' . $lang . '.',
+        ],
+        'img-colorize' => [
+            'system' => 'You are an image colorization AI. Describe in detail how this grayscale image should be colorized, specifying colors for each major element. Return a JSON object with key "regions" containing an array of {element, suggestedColor} objects.',
+            'user'   => 'Describe how to colorize this image.',
+        ],
+        'img-restore' => [
+            'system' => 'You are a photo restoration AI. Analyze this old or damaged photo and suggest enhancement parameters. Return a JSON object with keys: brightness (-50 to 50), contrast (-50 to 50), saturation (-50 to 50), sharpness (0 to 100), denoise (0 to 100).',
+            'user'   => 'Suggest restoration parameters for this photo.',
+        ],
+    ];
+
+    $config = $tool_configs[$tool] ?? null;
+    if (!$config) {
+        wp_send_json_error(['message' => 'Unknown image tool: ' . $tool], 400);
+    }
+
+    $body = [
+        'model'   => 'google/gemini-flash-1.5',
+        'messages' => [
+            ['role' => 'system', 'content' => $config['system']],
+            ['role' => 'user', 'content' => [
+                ['type' => 'text', 'text' => $config['user']],
+                ['type' => 'image_url', 'image_url' => ['url' => 'data:image/jpeg;base64,' . $image_b64]],
+            ]],
+        ],
+        'max_tokens' => 4000,
+    ];
+
+    $ip_key = 'tg_imgai_' . md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '')));
+    $count  = (int) get_transient($ip_key);
+    if ($count >= 20) {
+        wp_send_json_error(['message' => 'Rate limit reached. Try again in an hour.'], 429);
+    }
+    set_transient($ip_key, $count + 1, HOUR_IN_SECONDS);
+
+    $response = wp_remote_post('https://openrouter.ai/api/v1/chat/completions', [
+        'timeout' => 60,
+        'headers' => [
+            'Authorization' => 'Bearer ' . OPENROUTER_API_KEY,
+            'Content-Type'  => 'application/json',
+            'HTTP-Referer'  => home_url(),
+            'X-Title'       => 'ToolsGallery',
+        ],
+        'body' => wp_json_encode($body),
+    ]);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error(['message' => $response->get_error_message()], 500);
+    }
+
+    $data   = json_decode(wp_remote_retrieve_body($response), true);
+    $result = $data['choices'][0]['message']['content'] ?? '';
+    wp_send_json_success(['result' => $result]);
+}
+
+/* =============================================
+   REMOVE.BG PROXY (Phase 4)
+   ============================================= */
+add_action('wp_ajax_tg_removebg', 'tg_removebg_handler');
+add_action('wp_ajax_nopriv_tg_removebg', 'tg_removebg_handler');
+
+function tg_removebg_handler() {
+    check_ajax_referer('tg_tool_nonce', 'nonce');
+
+    if (!defined('REMOVEBG_API_KEY')) {
+        wp_send_json_error(['message' => 'remove.bg API key not configured. Using browser-side fallback.'], 501);
+    }
+
+    if (empty($_FILES['image']['tmp_name'])) {
+        wp_send_json_error(['message' => 'No image uploaded'], 400);
+    }
+
+    $tmp = $_FILES['image']['tmp_name'];
+    if (!is_uploaded_file($tmp)) {
+        wp_send_json_error(['message' => 'Invalid upload'], 400);
+    }
+
+    $ip_key = 'tg_rmbg_' . md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '')));
+    $count  = (int) get_transient($ip_key);
+    if ($count >= 5) {
+        wp_send_json_error(['message' => 'Rate limit reached. Try again in an hour.'], 429);
+    }
+    set_transient($ip_key, $count + 1, HOUR_IN_SECONDS);
+
+    $boundary = wp_generate_password(24, false);
+    $filename  = sanitize_file_name($_FILES['image']['name'] ?? 'image.jpg');
+    $mime_type = mime_content_type($tmp) ?: 'image/jpeg';
+    $file_data = file_get_contents($tmp);
+
+    $body  = "--{$boundary}\r\n";
+    $body .= "Content-Disposition: form-data; name=\"image_file\"; filename=\"{$filename}\"\r\n";
+    $body .= "Content-Type: {$mime_type}\r\n\r\n";
+    $body .= $file_data . "\r\n";
+    $body .= "--{$boundary}\r\n";
+    $body .= "Content-Disposition: form-data; name=\"size\"\r\n\r\nauto\r\n";
+    $body .= "--{$boundary}--\r\n";
+
+    $response = wp_remote_post('https://api.remove.bg/v1.0/removebg', [
+        'timeout' => 60,
+        'headers' => [
+            'X-Api-Key'    => REMOVEBG_API_KEY,
+            'Content-Type' => 'multipart/form-data; boundary=' . $boundary,
+        ],
+        'body' => $body,
+    ]);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error(['message' => $response->get_error_message()], 500);
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    if ($code !== 200) {
+        $err = json_decode(wp_remote_retrieve_body($response), true);
+        wp_send_json_error(['message' => $err['errors'][0]['title'] ?? 'remove.bg error'], $code);
+    }
+
+    $png_data = wp_remote_retrieve_body($response);
+    $b64      = base64_encode($png_data);
+    wp_send_json_success(['image' => 'data:image/png;base64,' . $b64]);
 }
 
 /* =============================================

@@ -1615,7 +1615,8 @@
       if (window.TGTools && window.TGTools[handler]) {
         var tool3c = window.TGTools[handler];
         var toolFile = isMulti ? currentFiles[0] : currentFile;
-        if (!toolFile && handler !== 'url-to-pdf') return;
+        var isDataInputTool = tool3c.CONFIG && tool3c.CONFIG.inputType === 'data';
+        if (!toolFile && handler !== 'url-to-pdf' && !isDataInputTool) return;
 
         var opts3c = tool3c.getOptions ? tool3c.getOptions(optionsEl) : {};
 
@@ -2305,4 +2306,95 @@
     isMulti:         isMulti,
     resetState:      resetState,
   };
+
+  /* -----------------------------------------------
+     DATA-INPUT TOOL BOX (Phase 4 — Chart Maker, QR Code)
+     No file upload; button always enabled.
+  ----------------------------------------------- */
+  (function () {
+    var diBox = document.querySelector('.tg-tool-box[data-tool-type="data-input"]');
+    if (!diBox) return;
+
+    var diHandler    = diBox.dataset.handler || '';
+    var diOptionsEl  = diBox.querySelector('.tg-options');
+    var diActionBtn  = diBox.querySelector('.tg-action-btn');
+    var diProgressEl = diBox.querySelector('.tg-progress');
+    var diProgressBar = diBox.querySelector('.tg-progress-bar');
+    var diResultEl   = diBox.querySelector('.tg-result');
+    var diSuccessBanner = diResultEl ? diResultEl.querySelector('.tg-success-banner') : null;
+    var diErrorBanner   = diResultEl ? diResultEl.querySelector('.tg-error-banner') : null;
+    var diDownloadBtn   = diBox.querySelector('.tg-download-btn');
+    var diResetLink     = diBox.querySelector('.tg-reset');
+    var diBlobUrl = null;
+    var diFilename = 'output';
+
+    if (diOptionsEl && window.TGTools && window.TGTools[diHandler]) {
+      var diTool = window.TGTools[diHandler];
+      if (diTool.getOptionsHTML) {
+        diOptionsEl.innerHTML = diTool.getOptionsHTML();
+        diOptionsEl.hidden = false;
+      }
+    }
+
+    if (diActionBtn) diActionBtn.disabled = false;
+
+    if (diActionBtn) {
+      diActionBtn.addEventListener('click', function () {
+        if (!window.TGTools || !window.TGTools[diHandler]) return;
+        var diTool2 = window.TGTools[diHandler];
+        var opts = diTool2.getOptions ? diTool2.getOptions(diOptionsEl) : {};
+
+        diActionBtn.hidden = true;
+        if (diProgressEl) { diProgressEl.hidden = false; if (diProgressBar) diProgressBar.style.width = '0%'; }
+        if (diResultEl)   diResultEl.hidden = true;
+        if (diErrorBanner) diErrorBanner.hidden = true;
+
+        diTool2.run(null, opts, function (pct, msg) {
+          if (diProgressBar) diProgressBar.style.width = (pct * 100) + '%';
+          var lbl = diProgressEl ? diProgressEl.querySelector('.tg-progress-label') : null;
+          if (lbl && msg) lbl.textContent = msg;
+        }).then(function (result) {
+          if (diProgressEl) diProgressEl.hidden = true;
+          if (diBlobUrl) URL.revokeObjectURL(diBlobUrl);
+          diBlobUrl = URL.createObjectURL(result.blob);
+          diFilename = result.filename || 'output';
+          if (diResultEl) diResultEl.hidden = false;
+          if (diSuccessBanner) diSuccessBanner.hidden = false;
+          if (diErrorBanner)   diErrorBanner.hidden = true;
+          if (diDownloadBtn)   diDownloadBtn.hidden = false;
+          diActionBtn.hidden = false;
+        }).catch(function (e) {
+          if (diProgressEl) diProgressEl.hidden = true;
+          diActionBtn.hidden = false;
+          if (diResultEl) diResultEl.hidden = false;
+          if (diSuccessBanner) diSuccessBanner.hidden = true;
+          if (diErrorBanner) {
+            diErrorBanner.hidden = false;
+            var em = diErrorBanner.querySelector('.tg-error-msg');
+            if (em) em.textContent = e && e.message ? e.message : 'An error occurred.';
+          }
+        });
+      });
+    }
+
+    if (diDownloadBtn) {
+      diDownloadBtn.addEventListener('click', function () {
+        if (!diBlobUrl) return;
+        var a = document.createElement('a');
+        a.href = diBlobUrl;
+        a.download = diFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+    }
+
+    if (diResetLink) {
+      diResetLink.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (diResultEl) diResultEl.hidden = true;
+        if (diActionBtn) { diActionBtn.hidden = false; diActionBtn.disabled = false; }
+      });
+    }
+  })();
 })();

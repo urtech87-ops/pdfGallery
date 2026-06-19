@@ -18,7 +18,9 @@ while ( have_posts() ) :
     $features_raw = get_post_meta( $post_id, '_tg_features', true );
     $steps_raw    = get_post_meta( $post_id, '_tg_steps', true );
     $related_raw  = get_post_meta( $post_id, '_tg_related', true );
-    $multi_file   = get_post_meta( $post_id, '_tg_multi_file', true ) === 'true';
+    $multi_file    = get_post_meta( $post_id, '_tg_multi_file', true ) === 'true';
+    $input_format  = get_post_meta( $post_id, '_tg_input_format', true ) ?: '';
+    $output_format = get_post_meta( $post_id, '_tg_output_format', true ) ?: '';
 
     $faqs        = $faqs_raw     ? json_decode( $faqs_raw,     true ) : [];
     $features    = $features_raw ? json_decode( $features_raw, true ) : [];
@@ -107,6 +109,44 @@ while ( have_posts() ) :
                     <?php wp_nonce_field( 'tg_tool_nonce', 'tg_nonce' ); ?>
                 </div>
 
+            <?php elseif ( $tool_type === 'data-input' ) : ?>
+
+                <!-- Data-input Tool Box (no file upload — e.g. Chart Maker, QR Code) -->
+                <div class="tg-tool-box"
+                     data-tool-type="data-input"
+                     data-handler="<?php echo esc_attr( $handler ); ?>"
+                     data-accept=""
+                     data-multi="false">
+
+                    <div class="tg-options" hidden></div>
+
+                    <button class="tg-action-btn">
+                        <?php echo esc_html( $action_label ); ?>
+                    </button>
+
+                    <div class="tg-progress" hidden>
+                        <div class="tg-progress-track">
+                            <div class="tg-progress-bar"></div>
+                        </div>
+                        <span class="tg-progress-label"><?php esc_html_e( 'Processing...', 'toolsgallery' ); ?></span>
+                    </div>
+
+                    <div class="tg-result" hidden>
+                        <div class="tg-success-banner">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <?php esc_html_e( 'Done! Your file is ready', 'toolsgallery' ); ?>
+                        </div>
+                        <div class="tg-error-banner" hidden>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            <span class="tg-error-msg"></span>
+                        </div>
+                        <button class="tg-download-btn"><?php esc_html_e( 'Download File', 'toolsgallery' ); ?></button>
+                        <a href="#" class="tg-reset"><?php esc_html_e( 'Generate another', 'toolsgallery' ); ?></a>
+                    </div>
+
+                    <?php wp_nonce_field( 'tg_tool_nonce', 'tg_nonce' ); ?>
+                </div>
+
             <?php elseif ( $tool_type === 'ai' ) : ?>
 
                 <!-- AI Tool Box -->
@@ -151,7 +191,9 @@ while ( have_posts() ) :
                      data-tool-type="<?php echo esc_attr( $tool_type ); ?>"
                      data-handler="<?php echo esc_attr( $handler ); ?>"
                      data-accept="<?php echo esc_attr( $accept_types ); ?>"
-                     data-multi="<?php echo $multi_file ? 'true' : 'false'; ?>">
+                     data-multi="<?php echo $multi_file ? 'true' : 'false'; ?>"
+                     <?php if ( $input_format )  echo 'data-input-format="'  . esc_attr( $input_format )  . '" '; ?>
+                     <?php if ( $output_format ) echo 'data-output-format="' . esc_attr( $output_format ) . '" '; ?> >
 
                     <div class="tg-upload-zone" id="upload-zone" role="button" tabindex="0"
                          aria-label="<?php echo $multi_file ? esc_attr__( 'Drop your files here or click to browse', 'toolsgallery' ) : esc_attr__( 'Drop your file here or click to browse', 'toolsgallery' ); ?>">
