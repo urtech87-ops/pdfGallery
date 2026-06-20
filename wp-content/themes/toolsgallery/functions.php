@@ -95,6 +95,22 @@ function tg_enqueue_assets() {
             'redact-pdf'       => 'redact-pdf.js',
             'url-to-pdf'       => 'url-to-pdf.js',
             'pdf-to-word'      => 'pdf-to-word.js',
+            // Core PDF tools
+            'merge'            => 'merge-pdf.js',
+            'compress'         => 'compress-pdf.js',
+            'split'            => 'split-pdf.js',
+            'pdf-to-jpg'       => 'pdf-to-jpg.js',
+            'jpg-to-pdf'       => 'jpg-to-pdf.js',
+            'rotate-pdf'       => 'rotate-pdf.js',
+            'edit-pdf'         => 'edit-pdf.js',
+            'unlock-pdf'       => 'unlock-pdf.js',
+            'protect-pdf'      => 'protect-pdf.js',
+            'word-to-pdf'      => 'word-to-pdf.js',
+            'pdf-to-png'       => 'pdf-to-png.js',
+            'add-watermark'    => 'add-watermark.js',
+            'add-page-numbers' => 'add-page-numbers.js',
+            'extract-text'     => 'extract-text.js',
+            'rearrange-pdf'    => 'rearrange-pdf.js',
         ];
         if (isset($tool_files_3c[$tg_handler])) {
             $tool_script_deps = ['tg-pdf-tools'];
@@ -163,17 +179,17 @@ function tg_enqueue_assets() {
             'img-meme'             => 'img-meme.js',
             'img-chart'            => 'img-chart.js',
             'img-qr'               => 'img-qr.js',
-            // Format converters (reuse img-convert.js)
-            'img-to-jpg'           => 'img-convert.js',
-            'img-to-png'           => 'img-convert.js',
-            'img-to-webp'          => 'img-convert.js',
-            'img-to-gif'           => 'img-convert.js',
-            'img-to-bmp'           => 'img-convert.js',
-            'img-to-ico'           => 'img-convert.js',
-            'img-to-svg'           => 'img-convert.js',
-            'img-to-tiff'          => 'img-convert.js',
-            'img-to-avif'          => 'img-convert.js',
-            'img-to-heic'          => 'img-convert.js',
+            // Format converters — dedicated files
+            'img-to-jpg'           => 'img-to-jpg.js',
+            'img-to-png'           => 'img-to-png.js',
+            'img-to-webp'          => 'img-to-webp.js',
+            'img-to-gif'           => 'img-to-gif.js',
+            'img-to-bmp'           => 'img-to-bmp.js',
+            'img-to-ico'           => 'img-to-ico.js',
+            'img-to-svg'           => 'img-to-svg.js',
+            'img-to-tiff'          => 'img-to-tiff.js',
+            'img-to-avif'          => 'img-to-avif.js',
+            'img-to-heic'          => 'img-to-heic.js',
         ];
 
         if (isset($tool_files_4[$tg_handler])) {

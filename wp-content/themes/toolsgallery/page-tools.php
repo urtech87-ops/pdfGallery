@@ -178,40 +178,23 @@ get_header();
       <p class="tg-tools-section__empty"><em><?php esc_html_e('Tools coming soon — check back shortly.', 'toolsgallery'); ?></em></p>
     <?php else : ?>
 
-      <?php if (!empty($featured)) : ?>
       <div class="tg-tools-grid tg-tools-grid--featured">
-        <?php foreach ($featured as $post) :
+        <?php foreach ($section['all'] as $post) :
           // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
           $icon_svg = tg_tool_icon_svg($post->ID);
           $excerpt  = $post->post_excerpt ?: wp_trim_words(wp_strip_all_tags($post->post_content), 20, '…');
         ?>
-        <div class="tg-tool-card tg-tool-card--featured">
+        <a class="tg-tool-card tg-tool-card--featured" href="<?php echo esc_url(get_permalink($post)); ?>">
           <span class="tg-tool-card__badge tg-tool-card__badge--green"><?php esc_html_e('FREE', 'toolsgallery'); ?></span>
           <div class="tg-tool-card__svg" aria-hidden="true">
             <?php echo $icon_svg; // phpcs:ignore WordPress.Security.EscapeOutput — sanitized SVG or our own SVG ?>
           </div>
           <h3 class="tg-tool-card__title"><?php echo esc_html($post->post_title); ?></h3>
           <p class="tg-tool-card__desc"><?php echo esc_html(wp_trim_words(wp_strip_all_tags($excerpt), 14, '…')); ?></p>
-          <a class="tg-tool-card__cta" href="<?php echo esc_url(get_permalink($post)); ?>">
-            <?php esc_html_e('Use Free →', 'toolsgallery'); ?>
-          </a>
-        </div>
+          <span class="tg-tool-card__cta"><?php esc_html_e('Use Free →', 'toolsgallery'); ?></span>
+        </a>
         <?php endforeach; ?>
       </div>
-      <?php endif; ?>
-
-      <?php if (!empty($others)) : ?>
-      <ul class="tg-tools-list">
-        <?php foreach ($others as $post) : ?>
-        <li class="tg-tools-list__item">
-          <a class="tg-tools-list__link" href="<?php echo esc_url(get_permalink($post)); ?>">
-            <span class="tg-tools-list__arrow" aria-hidden="true">→</span>
-            <?php echo esc_html($post->post_title); ?>
-          </a>
-        </li>
-        <?php endforeach; ?>
-      </ul>
-      <?php endif; ?>
 
     <?php endif; ?>
   </section>

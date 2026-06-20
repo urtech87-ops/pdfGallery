@@ -112,7 +112,7 @@
       // Try to pull from CPT first; fall back to static list
       $cpt_query = new WP_Query([
         'post_type'      => 'tg_tool',
-        'posts_per_page' => 8,
+        'posts_per_page' => 6,
         'tax_query'      => [['taxonomy' => 'tool_category', 'field' => 'slug', 'terms' => 'pdf-tools']],
         'no_found_rows'  => true,
       ]);
@@ -161,15 +161,39 @@
     </div>
     <div class="tg-tools-grid">
       <?php
-      $image_tools = [
+      $image_tools_static = [
         ['title' => 'Background Remover', 'desc' => 'Remove image backgrounds with AI.',        'icon' => '✂️', 'slug' => 'background-remover'],
         ['title' => 'Compress Image',     'desc' => 'Shrink image size while keeping quality.',  'icon' => '📦', 'slug' => 'compress-image'],
         ['title' => 'Resize Image',       'desc' => 'Resize to any dimension instantly.',        'icon' => '↔️', 'slug' => 'resize-image'],
-        ['title' => 'JPG to PNG',         'desc' => 'Convert JPEG images to PNG format.',        'icon' => '🔄', 'slug' => 'jpg-to-png'],
-        ['title' => 'PNG to JPG',         'desc' => 'Convert PNG to compressed JPEG.',           'icon' => '🔄', 'slug' => 'png-to-jpg'],
+        ['title' => 'JPG to PNG',         'desc' => 'Convert JPEG images to PNG format.',        'icon' => '🔄', 'slug' => 'img-to-png'],
+        ['title' => 'PNG to JPG',         'desc' => 'Convert PNG to compressed JPEG.',           'icon' => '🔄', 'slug' => 'img-to-jpg'],
         ['title' => 'Crop Image',         'desc' => 'Crop your image to the perfect size.',      'icon' => '✂️', 'slug' => 'crop-image'],
       ];
-      foreach ($image_tools as $t) :
+
+      // Try to pull from CPT first; fall back to static list
+      $img_cpt_query = new WP_Query([
+        'post_type'      => 'tg_tool',
+        'posts_per_page' => 6,
+        'tax_query'      => [['taxonomy' => 'tool_category', 'field' => 'slug', 'terms' => 'image-tools']],
+        'no_found_rows'  => true,
+      ]);
+
+      if ($img_cpt_query->have_posts()) :
+        while ($img_cpt_query->have_posts()) : $img_cpt_query->the_post();
+      ?>
+        <a class="tg-tool-card" href="<?php the_permalink(); ?>">
+          <div class="tg-tool-card__icon" aria-hidden="true">
+            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '🖼️'); ?>
+          </div>
+          <div class="tg-tool-card__title"><?php the_title(); ?></div>
+          <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
+          <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
+        </a>
+      <?php
+        endwhile;
+        wp_reset_postdata();
+      else :
+        foreach ($image_tools_static as $t) :
       ?>
         <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
@@ -177,7 +201,10 @@
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
         </a>
-      <?php endforeach; ?>
+      <?php
+        endforeach;
+      endif;
+      ?>
     </div>
     <div class="tg-section__cta">
       <a class="tg-btn tg-btn--outline" href="<?php echo esc_url(home_url('/tools/')); ?>"><?php esc_html_e('View All Image Tools', 'toolsgallery'); ?></a>
