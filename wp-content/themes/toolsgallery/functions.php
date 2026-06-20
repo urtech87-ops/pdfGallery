@@ -282,6 +282,66 @@ function tg_enqueue_assets() {
             );
         }
 
+        /* =============================================
+           Phase 6 — Video Tools (FFmpeg.wasm)
+           ============================================= */
+        $tool_files_6 = [
+            'vid-compress'      => 'vid-compress.js',
+            'vid-convert'       => 'vid-convert.js',
+            'vid-to-mp3'        => 'vid-to-mp3.js',
+            'vid-trim'          => 'vid-trim.js',
+            'vid-merge'         => 'vid-merge.js',
+            'vid-to-gif'        => 'vid-to-gif.js',
+            'gif-to-vid'        => 'gif-to-vid.js',
+            'vid-rotate'        => 'vid-rotate.js',
+            'vid-resize'        => 'vid-resize.js',
+            'vid-speed'         => 'vid-speed.js',
+            'vid-watermark'     => 'vid-watermark.js',
+            'vid-remove-audio'  => 'vid-remove-audio.js',
+            'vid-add-audio'     => 'vid-add-audio.js',
+            'vid-screenshot'    => 'vid-screenshot.js',
+            'vid-crop'          => 'vid-crop.js',
+            'vid-subtitles'     => 'vid-subtitles.js',
+            'vid-reverse'       => 'vid-reverse.js',
+            'vid-stabilize'     => 'vid-stabilize.js',
+            'vid-blur'          => 'vid-blur.js',
+            'vid-loop'          => 'vid-loop.js',
+            'vid-thumbnail'     => 'vid-thumbnail.js',
+            'vid-metadata'      => 'vid-metadata.js',
+            'vid-filters'       => 'vid-filters.js',
+            'vid-audio-extract' => 'vid-audio-extract.js',
+            'vid-resolution'    => 'vid-resolution.js',
+        ];
+
+        if (isset($tool_files_6[$tg_handler])) {
+            // FFmpeg.wasm — loaded before the tool file
+            wp_enqueue_script(
+                'ffmpeg-wasm',
+                'https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/umd/ffmpeg.js',
+                [],
+                null,
+                true
+            );
+            wp_enqueue_script(
+                'ffmpeg-util',
+                'https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js',
+                ['ffmpeg-wasm'],
+                null,
+                true
+            );
+            // Expose globals expected by tool files
+            wp_add_inline_script('ffmpeg-util', 'window.FFmpegWASM=FFmpegWASM;window.FFmpegUtil=FFmpegUtil;', 'after');
+
+            wp_enqueue_script(
+                'tg-tool-' . $tg_handler,
+                get_template_directory_uri() . '/assets/js/tools/' . $tool_files_6[$tg_handler],
+                ['ffmpeg-util'],
+                $ver,
+                true
+            );
+            $tool_runner_deps[] = 'tg-tool-' . $tg_handler;
+        }
+
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 
@@ -299,6 +359,20 @@ function tg_enqueue_assets() {
     }
 }
 add_action('wp_enqueue_scripts', 'tg_enqueue_assets');
+
+/* =============================================
+   CORS headers required by FFmpeg.wasm
+   (SharedArrayBuffer needs COOP + COEP)
+   ============================================= */
+add_action('send_headers', function () {
+    if (!is_singular('tg_tool')) return;
+    $handler = get_post_meta(get_the_ID(), '_tg_handler', true);
+    if (!$handler) return;
+    $is_vid = str_starts_with($handler, 'vid-') || $handler === 'gif-to-vid';
+    if (!$is_vid) return;
+    header('Cross-Origin-Opener-Policy: same-origin');
+    header('Cross-Origin-Embedder-Policy: require-corp');
+});
 
 /* Preconnect for Google Fonts */
 function tg_preconnect_fonts() {
