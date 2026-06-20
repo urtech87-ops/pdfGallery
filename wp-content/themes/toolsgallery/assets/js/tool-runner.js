@@ -2328,9 +2328,17 @@
     var diBlobUrl = null;
     var diFilename = 'output';
 
-    if (diOptionsEl && window.TGTools && window.TGTools[diHandler]) {
+    if (window.TGTools && window.TGTools[diHandler]) {
       var diTool = window.TGTools[diHandler];
-      if (diTool.getOptionsHTML) {
+      /* Tools that manage their own UI via init() */
+      if (typeof diTool.init === 'function') {
+        if (diOptionsEl) { diOptionsEl.hidden = false; }
+        diTool.init(diBox);
+        /* Hide default action button — tool manages its own actions */
+        if (diActionBtn) diActionBtn.hidden = true;
+        return; /* tool is fully self-contained */
+      }
+      if (diTool.getOptionsHTML && diOptionsEl) {
         diOptionsEl.innerHTML = diTool.getOptionsHTML();
         diOptionsEl.hidden = false;
       }
