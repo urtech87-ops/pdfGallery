@@ -271,6 +271,66 @@
   </div>
 </section>
 
+<!-- Video Tools Section -->
+<section class="tg-section tg-section--gray" aria-labelledby="video-tools-heading">
+  <div class="tg-container">
+    <div class="tg-section__header">
+      <div class="tg-section__tag"><?php esc_html_e('VIDEO', 'toolsgallery'); ?></div>
+      <h2 class="tg-section__title" id="video-tools-heading"><?php esc_html_e('Video Tools', 'toolsgallery'); ?></h2>
+      <p class="tg-section__desc"><?php esc_html_e('Compress, convert, trim and edit videos entirely in your browser — powered by FFmpeg.wasm.', 'toolsgallery'); ?></p>
+    </div>
+    <div class="tg-tools-grid">
+      <?php
+      $video_tools_static = [
+        ['title' => 'Video Compressor',   'desc' => 'Reduce video file size without quality loss.', 'icon' => '🎬', 'slug' => 'video-compressor'],
+        ['title' => 'Video Converter',    'desc' => 'Convert between MP4, WebM, AVI, MOV and GIF.', 'icon' => '🔄', 'slug' => 'video-converter'],
+        ['title' => 'Video to MP3',       'desc' => 'Extract audio from any video file.',            'icon' => '🎵', 'slug' => 'video-to-mp3'],
+        ['title' => 'Trim Video',         'desc' => 'Cut videos to the exact clip you need.',        'icon' => '✂️', 'slug' => 'trim-video'],
+        ['title' => 'Video to GIF',       'desc' => 'Turn any video clip into an animated GIF.',     'icon' => '🖼️', 'slug' => 'video-to-gif'],
+        ['title' => 'Rotate Video',       'desc' => 'Rotate or flip a video in seconds.',            'icon' => '🔃', 'slug' => 'rotate-video'],
+      ];
+
+      $vid_cpt_query = new WP_Query([
+        'post_type'      => 'tg_tool',
+        'posts_per_page' => 6,
+        'tax_query'      => [['taxonomy' => 'tool_category', 'field' => 'slug', 'terms' => 'video-tools']],
+        'no_found_rows'  => true,
+      ]);
+
+      if ($vid_cpt_query->have_posts()) :
+        while ($vid_cpt_query->have_posts()) : $vid_cpt_query->the_post();
+      ?>
+        <a class="tg-tool-card" href="<?php the_permalink(); ?>">
+          <div class="tg-tool-card__icon" aria-hidden="true">
+            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '🎬'); ?>
+          </div>
+          <div class="tg-tool-card__title"><?php the_title(); ?></div>
+          <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
+          <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
+        </a>
+      <?php
+        endwhile;
+        wp_reset_postdata();
+      else :
+        foreach ($video_tools_static as $t) :
+      ?>
+        <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>">
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
+          <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
+          <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
+        </a>
+      <?php
+        endforeach;
+      endif;
+      ?>
+    </div>
+    <div class="tg-section__cta">
+      <a class="tg-btn tg-btn--outline" href="<?php echo esc_url(home_url('/tools/')); ?>"><?php esc_html_e('View All Video Tools', 'toolsgallery'); ?></a>
+    </div>
+  </div>
+</section>
+
 <!-- Why ToolsGallery -->
 <section class="tg-section" aria-labelledby="why-heading">
   <div class="tg-container">
