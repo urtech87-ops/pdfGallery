@@ -58,8 +58,10 @@
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData.toString()
     }).then(function (r) { return r.json(); }).then(function (data) {
-      if (data.success && data.data && data.data.result) { onSuccess(data.data.result); }
-      else { onError((data.data && data.data.message) || 'An error occurred.'); }
+      if (!data.success) { onError((data.data && data.data.message) || 'An error occurred. Please try again.'); return; }
+      var _r = (data.data && data.data.result != null) ? data.data.result : '';
+      if (!_r.trim()) { onError('AI returned an empty response. Please try again or rephrase your input.'); return; }
+      onSuccess(_r);
     }).catch(function () { onError('Network error. Please try again.'); });
   }
 
