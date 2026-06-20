@@ -591,7 +591,7 @@ function tg_ai_proxy_handler() {
     check_ajax_referer('tg_tool_nonce', 'nonce');
 
     if (!defined('OPENROUTER_API_KEY')) {
-        wp_send_json_error(['message' => 'API not configured'], 500);
+        wp_send_json_error(['message' => 'API not configured. Add OPENROUTER_API_KEY to wp-config.php.'], 500);
     }
 
     $tool    = sanitize_text_field(wp_unslash($_POST['tool'] ?? ''));
@@ -605,32 +605,202 @@ function tg_ai_proxy_handler() {
     set_transient($ip_key, $count + 1, HOUR_IN_SECONDS);
 
     $result = tg_call_openrouter($tool, $payload);
-    wp_send_json_success($result);
+
+    if (isset($result['error'])) {
+        wp_send_json_error(['message' => $result['error']]);
+        return;
+    }
+
+    $text = $result['result'] ?? '';
+    if (empty(trim($text))) {
+        wp_send_json_error(['message' => 'AI returned an empty response. Please try again or rephrase your input.']);
+        return;
+    }
+
+    wp_send_json_success(['result' => $text]);
 }
 
-function tg_replace_placeholders($template, $payload) {
-    if (!is_array($payload)) return $template;
-    foreach ($payload as $key => $value) {
+function tg_replace_placeholders($template, $vars) {
+    if (!is_array($vars)) return $template;
+    foreach ($vars as $key => $value) {
         $safe_key = preg_replace('/[^a-z0-9_]/', '', strtolower((string) $key));
         if ($safe_key === '') continue;
-        $safe_val = sanitize_textarea_field(wp_unslash((string) $value));
-        $template = str_replace('{' . $safe_key . '}', $safe_val, $template);
+        $template = str_replace('{' . $safe_key . '}', (string) $value, $template);
     }
+    // Remove any remaining unreplaced placeholders
+    $template = preg_replace('/\{[a-z0-9_]+\}/', '', $template);
     return $template;
 }
 
-function tg_call_openrouter($tool, $payload) {
+function tg_call_openrouter($tool, $raw_payload) {
     $prompts = tg_get_tool_prompts();
     $config  = $prompts[$tool] ?? null;
-    if (!$config) return ['error' => 'Unknown tool'];
+    if (!$config) return ['error' => 'Unknown tool: ' . $tool];
 
-    $system = tg_replace_placeholders($config['system'] ?? '', $payload);
+    // Extract and sanitize all payload fields
+    $p = function ($key, $default = '') use ($raw_payload) {
+        return sanitize_text_field(wp_unslash($raw_payload[$key] ?? $default));
+    };
+    $pa = function ($key, $default = '') use ($raw_payload) {
+        return sanitize_textarea_field(wp_unslash($raw_payload[$key] ?? $default));
+    };
+
+    $text       = $pa('text');
+    $topic      = $pa('topic');
+    $type       = $p('type', 'standard');
+    $format     = $p('format');
+    $length     = $p('length');
+    $language   = $p('language', 'English');
+    $tone       = $p('tone');
+    $style      = $p('style');
+    $mode       = $p('mode');
+    $count      = $p('count', '3');
+    $level      = $p('level');
+    $goal       = $p('goal');
+    $platform   = $p('platform');
+    $genre      = $p('genre');
+    $mood       = $p('mood');
+    $occasion   = $p('occasion');
+    $audience   = $p('audience');
+    $keywords   = $p('keywords');
+    $focus      = $p('focus');
+    $niche      = $p('niche');
+    $structure  = $p('structure');
+    $rhyme      = $p('rhyme');
+    $pov        = $p('pov');
+    $source     = $p('source', 'Auto-detect');
+    $target     = $p('target', 'English');
+    $context    = $pa('context');
+    $name       = $p('name');
+    $company    = $p('company');
+    $brand      = $p('brand');
+    $product    = $p('product');
+    $industry   = $p('industry');
+    $market     = $p('market');
+    $value      = $p('value');
+    $usp        = $p('usp');
+    $features   = $pa('features');
+    $skills     = $pa('skills');
+    $summary    = $pa('summary');
+    $experience = $pa('experience');
+    $education  = $p('education');
+    $cta        = $p('cta');
+    $sender     = $p('sender');
+    $recipient  = $p('recipient');
+    $premise    = $pa('premise');
+    $setting    = $p('setting');
+    $character  = $p('character');
+    $artist     = $p('artist');
+    $chapters   = $p('chapters');
+    $secondary  = $p('secondary');
+    $mix        = $p('mix');
+    $additions  = $p('additions');
+    $word_limit = $p('word_limit');
+    $include    = $p('include');
+    $includes   = $p('includes');
+    $variations = $p('variations', '1');
+    $job_title  = $p('job_title');
+    $why_company = $pa('why_company');
+    $title      = $p('title');
+    $keyword    = $p('keyword');
+    $customer   = $p('customer');
+    $category   = $p('category');
+    $languages  = $p('languages');
+    $show_corrections_raw = $p('show_corrections');
+    $keep_meaning_raw     = $p('keep_meaning');
+
+    $show_corrections = $show_corrections_raw === 'yes'
+        ? 'List all changes made after the corrected text.' : '';
+    $keep_meaning = $keep_meaning_raw === 'strict'
+        ? 'Keep the meaning strictly.' : 'Allow creative rewording.';
+    $artist_note = $artist
+        ? 'Style inspired by ' . $artist . '.' : '';
+    $cta_instruction = $cta
+        ? 'End with CTA: ' . $cta : '';
+
+    // Build comprehensive vars map for placeholder replacement
+    $vars = [
+        'text'             => $text,
+        'topic'            => $topic ?: $text,
+        'type'             => $type,
+        'format'           => $format ?: $type,
+        'length'           => $length,
+        'language'         => $language,
+        'tone'             => $tone,
+        'style'            => $style,
+        'mode'             => $mode,
+        'count'            => $count,
+        'level'            => $level,
+        'goal'             => $goal,
+        'platform'         => $platform,
+        'genre'            => $genre,
+        'mood'             => $mood,
+        'occasion'         => $occasion,
+        'audience'         => $audience,
+        'keywords'         => $keywords,
+        'keyword'          => $keyword ?: $keywords,
+        'focus'            => $focus,
+        'niche'            => $niche,
+        'structure'        => $structure,
+        'rhyme'            => $rhyme,
+        'pov'              => $pov,
+        'source'           => $source,
+        'target'           => $target,
+        'context'          => $context,
+        'name'             => $name,
+        'company'          => $company,
+        'brand'            => $brand,
+        'product'          => $product,
+        'industry'         => $industry,
+        'market'           => $market,
+        'value'            => $value,
+        'usp'              => $usp,
+        'features'         => $features,
+        'skills'           => $skills,
+        'summary'          => $summary,
+        'experience'       => $experience,
+        'education'        => $education,
+        'cta'              => $cta,
+        'cta_instruction'  => $cta_instruction,
+        'sender'           => $sender,
+        'recipient'        => $recipient,
+        'premise'          => $premise ?: $text,
+        'setting'          => $setting,
+        'character'        => $character,
+        'artist_note'      => $artist_note,
+        'chapters'         => $chapters,
+        'secondary'        => $secondary,
+        'mix'              => $mix,
+        'show_corrections' => $show_corrections,
+        'additions'        => $additions,
+        'keep_meaning'     => $keep_meaning,
+        'word_limit'       => $word_limit,
+        'include'          => $include ?: $includes,
+        'includes'         => $includes ?: $include,
+        'variations'       => $variations,
+        // Alias fields used by specific prompts
+        'job_title'        => $job_title ?: $topic,
+        'why_company'      => $why_company ?: $context,
+        'title'            => $title ?: $topic,
+        'customer'         => $customer ?: $audience,
+        'category'         => $category,
+        'languages'        => $languages,
+        'preserve_formatting' => '',
+    ];
+
+    $main_input = $text ?: $topic ?: $premise ?: $context ?: $job_title;
+    if (empty(trim($main_input))) {
+        return ['error' => 'Please enter some text or topic first.'];
+    }
+
+    $system = tg_replace_placeholders($config['system'] ?? '', $vars);
+    $user   = tg_replace_placeholders($config['user_template'] ?? '{text}', $vars);
 
     $body = [
         'model'      => $config['model'] ?? 'google/gemini-flash-1.5',
         'messages'   => [
             ['role' => 'system', 'content' => $system],
-            ['role' => 'user',   'content' => tg_build_user_prompt($config, $payload)],
+            ['role' => 'user',   'content' => $user],
         ],
         'max_tokens' => $config['max_tokens'] ?? 2000,
     ];
@@ -646,10 +816,33 @@ function tg_call_openrouter($tool, $payload) {
         'body' => wp_json_encode($body),
     ]);
 
-    if (is_wp_error($response)) return ['error' => $response->get_error_message()];
+    if (is_wp_error($response)) {
+        return ['error' => $response->get_error_message()];
+    }
 
-    $data = json_decode(wp_remote_retrieve_body($response), true);
-    return ['result' => $data['choices'][0]['message']['content'] ?? ''];
+    $raw  = wp_remote_retrieve_body($response);
+    $data = json_decode($raw, true);
+
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('OpenRouter [' . $tool . '] response: ' . substr($raw, 0, 500));
+    }
+
+    // Handle different response formats
+    $result = '';
+    if (isset($data['choices'][0]['message']['content'])) {
+        $result = $data['choices'][0]['message']['content'];
+    } elseif (isset($data['choices'][0]['text'])) {
+        $result = $data['choices'][0]['text'];
+    } elseif (isset($data['content'][0]['text'])) {
+        $result = $data['content'][0]['text'];
+    }
+
+    if (empty(trim($result))) {
+        $error_msg = $data['error']['message'] ?? 'AI returned empty response. Please try again.';
+        return ['error' => $error_msg];
+    }
+
+    return ['result' => $result];
 }
 
 function tg_get_tool_prompts() {
@@ -844,11 +1037,6 @@ function tg_get_tool_prompts() {
             'user_template' => "{text}",
         ],
     ];
-}
-
-function tg_build_user_prompt($config, $payload) {
-    $template = $config['user_template'] ?? '{text}';
-    return tg_replace_placeholders($template, $payload);
 }
 
 /* =============================================

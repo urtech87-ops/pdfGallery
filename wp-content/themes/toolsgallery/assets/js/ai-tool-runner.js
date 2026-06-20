@@ -76,12 +76,17 @@
           generateBtn.disabled = false;
           if (loadingEl) loadingEl.hidden = true;
 
-          if (data.success && data.data && data.data.result) {
-            showOutput(data.data.result, false);
-          } else {
-            var msg = (data.data && data.data.message) ? data.data.message : 'An error occurred.';
+          if (!data.success) {
+            var msg = (data.data && data.data.message) ? data.data.message : 'An error occurred. Please try again.';
             var isApiError = msg.toLowerCase().indexOf('api') !== -1 || msg.toLowerCase().indexOf('configured') !== -1;
             showOutput(isApiError ? API_MISSING_MSG : 'Error: ' + msg, true);
+          } else {
+            var result = (data.data && data.data.result != null) ? data.data.result : '';
+            if (!result.trim()) {
+              showOutput('AI returned an empty response. Please try again or rephrase your input.', true);
+            } else {
+              showOutput(result, false);
+            }
           }
         })
         .catch(function () {
