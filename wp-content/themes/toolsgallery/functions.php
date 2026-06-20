@@ -237,6 +237,51 @@ function tg_enqueue_assets() {
             $tool_runner_deps[] = $img_script_handle;
         }
 
+        /* =============================================
+           Phase 5 — AI Writing Tools
+           ============================================= */
+        $tool_files_5 = [
+            'grammar-fixer'           => 'grammar-fixer.js',
+            'paraphraser'             => 'paraphraser.js',
+            'ai-humanizer'            => 'ai-humanizer.js',
+            'summarizer'              => 'summarizer.js',
+            'essay-writer'            => 'essay-writer.js',
+            'article-writer'          => 'article-writer.js',
+            'blog-post-generator'     => 'blog-post-generator.js',
+            'ai-translator'           => 'ai-translator.js',
+            'plagiarism-checker'      => 'plagiarism-checker.js',
+            'sentence-rewriter'       => 'sentence-rewriter.js',
+            'word-counter'            => 'word-counter.js',
+            'email-writer'            => 'email-writer.js',
+            'cover-letter-generator'  => 'cover-letter-generator.js',
+            'resume-writer'           => 'resume-writer.js',
+            'product-desc-writer'     => 'product-desc-writer.js',
+            'ad-copy-generator'       => 'ad-copy-generator.js',
+            'social-caption-writer'   => 'social-caption-writer.js',
+            'hashtag-generator'       => 'hashtag-generator.js',
+            'youtube-title-generator' => 'youtube-title-generator.js',
+            'youtube-desc-writer'     => 'youtube-desc-writer.js',
+            'meta-desc-generator'     => 'meta-desc-generator.js',
+            'faq-generator'           => 'faq-generator.js',
+            'story-generator'         => 'story-generator.js',
+            'poem-generator'          => 'poem-generator.js',
+            'lyrics-generator'        => 'lyrics-generator.js',
+            'business-name-generator' => 'business-name-generator.js',
+            'slogan-generator'        => 'slogan-generator.js',
+            'password-generator'      => 'password-generator.js',
+            'lorem-ipsum-generator'   => 'lorem-ipsum-generator.js',
+            'tts-prep'                => 'tts-prep.js',
+        ];
+        if (isset($tool_files_5[$tg_handler])) {
+            wp_enqueue_script(
+                'tg-tool-' . $tg_handler,
+                get_template_directory_uri() . '/assets/js/tools/' . $tool_files_5[$tg_handler],
+                [],
+                $ver,
+                true
+            );
+        }
+
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 
@@ -563,18 +608,23 @@ function tg_ai_proxy_handler() {
     wp_send_json_success($result);
 }
 
+function tg_replace_placeholders($template, $payload) {
+    if (!is_array($payload)) return $template;
+    foreach ($payload as $key => $value) {
+        $safe_key = preg_replace('/[^a-z0-9_]/', '', strtolower((string) $key));
+        if ($safe_key === '') continue;
+        $safe_val = sanitize_textarea_field(wp_unslash((string) $value));
+        $template = str_replace('{' . $safe_key . '}', $safe_val, $template);
+    }
+    return $template;
+}
+
 function tg_call_openrouter($tool, $payload) {
     $prompts = tg_get_tool_prompts();
     $config  = $prompts[$tool] ?? null;
     if (!$config) return ['error' => 'Unknown tool'];
 
-    $language = sanitize_text_field(wp_unslash($payload['language'] ?? 'English'));
-    $format   = sanitize_text_field(wp_unslash($payload['format'] ?? 'bullet points'));
-    $length   = sanitize_text_field(wp_unslash($payload['length'] ?? 'standard'));
-    $system   = $config['system'] ?? '';
-    $system   = str_replace('{language}', $language, $system);
-    $system   = str_replace('{format}',   $format,   $system);
-    $system   = str_replace('{length}',   $length,   $system);
+    $system = tg_replace_placeholders($config['system'] ?? '', $payload);
 
     $body = [
         'model'      => $config['model'] ?? 'google/gemini-flash-1.5',
@@ -604,6 +654,7 @@ function tg_call_openrouter($tool, $payload) {
 
 function tg_get_tool_prompts() {
     return [
+        /* ── PDF tools (legacy) ── */
         'pdf-translate' => [
             'model'         => 'google/gemini-flash-1.5',
             'max_tokens'    => 4000,
@@ -616,20 +667,188 @@ function tg_get_tool_prompts() {
             'system'        => 'You are an expert document analyst. Summarize the provided document text clearly and accurately. Format: {format}. Length: {length}. Focus on key points, main arguments, and important conclusions. Do not add information not present in the document.',
             'user_template' => "Please summarize this document:\n\n{text}",
         ],
+
+        /* ── Phase 5: AI Writing Tools ── */
+        'grammar-fixer' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 4000,
+            'system'        => 'You are an expert grammar editor. Fix all grammar, spelling, punctuation and syntax errors. {level} Preserve the original meaning and voice. {show_corrections}',
+            'user_template' => "Fix the grammar in this text:\n\n{text}",
+        ],
+        'paraphraser' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 4000,
+            'system'        => 'You are an expert writer. Rewrite the provided text in a {mode} style while preserving the original meaning. Generate {count} variation(s). Make it {length}.',
+            'user_template' => "Paraphrase this text:\n\n{text}",
+        ],
+        'ai-humanizer' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 4000,
+            'system'        => 'You are an expert at making AI-generated text sound naturally human. Transform the text to sound like it was written by a real person with {style} writing style. Level: {level}. Make it feel genuine, varied and authentic. Avoid repetitive sentence structures. {additions}',
+            'user_template' => "Humanize this text:\n\n{text}",
+        ],
+        'summarizer' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 3000,
+            'system'        => 'You are an expert at summarizing documents. Create a {type} summary focusing on {focus}. Output in {language}.',
+            'user_template' => "Summarize this:\n\n{text}",
+        ],
+        'essay-writer' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 6000,
+            'system'        => 'You are an expert essay writer. Write a {type} essay at {level} level. Target length: ~{length} words. Use {tone} tone. Structure: {structure}. Write clearly, coherently and with strong arguments.',
+            'user_template' => "Write an essay about: {topic}",
+        ],
+        'article-writer' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 6000,
+            'system'        => 'You are an expert content writer specializing in {type}. Write for {audience}. Target: ~{length} words. Tone: {tone}. Include: {includes}. Use proper headings (##) for structure. If keywords provided, naturally include them.',
+            'user_template' => "Write an article about: {topic}\nKeywords: {keywords}",
+        ],
+        'blog-post-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 6000,
+            'system'        => 'You are an expert blog writer for the {niche} niche. Write engaging, SEO-friendly content in {style} style. Include proper H2/H3 headings. Naturally use provided keywords. {cta_instruction} End with meta description if requested.',
+            'user_template' => "Write a blog post about: {topic}\nKeywords: {keywords}",
+        ],
+        'ai-translator' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 4000,
+            'system'        => 'You are a professional translator. Translate accurately from {source} to {target}. Use {tone} tone. {preserve_formatting} Return only the translation, nothing else.',
+            'user_template' => "{text}",
+        ],
+        'plagiarism-checker' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 2000,
+            'system'        => 'Analyze the provided text for: 1. Originality score (0-100): how unique is the writing 2. AI likelihood score (0-100): does it sound AI-written 3. Repeated phrases: list any phrases used 3+ times 4. Writing assessment: brief style analysis. Return ONLY valid JSON with keys: originality (number), ai_likelihood (number), repeated_phrases (array of strings), assessment (string).',
+            'user_template' => "Analyze: {text}",
+        ],
+        'sentence-rewriter' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 3000,
+            'system'        => 'You are an expert editor. Rewrite the provided text to {goal}. Generate {count} alternative version(s). {keep_meaning}',
+            'user_template' => "Rewrite this:\n\n{text}",
+        ],
+        'email-writer' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 2000,
+            'system'        => 'You are an expert at writing professional emails. Write a {type} email with {tone} tone. Length: {length}. Include: {includes}. Make it clear, concise and effective.',
+            'user_template' => "Email context: {context}\nFrom: {sender}  To: {recipient}",
+        ],
+        'cover-letter-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 3000,
+            'system'        => 'You are an expert career coach and cover letter writer. Write a compelling, personalized cover letter that stands out. {tone} tone. {length}. Include: {includes}. Make it specific, not generic.',
+            'user_template' => "Job: {job_title} at {company}\nApplicant: {name}\nSkills/Experience: {skills}\nWhy this company: {why_company}",
+        ],
+        'resume-writer' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 4000,
+            'system'        => 'You are an expert resume writer. Create a professional, ATS-friendly resume in {style} style. Use bullet points for responsibilities. Quantify achievements where possible. Format with clear sections using markdown.',
+            'user_template' => "Create resume for:\nName: {name}, Title: {job_title}\nSummary: {summary}\nExperience: {experience}\nEducation: {education}\nSkills: {skills}\nLanguages: {languages}",
+        ],
+        'product-desc-writer' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 2000,
+            'system'        => 'You are an expert e-commerce copywriter. Write a compelling {platform} product description in {tone} tone. Target: {customer}. ~{length} words. Include: {includes}. Focus on benefits not just features.',
+            'user_template' => "Product: {name} ({category})\nFeatures: {features}",
+        ],
+        'ad-copy-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 2000,
+            'system'        => 'You are an expert digital advertising copywriter. Create high-converting {platform} ad copy for {goal}. Target: {audience}. Tone: {tone}. Follow platform-specific best practices and character limits.',
+            'user_template' => "Product/Service: {product}\nKey benefit: {usp}",
+        ],
+        'social-caption-writer' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 2000,
+            'system'        => 'You are a social media expert. Write {count} {platform} caption(s) in {tone} tone. Include: {includes}. Optimize for {platform} engagement. Use platform-appropriate style.',
+            'user_template' => "Post about: {topic}",
+        ],
+        'hashtag-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 2000,
+            'system'        => 'You are a social media hashtag expert. Generate {count} {platform} hashtags for {niche} content. Mix: {mix}. Format: return ONLY the hashtags with their estimated size category. Format each line as: #hashtag [SIZE]   SIZE options: HUGE, LARGE, MEDIUM, NICHE',
+            'user_template' => "Content: {topic}",
+        ],
+        'youtube-title-generator' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 1000,
+            'system'        => 'You are a YouTube SEO expert. Generate {count} YouTube video titles for {type} content. Style: {style}. Include keywords naturally. Optimize for CTR and search. Keep under 70 chars where possible. Return numbered list only.',
+            'user_template' => "Topic: {topic}\nAudience: {audience}\nKeywords: {keywords}",
+        ],
+        'youtube-desc-writer' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 3000,
+            'system'        => 'You are a YouTube SEO expert. Write an optimized YouTube video description. Include keywords naturally in the first 150 chars (shown before "Show more"). Structure: hook, description, links section, subscribe CTA, hashtags.',
+            'user_template' => "Title: {title}\nTopic: {topic}\nChannel: {niche}\nKeywords: {keywords}\nChapters: {chapters}",
+        ],
+        'meta-desc-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 1000,
+            'system'        => 'You are an SEO expert. Write {count} meta descriptions for the given page. Each must: be 120-158 characters (ideal for Google), include the target keyword naturally, have a compelling CTA, be unique. Format: number each option, then show character count in brackets e.g. "1. Description text here [142 chars]"',
+            'user_template' => "Page: {title}\nContent: {summary}\nKeyword: {keyword}\nSecondary: {secondary}\nCTA: {cta}",
+        ],
+        'faq-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 4000,
+            'system'        => 'You are an FAQ writing expert. Generate {count} {type} FAQs for {audience} audience. Answers should be {length}. Format strictly as:\nQ: [question]\nA: [answer]\n\n(blank line between each Q&A pair)',
+            'user_template' => "Topic: {topic}",
+        ],
+        'story-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 8000,
+            'system'        => 'You are an expert creative fiction writer. Write a {genre} story approximately {length} words. POV: {pov}. Tone: {tone}. Include vivid descriptions, compelling characters and a satisfying arc. Do not summarize — write the actual story.',
+            'user_template' => "Story idea: {premise}\nSetting: {setting}\nMain character: {character}",
+        ],
+        'poem-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 2000,
+            'system'        => 'You are an expert poet. Write a {style} poem about {topic}. Mood: {mood}. Length: {length}. Occasion: {occasion}. Follow the conventions of {style} poetry strictly. Make it beautiful and emotionally resonant.',
+            'user_template' => "Topic: {topic}, Occasion: {occasion}",
+        ],
+        'lyrics-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 3000,
+            'system'        => 'You are an expert songwriter in {genre}. Write song lyrics with {mood} mood. Structure: {structure}. Rhyme scheme: {rhyme}. {artist_note} Use genre-appropriate vocabulary, rhythm and imagery. Label each section clearly (Verse 1:, Chorus:, Bridge:, etc.)',
+            'user_template' => "Theme: {topic}",
+        ],
+        'business-name-generator' => [
+            'model'         => 'openai/gpt-4o',
+            'max_tokens'    => 3000,
+            'system'        => 'You are a creative brand naming expert. Generate {count} unique business names for a {industry} business targeting {market}. Style: {style}. Length: {length}. For each name provide a brief tagline. Format strictly:\nNAME: [name]\nTAGLINE: [one sentence tagline]\n\n(blank line between each)',
+            'user_template' => "Business: {industry}\nKeywords: {keywords}",
+        ],
+        'slogan-generator' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 1000,
+            'system'        => 'You are an expert brand copywriter. Create {count} memorable slogans for {brand}. Tone: {tone}. Length: {length} words. Make them catchy, memorable and brand-aligned. Return ONLY the slogans, one per line, numbered.',
+            'user_template' => "Brand: {brand}\nProduct/Service: {product}\nKey value: {value}",
+        ],
+        'password-generator' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 10,
+            'system'        => 'Browser-side only tool.',
+            'user_template' => "{text}",
+        ],
+        'lorem-ipsum-generator' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 10,
+            'system'        => 'Browser-side only tool.',
+            'user_template' => "{text}",
+        ],
+        'tts-prep' => [
+            'model'         => 'google/gemini-flash-1.5',
+            'max_tokens'    => 10,
+            'system'        => 'Browser-side only tool.',
+            'user_template' => "{text}",
+        ],
     ];
 }
 
 function tg_build_user_prompt($config, $payload) {
     $template = $config['user_template'] ?? '{text}';
-    $text     = sanitize_textarea_field(wp_unslash($payload['text'] ?? ''));
-    $language = sanitize_text_field(wp_unslash($payload['language'] ?? 'English'));
-    $format   = sanitize_text_field(wp_unslash($payload['format'] ?? 'bullet points'));
-    $length   = sanitize_text_field(wp_unslash($payload['length'] ?? 'standard'));
-    $result   = str_replace('{text}',     $text,     $template);
-    $result   = str_replace('{language}', $language, $result);
-    $result   = str_replace('{format}',   $format,   $result);
-    $result   = str_replace('{length}',   $length,   $result);
-    return $result;
+    return tg_replace_placeholders($template, $payload);
 }
 
 /* =============================================
