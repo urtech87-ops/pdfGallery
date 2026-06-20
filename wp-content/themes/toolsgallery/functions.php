@@ -342,6 +342,65 @@ function tg_enqueue_assets() {
             $tool_runner_deps[] = 'tg-tool-' . $tg_handler;
         }
 
+        /* =============================================
+           Phase 7 — File Converter Tools
+           ============================================= */
+        $tool_files_7 = [
+            'excel-to-csv'   => 'excel-to-csv.js',
+            'csv-to-excel'   => 'csv-to-excel.js',
+            'json-to-csv'    => 'json-to-csv.js',
+            'csv-to-json'    => 'csv-to-json.js',
+            'xml-to-json'    => 'xml-to-json.js',
+            'json-to-xml'    => 'json-to-xml.js',
+            'md-to-html'     => 'md-to-html.js',
+            'html-to-md'     => 'html-to-md.js',
+            'txt-to-pdf'     => 'txt-to-pdf.js',
+            'pdf-to-txt'     => 'pdf-to-txt.js',
+            'html-to-pdf'    => 'html-to-pdf.js',
+            'base64-encoder' => 'base64-encoder.js',
+            'base64-decoder' => 'base64-decoder.js',
+            'url-encoder'    => 'url-encoder.js',
+            'hash-generator' => 'hash-generator.js',
+        ];
+
+        if (isset($tool_files_7[$tg_handler])) {
+            $p7_deps = ['tg-pdf-tools'];
+
+            /* SheetJS — Excel/CSV tools */
+            if (in_array($tg_handler, ['excel-to-csv', 'csv-to-excel'], true)) {
+                wp_enqueue_script('sheetjs', 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', [], null, true);
+                $p7_deps[] = 'sheetjs';
+            }
+
+            /* marked.js — Markdown to HTML */
+            if ($tg_handler === 'md-to-html') {
+                wp_enqueue_script('markedjs', 'https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js', [], null, true);
+                $p7_deps[] = 'markedjs';
+            }
+
+            /* Turndown.js — HTML to Markdown */
+            if ($tg_handler === 'html-to-md') {
+                wp_enqueue_script('turndownjs', 'https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js', [], null, true);
+                $p7_deps[] = 'turndownjs';
+            }
+
+            /* html2canvas — HTML to PDF paste mode */
+            if ($tg_handler === 'html-to-pdf') {
+                wp_enqueue_script('html2canvas', 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', [], null, true);
+                $p7_deps[] = 'html2canvas';
+            }
+
+            $p7_handle = 'tg-tool-' . $tg_handler;
+            wp_enqueue_script(
+                $p7_handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $tool_files_7[$tg_handler],
+                $p7_deps,
+                $ver,
+                true
+            );
+            $tool_runner_deps[] = $p7_handle;
+        }
+
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 
