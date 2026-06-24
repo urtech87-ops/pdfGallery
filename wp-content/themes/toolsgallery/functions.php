@@ -343,7 +343,17 @@ function tg_breadcrumbs() {
 
         $cats = get_the_category();
         if ($cats) {
-            $crumbs[] = ['label' => $cats[0]->name, 'url' => get_category_link($cats[0]->term_id)];
+            // Skip "uncategorized" in breadcrumb
+            $valid_cat = null;
+            foreach ($cats as $c) {
+                if ($c->slug !== 'uncategorized') {
+                    $valid_cat = $c;
+                    break;
+                }
+            }
+            if ($valid_cat) {
+                $crumbs[] = ['label' => $valid_cat->name, 'url' => get_category_link($valid_cat->term_id)];
+            }
         }
 
         $crumbs[] = ['label' => get_the_title(), 'url' => ''];
