@@ -88,20 +88,36 @@ get_header();
       <?php esc_html_e('130+ tools for PDF, images, video, writing and more — all free, no sign-up required', 'toolsgallery'); ?>
     </p>
 
-    <div class="tg-tools-search" role="search">
+    <div class="tg-search-container" role="search">
       <label for="tg-search-input" class="screen-reader-text"><?php esc_html_e('Search tools', 'toolsgallery'); ?></label>
-      <div class="tg-tools-search__wrap">
-        <svg class="tg-tools-search__icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
+      <div class="tg-search-wrapper">
+        <div class="tg-search-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        </div>
         <input
+          type="text"
+          class="tg-search-input"
           id="tg-search-input"
-          class="tg-tools-search__input"
-          type="search"
-          placeholder="<?php esc_attr_e('Search tools…', 'toolsgallery'); ?>"
+          placeholder="<?php esc_attr_e('Search 150+ free tools...', 'toolsgallery'); ?>"
           autocomplete="off"
-          spellcheck="false"
-        >
+          spellcheck="false">
+        <div class="tg-search-kbd"><kbd>⌘K</kbd></div>
+        <button class="tg-search-clear" id="tg-search-clear" style="display:none;" aria-label="<?php esc_attr_e('Clear search', 'toolsgallery'); ?>">✕</button>
+      </div>
+      <div class="tg-search-suggestions" id="tg-search-suggestions" style="display:none;">
+        <div class="tg-search-suggestions-inner">
+          <p class="tg-search-hint"><?php esc_html_e('Popular searches:', 'toolsgallery'); ?></p>
+          <div class="tg-search-quick-links">
+            <button class="tg-search-quick" data-query="pdf">PDF Tools</button>
+            <button class="tg-search-quick" data-query="compress">Compress</button>
+            <button class="tg-search-quick" data-query="convert">Convert</button>
+            <button class="tg-search-quick" data-query="ai">AI Tools</button>
+            <button class="tg-search-quick" data-query="image">Image</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -112,26 +128,45 @@ get_header();
   <?php echo tg_ad_slot('tools-page-leaderboard', 'leaderboard'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 </div>
 
-<!-- Category Tabs -->
+<!-- Category Filter Pills -->
 <div class="tg-tools-tabs-wrap" id="tg-tools-tabs">
   <div class="tg-container">
-    <div class="tg-tools-tabs" role="tablist" aria-label="<?php esc_attr_e('Filter by category', 'toolsgallery'); ?>">
-      <button
-        class="tg-tools-tab is-active"
-        role="tab"
-        data-cat="all"
-        aria-selected="true"
-        aria-controls="tg-tools-sections"
-      ><?php esc_html_e('All Tools', 'toolsgallery'); ?></button>
-      <?php foreach ($tg_categories as $term) : ?>
-      <button
-        class="tg-tools-tab"
-        role="tab"
-        data-cat="<?php echo esc_attr($term->slug); ?>"
-        aria-selected="false"
-        aria-controls="tg-tools-sections"
-      ><?php echo esc_html($term->name); ?></button>
-      <?php endforeach; ?>
+    <div class="tg-category-filter-bar">
+      <div class="tg-filter-scroll-wrapper">
+        <div class="tg-filter-pills tg-tools-tabs" id="tg-category-filter" role="tablist" aria-label="<?php esc_attr_e('Filter by category', 'toolsgallery'); ?>">
+          <button class="tg-filter-pill active tg-tools-tab is-active" data-filter="all" data-cat="all" role="tab" aria-selected="true" aria-pressed="true" aria-controls="tg-tools-sections">
+            <span class="tg-pill-icon">⚡</span>
+            <span><?php esc_html_e('All Tools', 'toolsgallery'); ?></span>
+            <span class="tg-pill-count">150+</span>
+          </button>
+          <?php
+          $cat_icons_filter = [
+            'pdf-tools'     => '📄',
+            'image-tools'   => '🖼️',
+            'ai-tools'      => '🤖',
+            'video-tools'   => '🎬',
+            'file-tools'    => '🔄',
+            'utility-tools' => '⚙️',
+          ];
+          foreach ($tg_categories as $term) :
+            $pill_icon = $cat_icons_filter[$term->slug] ?? '🔧';
+            $pill_label = str_replace(' Tools', '', $term->name);
+          ?>
+          <button
+            class="tg-filter-pill tg-tools-tab"
+            data-filter="<?php echo esc_attr($term->slug); ?>"
+            data-cat="<?php echo esc_attr($term->slug); ?>"
+            role="tab"
+            aria-selected="false"
+            aria-pressed="false"
+            aria-controls="tg-tools-sections">
+            <span class="tg-pill-icon"><?php echo $pill_icon; // phpcs:ignore ?></span>
+            <span><?php echo esc_html($pill_label); ?></span>
+            <span class="tg-pill-count"><?php echo absint($term->count); ?></span>
+          </button>
+          <?php endforeach; ?>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -184,9 +219,12 @@ get_header();
           $icon_svg = tg_tool_icon_svg($post->ID);
           $excerpt  = $post->post_excerpt ?: wp_trim_words(wp_strip_all_tags($post->post_content), 20, '…');
         ?>
-        <a class="tg-tool-card tg-tool-card--featured" href="<?php echo esc_url(get_permalink($post)); ?>">
+        <?php $post_handler = get_post_meta($post->ID, '_tg_handler', true); ?>
+        <a class="tg-tool-card tg-tool-card--featured" href="<?php echo esc_url(get_permalink($post)); ?>"
+           data-tool-handler="<?php echo esc_attr($post_handler); ?>"
+           data-tool-category="<?php echo esc_attr($slug); ?>">
           <span class="tg-tool-card__badge tg-tool-card__badge--green"><?php esc_html_e('FREE', 'toolsgallery'); ?></span>
-          <div class="tg-tool-card__svg" aria-hidden="true">
+          <div class="tg-tool-card__svg tg-tool-icon" aria-hidden="true">
             <?php echo $icon_svg; // phpcs:ignore WordPress.Security.EscapeOutput — sanitized SVG or our own SVG ?>
           </div>
           <h3 class="tg-tool-card__title"><?php echo esc_html($post->post_title); ?></h3>

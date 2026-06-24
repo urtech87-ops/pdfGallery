@@ -33,6 +33,9 @@
       ?>
     </nav>
 
+    <!-- Theme Toggle -->
+    <button class="tg-theme-toggle" aria-label="<?php esc_attr_e('Toggle dark mode', 'toolsgallery'); ?>" title="Toggle dark/light mode"></button>
+
     <!-- CTA -->
     <a class="tg-header__cta-btn" href="<?php echo esc_url(home_url('/tools/')); ?>">
       <?php esc_html_e('Try Free Tools', 'toolsgallery'); ?>
@@ -66,7 +69,7 @@
 
 <?php
 // Breadcrumbs — not shown on front page or 404
-if (!is_front_page() && !is_404()) {
+if (!is_front_page() && !is_404() && !is_home()) {
     tg_breadcrumbs();
 }
 ?>

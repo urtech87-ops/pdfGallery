@@ -10,6 +10,9 @@ while ( have_posts() ) :
     the_post();
 
     $post_id      = get_the_ID();
+    $tg_cats      = wp_get_post_terms($post_id, 'tool_category');
+    $tg_cat_slug  = (!empty($tg_cats) && !is_wp_error($tg_cats)) ? $tg_cats[0]->slug : 'default';
+    echo '<script>document.body.dataset.category = \'' . esc_js($tg_cat_slug) . '\';</script>' . "\n";
     $tool_type    = get_post_meta( $post_id, '_tg_tool_type', true ) ?: 'browser';
     $action_label = get_post_meta( $post_id, '_tg_action_label', true ) ?: __( 'Process File', 'toolsgallery' );
     $accept_types = get_post_meta( $post_id, '_tg_accept_types', true ) ?: '';

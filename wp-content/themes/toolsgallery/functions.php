@@ -37,8 +37,17 @@ function tg_enqueue_assets() {
         null
     );
 
-    wp_enqueue_style('tg-main', get_template_directory_uri() . '/assets/css/main.css', ['tg-fonts'], $ver);
-    wp_enqueue_script('tg-main', get_template_directory_uri() . '/assets/js/main.js', [], $ver, true);
+    // Themes CSS (before main to avoid flash of wrong theme)
+    wp_enqueue_style('tg-themes', get_template_directory_uri() . '/assets/css/themes.css', ['tg-fonts'], $ver);
+    wp_enqueue_style('tg-main', get_template_directory_uri() . '/assets/css/main.css', ['tg-themes'], $ver);
+
+    // Theme toggle — load in head (false) to prevent FOUC
+    wp_enqueue_script('tg-theme', get_template_directory_uri() . '/assets/js/theme.js', [], $ver, false);
+    wp_enqueue_script('tg-main', get_template_directory_uri() . '/assets/js/main.js', ['tg-theme'], $ver, true);
+
+    // Tool icons & background animations
+    wp_enqueue_script('tg-tool-icons', get_template_directory_uri() . '/assets/js/tool-icons.js', [], $ver, true);
+    wp_enqueue_script('tg-bg-animations', get_template_directory_uri() . '/assets/js/bg-animations.js', ['tg-theme'], $ver, true);
 
     if (is_page('tools')) {
         wp_enqueue_script('tg-tools-search', get_template_directory_uri() . '/assets/js/tools-search.js', ['tg-main'], $ver, true);

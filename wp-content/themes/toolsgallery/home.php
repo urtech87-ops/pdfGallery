@@ -78,23 +78,89 @@ function tg_reading_time($post_id) {
 
     </div><!-- .tg-layout__main -->
 
-    <aside class="tg-layout__sidebar">
+    <aside class="tg-blog-sidebar">
+
+      <!-- Popular Tools -->
       <div class="tg-sidebar-widget">
-        <h3 class="tg-sidebar-widget__title"><?php esc_html_e('Popular Tools', 'toolsgallery'); ?></h3>
+        <h3 class="tg-sidebar-title">🔥 <?php esc_html_e('Popular Tools', 'toolsgallery'); ?></h3>
         <ul class="tg-sidebar-tools-list">
           <?php
-          $pop = get_posts(['post_type' => 'tg_tool', 'posts_per_page' => 6, 'orderby' => 'menu_order', 'order' => 'ASC']);
-          foreach ($pop as $pt) :
-              $ic = get_post_meta($pt->ID, '_tg_icon', true) ?: '🔧';
+          $popular_tools = [
+            ['name' => 'Merge PDF',          'slug' => 'merge-pdf',      'cat' => 'PDF'],
+            ['name' => 'Remove Background',  'slug' => 'img-remove-bg',  'cat' => 'Image'],
+            ['name' => 'Grammar Checker',    'slug' => 'grammar-fixer',  'cat' => 'AI'],
+            ['name' => 'Compress PDF',       'slug' => 'compress-pdf',   'cat' => 'PDF'],
+            ['name' => 'JPG to PDF',         'slug' => 'jpg-to-pdf',     'cat' => 'PDF'],
+            ['name' => 'Compress Image',     'slug' => 'img-compress',   'cat' => 'Image'],
+            ['name' => 'Paraphraser',        'slug' => 'paraphraser',    'cat' => 'AI'],
+            ['name' => 'Video to MP3',       'slug' => 'video-to-mp3',   'cat' => 'Video'],
+          ];
+          foreach ($popular_tools as $t) :
+            $tool_url = home_url('/tool/' . $t['slug'] . '/');
           ?>
-            <li>
-              <a href="<?php echo esc_url(get_permalink($pt->ID)); ?>" class="tg-sidebar-tool-link">
-                <span aria-hidden="true"><?php echo esc_html($ic); ?></span>
-                <?php echo esc_html($pt->post_title); ?>
-              </a>
-            </li>
+          <li class="tg-sidebar-tool-item">
+            <a href="<?php echo esc_url($tool_url); ?>">
+              <span class="tg-sidebar-tool-name"><?php echo esc_html($t['name']); ?></span>
+              <span class="tg-sidebar-tool-cat"><?php echo esc_html($t['cat']); ?></span>
+            </a>
+          </li>
           <?php endforeach; ?>
         </ul>
+        <a href="<?php echo esc_url(home_url('/tools/')); ?>" class="tg-sidebar-view-all">
+          <?php esc_html_e('View all 150+ tools →', 'toolsgallery'); ?>
+        </a>
+      </div>
+
+      <!-- Tool Categories -->
+      <div class="tg-sidebar-widget">
+        <h3 class="tg-sidebar-title">📂 <?php esc_html_e('Browse by Category', 'toolsgallery'); ?></h3>
+        <div class="tg-sidebar-cats">
+          <?php
+          $sidebar_cats = get_terms(['taxonomy' => 'tool_category', 'hide_empty' => false]);
+          $cat_icons = [
+            'pdf-tools'     => '📄',
+            'image-tools'   => '🖼️',
+            'ai-tools'      => '🤖',
+            'video-tools'   => '🎬',
+            'file-tools'    => '📁',
+            'utility-tools' => '⚙️',
+          ];
+          if (!is_wp_error($sidebar_cats)) :
+            foreach ($sidebar_cats as $cat) :
+              $cat_icon = $cat_icons[$cat->slug] ?? '🔧';
+              $cat_url  = get_term_link($cat);
+          ?>
+          <a href="<?php echo esc_url(is_wp_error($cat_url) ? '#' : $cat_url); ?>" class="tg-sidebar-cat-link">
+            <span class="tg-sidebar-cat-icon"><?php echo $cat_icon; // phpcs:ignore ?></span>
+            <span class="tg-sidebar-cat-name"><?php echo esc_html($cat->name); ?></span>
+            <span class="tg-sidebar-cat-count"><?php echo absint($cat->count); ?></span>
+          </a>
+          <?php endforeach; endif; ?>
+        </div>
+      </div>
+
+      <!-- Recent Posts -->
+      <div class="tg-sidebar-widget">
+        <h3 class="tg-sidebar-title">📝 <?php esc_html_e('Recent Articles', 'toolsgallery'); ?></h3>
+        <ul class="tg-sidebar-posts">
+          <?php
+          $recent_posts = get_posts(['posts_per_page' => 4, 'post_status' => 'publish']);
+          foreach ($recent_posts as $rp) :
+          ?>
+          <li class="tg-sidebar-post-item">
+            <a href="<?php echo esc_url(get_permalink($rp->ID)); ?>"><?php echo esc_html($rp->post_title); ?></a>
+            <span class="tg-sidebar-post-date"><?php echo esc_html(get_the_date('M j', $rp->ID)); ?></span>
+          </li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+
+      <!-- Try Tools CTA -->
+      <div class="tg-sidebar-cta">
+        <p><?php esc_html_e('Need a free online tool?', 'toolsgallery'); ?></p>
+        <a href="<?php echo esc_url(home_url('/tools/')); ?>" class="tg-btn tg-btn--primary" style="width:100%;justify-content:center;">
+          <?php esc_html_e('Browse Free Tools →', 'toolsgallery'); ?>
+        </a>
       </div>
 
       <?php echo tg_ad_slot('blog-sidebar', 'rectangle'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
