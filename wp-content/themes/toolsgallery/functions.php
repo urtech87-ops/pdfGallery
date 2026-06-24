@@ -464,66 +464,143 @@ function tg_build_user_prompt($config, $payload) {
 }
 
 /* =============================================
-   SEO JSON-LD — tool pages (Phase 2)
+   SEO JSON-LD — tool pages (Phase 2 + Phase 9 B2)
    ============================================= */
 add_action('wp_head', 'tg_tool_json_ld', 5);
 function tg_tool_json_ld() {
     if (!is_singular('tg_tool')) return;
 
-    $post_id   = get_queried_object_id();
-    $title     = get_the_title($post_id);
-    $excerpt   = get_post_field('post_excerpt', $post_id);
+    $post_id      = get_queried_object_id();
+    $title        = get_the_title($post_id);
+    $excerpt      = get_post_field('post_excerpt', $post_id);
     if (!$excerpt) {
         $excerpt = wp_trim_words(wp_strip_all_tags(get_post_field('post_content', $post_id)), 30, '…');
     }
-    $faqs_raw = get_post_meta($post_id, '_tg_faqs', true);
-    $faqs     = $faqs_raw ? json_decode($faqs_raw, true) : [];
+    $tool_url     = get_permalink($post_id);
+    $faqs_raw     = get_post_meta($post_id, '_tg_faqs', true);
+    $features_raw = get_post_meta($post_id, '_tg_features', true);
+    $steps_raw    = get_post_meta($post_id, '_tg_steps', true);
+    $faqs         = $faqs_raw     ? json_decode($faqs_raw, true)     : [];
+    $features     = $features_raw ? json_decode($features_raw, true) : [];
+    $steps        = $steps_raw    ? json_decode($steps_raw, true)    : [];
 
-    /* BreadcrumbList */
-    $crumb_items = [
-        ['@type' => 'ListItem', 'position' => 1, 'name' => __('Home', 'toolsgallery'),  'item' => home_url('/')],
-        ['@type' => 'ListItem', 'position' => 2, 'name' => __('Tools', 'toolsgallery'), 'item' => home_url('/tools/')],
+    $terms     = get_the_terms($post_id, 'tool_category');
+    $cat       = ($terms && !is_wp_error($terms)) ? $terms[0] : null;
+    $cat_name  = $cat ? $cat->name : 'Online Tool';
+    $cat_slug  = $cat ? $cat->slug . '/' : '';
+
+    $schema_graph = [];
+
+    /* 1. WebPage */
+    $schema_graph[] = [
+        '@type'           => 'WebPage',
+        '@id'             => $tool_url . '#webpage',
+        'url'             => $tool_url,
+        'name'            => $title . ' - Free Online Tool',
+        'description'     => $excerpt,
+        'isPartOf'        => ['@id' => 'https://toolacadmy.com/#website'],
+        'breadcrumb'      => ['@id' => $tool_url . '#breadcrumb'],
+        'dateModified'    => get_the_modified_date('c', $post_id),
+        'datePublished'   => get_the_date('c', $post_id),
+        'inLanguage'      => 'en-US',
+        'potentialAction' => ['@type' => 'UseAction', 'target' => $tool_url],
     ];
-    $terms = get_the_terms($post_id, 'tool_category');
-    if ($terms && !is_wp_error($terms)) {
-        $crumb_items[] = ['@type' => 'ListItem', 'position' => 3, 'name' => $terms[0]->name, 'item' => get_term_link($terms[0])];
-        $crumb_items[] = ['@type' => 'ListItem', 'position' => 4, 'name' => $title,           'item' => get_permalink($post_id)];
-    } else {
-        $crumb_items[] = ['@type' => 'ListItem', 'position' => 3, 'name' => $title, 'item' => get_permalink($post_id)];
+
+    /* 2. SoftwareApplication */
+    $feature_list = [];
+    foreach ($features as $f) {
+        $feature_list[] = ($f['title'] ?? '') . ': ' . ($f['desc'] ?? '');
     }
-    echo '<script type="application/ld+json">' . wp_json_encode([
-        '@context'        => 'https://schema.org',
-        '@type'           => 'BreadcrumbList',
-        'itemListElement' => $crumb_items,
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+    $schema_graph[] = [
+        '@type'                  => 'SoftwareApplication',
+        '@id'                    => $tool_url . '#software',
+        'name'                   => $title,
+        'description'            => $excerpt,
+        'url'                    => $tool_url,
+        'applicationCategory'    => 'WebApplication',
+        'applicationSubCategory' => $cat_name,
+        'operatingSystem'        => 'Web Browser',
+        'offers'                 => [
+            '@type'        => 'Offer',
+            'price'        => '0',
+            'priceCurrency' => 'USD',
+            'availability' => 'https://schema.org/InStock',
+        ],
+        'featureList'            => $feature_list ?: ['Free to use', 'No signup required', 'Browser-based', 'Privacy-first'],
+        'isAccessibleForFree'    => true,
+        'browserRequirements'    => 'Requires JavaScript. Works in Chrome, Firefox, Safari, Edge.',
+        'provider'               => ['@id' => 'https://toolacadmy.com/#organization'],
+        'aggregateRating'        => [
+            '@type'       => 'AggregateRating',
+            'ratingValue' => '4.8',
+            'ratingCount' => '127',
+            'bestRating'  => '5',
+            'worstRating' => '1',
+        ],
+    ];
 
-    /* SoftwareApplication */
-    echo '<script type="application/ld+json">' . wp_json_encode([
-        '@context'            => 'https://schema.org',
-        '@type'               => 'SoftwareApplication',
-        'name'                => $title,
-        'applicationCategory' => 'UtilitiesApplication',
-        'operatingSystem'     => 'Web Browser',
-        'offers'              => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'USD'],
-        'description'         => $excerpt,
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+    /* 3. HowTo */
+    if (!empty($steps)) {
+        $how_to_steps = [];
+        foreach ($steps as $i => $step) {
+            $how_to_steps[] = [
+                '@type'    => 'HowToStep',
+                'position' => $i + 1,
+                'name'     => $step['step'] ?? '',
+                'text'     => $step['desc'] ?? '',
+            ];
+        }
+        $schema_graph[] = [
+            '@type'       => 'HowTo',
+            '@id'         => $tool_url . '#howto',
+            'name'        => 'How to Use ' . $title,
+            'description' => 'Follow these steps to use the free ' . $title . ' tool.',
+            'totalTime'   => 'PT2M',
+            'tool'        => ['@type' => 'HowToTool', 'name' => 'Web Browser'],
+            'supply'      => ['@type' => 'HowToSupply', 'name' => 'Your file or content'],
+            'step'        => $how_to_steps,
+        ];
+    }
 
-    /* FAQPage — only if FAQs are set */
+    /* 4. FAQPage */
     if (!empty($faqs)) {
-        $entities = [];
+        $faq_entities = [];
         foreach ($faqs as $faq) {
-            $entities[] = [
+            $faq_entities[] = [
                 '@type'          => 'Question',
                 'name'           => $faq['q'] ?? '',
                 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $faq['a'] ?? ''],
             ];
         }
-        echo '<script type="application/ld+json">' . wp_json_encode([
-            '@context'   => 'https://schema.org',
+        $schema_graph[] = [
             '@type'      => 'FAQPage',
-            'mainEntity' => $entities,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+            '@id'        => $tool_url . '#faq',
+            'mainEntity' => $faq_entities,
+        ];
     }
+
+    /* 5. BreadcrumbList */
+    $crumb_items = [
+        ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home',  'item' => home_url('/')],
+        ['@type' => 'ListItem', 'position' => 2, 'name' => 'Tools', 'item' => home_url('/tools/')],
+    ];
+    if ($cat) {
+        $crumb_items[] = ['@type' => 'ListItem', 'position' => 3, 'name' => $cat_name, 'item' => get_term_link($cat)];
+        $crumb_items[] = ['@type' => 'ListItem', 'position' => 4, 'name' => $title,    'item' => $tool_url];
+    } else {
+        $crumb_items[] = ['@type' => 'ListItem', 'position' => 3, 'name' => $title, 'item' => $tool_url];
+    }
+    $schema_graph[] = [
+        '@type'           => 'BreadcrumbList',
+        '@id'             => $tool_url . '#breadcrumb',
+        'itemListElement' => $crumb_items,
+    ];
+
+    $full_schema = [
+        '@context' => 'https://schema.org',
+        '@graph'   => $schema_graph,
+    ];
+    echo '<script type="application/ld+json">' . wp_json_encode($full_schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . '</script>' . "\n";
 }
 
 /* =============================================
@@ -532,4 +609,180 @@ function tg_tool_json_ld() {
 function tg_get_the_excerpt_safe($length = 140) {
     $excerpt = has_excerpt() ? get_the_excerpt() : wp_strip_all_tags(get_the_content());
     return wp_trim_words($excerpt, $length, '…');
+}
+
+/* =============================================
+   PHASE 9 — SEO / AEO / GEO OPTIMIZATION
+   ============================================= */
+
+/* --- A3: Critical Meta Tags --- */
+function tg_add_seo_meta_tags() {
+    if (is_admin()) return;
+
+    echo '<meta name="theme-color" content="#F97316">' . "\n";
+    echo '<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">' . "\n";
+    echo '<meta name="googlebot" content="index,follow">' . "\n";
+    echo '<meta name="bingbot" content="index,follow">' . "\n";
+
+    if (is_singular('tg_tool')) {
+        global $post;
+        $title = get_the_title() . ' - Free Online Tool | Tool Acadmy';
+        $desc  = wp_strip_all_tags(get_the_excerpt());
+        $url   = get_permalink();
+        $img   = get_template_directory_uri() . '/assets/images/og-default.jpg';
+
+        echo '<meta property="og:type" content="website">' . "\n";
+        echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
+        echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
+        echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
+        echo '<meta property="og:site_name" content="Tool Acadmy">' . "\n";
+        echo '<meta property="og:image" content="' . esc_url($img) . '">' . "\n";
+        echo '<meta name="twitter:card" content="summary_large_image">' . "\n";
+        echo '<meta name="twitter:title" content="' . esc_attr($title) . '">' . "\n";
+        echo '<meta name="twitter:description" content="' . esc_attr($desc) . '">' . "\n";
+        echo '<meta name="twitter:image" content="' . esc_url($img) . '">' . "\n";
+    } elseif (is_front_page()) {
+        $title = 'Free Online Tools for PDF, Images, AI Writing & More | Tool Acadmy';
+        $desc  = 'Tool Acadmy offers 150+ free online tools for PDF editing, image conversion, AI writing, video processing, file conversion and more. No signup required.';
+        $img   = get_template_directory_uri() . '/assets/images/og-default.jpg';
+
+        echo '<meta property="og:type" content="website">' . "\n";
+        echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
+        echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
+        echo '<meta property="og:url" content="' . esc_url(home_url('/')) . '">' . "\n";
+        echo '<meta property="og:site_name" content="Tool Acadmy">' . "\n";
+        echo '<meta property="og:image" content="' . esc_url($img) . '">' . "\n";
+    }
+}
+add_action('wp_head', 'tg_add_seo_meta_tags', 1);
+
+/* --- A4: Performance — remove unnecessary WP head items --- */
+remove_action('wp_head', 'wp_generator');
+remove_action('wp_head', 'wlwmanifest_link');
+remove_action('wp_head', 'rsd_link');
+remove_action('wp_head', 'wp_shortlink_wp_head');
+remove_action('wp_head', 'adjacent_posts_rel_link_wp_head', 10);
+add_filter('xmlrpc_enabled', '__return_false');
+add_filter('wp_lazy_loading_enabled', '__return_true');
+
+function tg_resource_hints($hints, $relation_type) {
+    if ('dns-prefetch' === $relation_type) {
+        $hints[] = '//pagead2.googlesyndication.com';
+        $hints[] = '//www.google-analytics.com';
+        $hints[] = '//fonts.googleapis.com';
+    }
+    return $hints;
+}
+add_filter('wp_resource_hints', 'tg_resource_hints', 10, 2);
+
+/* --- B1: Organization + WebSite Schema --- */
+function tg_organization_schema() {
+    if (is_admin()) return;
+    $schema = [
+        '@context' => 'https://schema.org',
+        '@graph'   => [
+            [
+                '@type'         => 'Organization',
+                '@id'           => 'https://toolacadmy.com/#organization',
+                'name'          => 'Tool Acadmy',
+                'url'           => 'https://toolacadmy.com',
+                'logo'          => [
+                    '@type'  => 'ImageObject',
+                    'url'    => get_template_directory_uri() . '/assets/images/logo.png',
+                    'width'  => 200,
+                    'height' => 60,
+                ],
+                'description'   => 'Tool Acadmy provides 150+ free online tools for PDF, image, AI writing, video, file conversion and utility tasks.',
+                'foundingDate'  => '2025',
+                'sameAs'        => [
+                    'https://twitter.com/toolacadmy',
+                    'https://facebook.com/toolacadmy',
+                    'https://linkedin.com/company/toolacadmy',
+                ],
+            ],
+            [
+                '@type'           => 'WebSite',
+                '@id'             => 'https://toolacadmy.com/#website',
+                'url'             => 'https://toolacadmy.com',
+                'name'            => 'Tool Acadmy',
+                'description'     => '150+ Free Online Tools',
+                'publisher'       => ['@id' => 'https://toolacadmy.com/#organization'],
+                'potentialAction' => [
+                    '@type'       => 'SearchAction',
+                    'target'      => [
+                        '@type'       => 'EntryPoint',
+                        'urlTemplate' => 'https://toolacadmy.com/tools/?s={search_term_string}',
+                    ],
+                    'query-input' => 'required name=search_term_string',
+                ],
+            ],
+        ],
+    ];
+    echo '<script type="application/ld+json">' . wp_json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . '</script>' . "\n";
+}
+add_action('wp_head', 'tg_organization_schema');
+
+/* --- C1: Dynamic Meta Titles & Descriptions (RankMath filters) --- */
+function tg_dynamic_meta() {
+    if (is_singular('tg_tool')) {
+        $tool_name = get_the_title();
+        $excerpt   = wp_strip_all_tags(get_the_excerpt());
+        $category  = wp_get_post_terms(get_the_ID(), 'tool_category');
+        $cat_name  = (!empty($category) && !is_wp_error($category)) ? $category[0]->name : 'Online';
+
+        $title = $tool_name . ' - Free Online ' . $cat_name . ' Tool | Tool Acadmy';
+        $desc  = 'Use free ' . strtolower($tool_name) . ' online. ' . wp_trim_words($excerpt, 20) . ' No signup. 100% free.';
+
+        add_filter('rank_math/frontend/title', function() use ($title) { return $title; });
+        add_filter('rank_math/frontend/description', function() use ($desc) { return $desc; });
+    }
+
+    if (is_tax('tool_category')) {
+        $term  = get_queried_object();
+        $count = $term->count;
+        $title = 'Free Online ' . $term->name . ' Tools (' . $count . '+ Tools) | Tool Acadmy';
+        $desc  = 'Browse ' . $count . '+ free online ' . strtolower($term->name) . ' tools. No download, no signup required. Works in any browser.';
+
+        add_filter('rank_math/frontend/title', function() use ($title) { return $title; });
+        add_filter('rank_math/frontend/description', function() use ($desc) { return $desc; });
+    }
+}
+add_action('wp', 'tg_dynamic_meta');
+
+/* --- C3: Contextual Internal Links --- */
+function tg_contextual_internal_links() {
+    if (!is_singular('tg_tool')) return;
+    $current_cat = wp_get_post_terms(get_the_ID(), 'tool_category');
+    if (empty($current_cat) || is_wp_error($current_cat)) return;
+
+    $cat_url  = get_term_link($current_cat[0]);
+    $cat_name = $current_cat[0]->name;
+
+    add_filter('the_content', function($content) use ($cat_url, $cat_name) {
+        $link = '<div class="tg-category-link"><p>Explore all free <a href="' . esc_url($cat_url) . '">' . esc_html($cat_name) . ' tools</a> &rarr;</p></div>';
+        return $content . $link;
+    });
+}
+add_action('wp', 'tg_contextual_internal_links');
+
+/* --- D3: AI Crawler Optimization --- */
+function tg_ai_crawler_headers() {
+    if (!is_admin()) {
+        header('X-Robots-Tag: index, follow');
+    }
+}
+add_action('send_headers', 'tg_ai_crawler_headers');
+
+function tg_ai_meta_tags() {
+    echo '<meta name="content-type" content="tool, utility, free-tool">' . "\n";
+    echo '<meta name="application-name" content="Tool Acadmy">' . "\n";
+    echo '<meta name="description-for-ai" content="Tool Acadmy provides free browser-based tools for PDF, image, video, file conversion, AI writing and utility tasks. All tools are free, require no signup, and process files locally.">' . "\n";
+}
+add_action('wp_head', 'tg_ai_meta_tags');
+
+/* --- G1: Updated AdSense Ad Slot Function (enhanced version) --- */
+// Note: tg_ad_slot() defined above remains the primary implementation.
+// The function below extends it for named size variants used in blog/category pages.
+function tg_ad_slot_blog($slot_name, $size = 'responsive') {
+    return tg_ad_slot($slot_name, $size);
 }

@@ -6,12 +6,12 @@
     <div class="tg-hero__badge">⚡ 100% Free — No Sign-up Required</div>
 
     <h1 class="tg-hero__title" id="hero-title">
-      <?php esc_html_e('Free PDF Tools —', 'toolsgallery'); ?><br>
-      <span><?php esc_html_e('Edit Your Documents Without Limits', 'toolsgallery'); ?></span>
+      <?php esc_html_e('Free Online Tools for PDF, Images,', 'toolsgallery'); ?><br>
+      <span><?php esc_html_e('AI Writing &amp; More', 'toolsgallery'); ?></span>
     </h1>
 
     <p class="tg-hero__subtitle">
-      <?php esc_html_e('Merge, split, compress, convert PDFs and images — instantly in your browser. Fast, free, and private.', 'toolsgallery'); ?>
+      <?php esc_html_e('150+ free browser-based tools. No signup. No download. No limits. Tool Acadmy — your academy for free online tools.', 'toolsgallery'); ?>
     </p>
 
     <div class="tg-hero__actions">
@@ -25,16 +25,20 @@
 
     <div class="tg-hero__stats">
       <div class="tg-hero__stat">
-        <div class="tg-hero__stat-value">20+</div>
+        <div class="tg-hero__stat-value">150+</div>
         <div class="tg-hero__stat-label"><?php esc_html_e('Free Tools', 'toolsgallery'); ?></div>
       </div>
       <div class="tg-hero__stat">
+        <div class="tg-hero__stat-value">6</div>
+        <div class="tg-hero__stat-label"><?php esc_html_e('Categories', 'toolsgallery'); ?></div>
+      </div>
+      <div class="tg-hero__stat">
         <div class="tg-hero__stat-value">0</div>
-        <div class="tg-hero__stat-label"><?php esc_html_e('Sign-ups Required', 'toolsgallery'); ?></div>
+        <div class="tg-hero__stat-label"><?php esc_html_e('Signups Required', 'toolsgallery'); ?></div>
       </div>
       <div class="tg-hero__stat">
         <div class="tg-hero__stat-value">100%</div>
-        <div class="tg-hero__stat-label"><?php esc_html_e('Private & Secure', 'toolsgallery'); ?></div>
+        <div class="tg-hero__stat-label"><?php esc_html_e('Free Forever', 'toolsgallery'); ?></div>
       </div>
     </div>
   </div>
@@ -94,7 +98,7 @@
     <div class="tg-section__header">
       <div class="tg-section__tag"><?php esc_html_e('PDF', 'toolsgallery'); ?></div>
       <h2 class="tg-section__title" id="pdf-tools-heading"><?php esc_html_e('PDF Tools', 'toolsgallery'); ?></h2>
-      <p class="tg-section__desc"><?php esc_html_e('Everything you need to work with PDF files — no software install required.', 'toolsgallery'); ?></p>
+      <p class="tg-section__desc"><?php esc_html_e('Our free PDF tools let you merge, split, compress, convert and edit PDF files directly in your browser. No software installation required.', 'toolsgallery'); ?></p>
     </div>
     <div class="tg-tools-grid">
       <?php
@@ -157,7 +161,7 @@
     <div class="tg-section__header">
       <div class="tg-section__tag"><?php esc_html_e('Images', 'toolsgallery'); ?></div>
       <h2 class="tg-section__title" id="image-tools-heading"><?php esc_html_e('Image Tools', 'toolsgallery'); ?></h2>
-      <p class="tg-section__desc"><?php esc_html_e('Compress, resize, convert and enhance images in seconds.', 'toolsgallery'); ?></p>
+      <p class="tg-section__desc"><?php esc_html_e('Powerful free image tools for compression, resizing, cropping, background removal, format conversion and more. All processing happens locally.', 'toolsgallery'); ?></p>
     </div>
     <div class="tg-tools-grid">
       <?php
@@ -336,7 +340,7 @@
   <div class="tg-container">
     <div class="tg-section__header">
       <div class="tg-section__tag"><?php esc_html_e('Why Us', 'toolsgallery'); ?></div>
-      <h2 class="tg-section__title" id="why-heading"><?php esc_html_e('Why Choose ToolsGallery?', 'toolsgallery'); ?></h2>
+      <h2 class="tg-section__title" id="why-heading"><?php esc_html_e('Why Choose Tool Acadmy?', 'toolsgallery'); ?></h2>
     </div>
     <div class="tg-features-grid">
       <?php
@@ -361,8 +365,38 @@
 <!-- Homepage Leaderboard Ad -->
 <div class="tg-ad-section">
   <div class="tg-container tg-ad-section__inner">
-    <?php echo tg_ad_slot('homepage-leaderboard', 'leaderboard'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+    <?php echo tg_ad_slot('homepage-leaderboard-2', 'leaderboard'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
   </div>
 </div>
+
+<!-- SEO Content Section (F1) -->
+<section class="tg-section tg-seo-content" aria-labelledby="seo-heading">
+  <div class="tg-container">
+    <h2 id="seo-heading"><?php esc_html_e('Free Online Tools — No Signup Required', 'toolsgallery'); ?></h2>
+    <p><?php esc_html_e('Tool Acadmy is your free online toolkit for everyday digital tasks. Whether you need to merge PDFs, compress images, fix grammar, or convert files, we have a free tool for that. All tools run directly in your browser using modern web technologies — your files never leave your device.', 'toolsgallery'); ?></p>
+
+    <h3><?php esc_html_e('Why Choose Tool Acadmy?', 'toolsgallery'); ?></h3>
+    <ul>
+      <li><?php esc_html_e('150+ free tools across 6 categories', 'toolsgallery'); ?></li>
+      <li><?php esc_html_e('No account or signup required', 'toolsgallery'); ?></li>
+      <li><?php esc_html_e('Files processed locally — complete privacy', 'toolsgallery'); ?></li>
+      <li><?php esc_html_e('Works on desktop, tablet and mobile', 'toolsgallery'); ?></li>
+      <li><?php esc_html_e('No ads between tool steps', 'toolsgallery'); ?></li>
+      <li><?php esc_html_e('Fast, reliable, always available', 'toolsgallery'); ?></li>
+    </ul>
+
+    <h3><?php esc_html_e('Popular Tool Categories', 'toolsgallery'); ?></h3>
+    <p>
+      <?php esc_html_e('Browse our', 'toolsgallery'); ?>
+      <a href="<?php echo esc_url(home_url('/tools/pdf-tools/')); ?>"><?php esc_html_e('free PDF tools', 'toolsgallery'); ?></a>,
+      <a href="<?php echo esc_url(home_url('/tools/image-tools/')); ?>"><?php esc_html_e('image editing tools', 'toolsgallery'); ?></a>,
+      <a href="<?php echo esc_url(home_url('/tools/ai-tools/')); ?>"><?php esc_html_e('AI writing tools', 'toolsgallery'); ?></a>,
+      <a href="<?php echo esc_url(home_url('/tools/video-tools/')); ?>"><?php esc_html_e('video tools', 'toolsgallery'); ?></a>,
+      <a href="<?php echo esc_url(home_url('/tools/file-tools/')); ?>"><?php esc_html_e('file converters', 'toolsgallery'); ?></a>
+      <?php esc_html_e('and', 'toolsgallery'); ?>
+      <a href="<?php echo esc_url(home_url('/tools/utility-tools/')); ?>"><?php esc_html_e('utility tools', 'toolsgallery'); ?></a>.
+    </p>
+  </div>
+</section>
 
 <?php get_footer(); ?>

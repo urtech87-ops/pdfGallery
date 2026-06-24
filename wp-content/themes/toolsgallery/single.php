@@ -1,5 +1,32 @@
 <?php get_header(); ?>
 
+<?php
+/* Article Schema (Phase 9 E1) */
+if (have_posts()) :
+    the_post();
+    rewind_posts();
+    $article_schema = [
+        '@context'          => 'https://schema.org',
+        '@type'             => 'Article',
+        'headline'          => get_the_title(),
+        'description'       => get_the_excerpt(),
+        'datePublished'     => get_the_date('c'),
+        'dateModified'      => get_the_modified_date('c'),
+        'author'            => ['@type' => 'Organization', 'name' => 'Tool Acadmy', 'url' => 'https://toolacadmy.com'],
+        'publisher'         => [
+            '@type' => 'Organization',
+            'name'  => 'Tool Acadmy',
+            'logo'  => ['@type' => 'ImageObject', 'url' => get_template_directory_uri() . '/assets/images/logo.png'],
+        ],
+        'mainEntityOfPage'  => ['@type' => 'WebPage', '@id' => get_permalink()],
+    ];
+    if (has_post_thumbnail()) {
+        $article_schema['image'] = get_the_post_thumbnail_url(null, 'large');
+    }
+    echo '<script type="application/ld+json">' . wp_json_encode($article_schema, JSON_UNESCAPED_SLASHES) . '</script>' . "\n";
+endif;
+?>
+
 <div class="tg-container" style="padding-top:3rem;padding-bottom:4rem;">
   <div class="tg-layout--sidebar">
 
