@@ -35,28 +35,110 @@
     });
   });
 
-  /* --- FAQ accordion (.tg-faq-item) for About/Contact/page FAQs --- */
+  /* --- FAQ accordion (.tg-faq-item) — max-height animation --- */
   var tgFaqItems = document.querySelectorAll('.tg-faq-item');
   tgFaqItems.forEach(function (item) {
     var question = item.querySelector('.tg-faq-question');
-    var answer   = item.querySelector('.tg-faq-answer');
     var icon     = item.querySelector('.tg-faq-icon');
-    if (!question || !answer) return;
-    answer.style.display = 'none';
+    if (!question) return;
+    if (icon && !icon.textContent.trim()) icon.textContent = '+';
     question.addEventListener('click', function () {
-      var isOpen = answer.style.display === 'block';
+      var isOpen = item.classList.contains('tg-faq-open');
+      // Close all
       tgFaqItems.forEach(function (other) {
-        var otherAnswer = other.querySelector('.tg-faq-answer');
-        var otherIcon   = other.querySelector('.tg-faq-icon');
-        if (otherAnswer && other !== item) {
-          otherAnswer.style.display = 'none';
-          if (otherIcon) otherIcon.textContent = '+';
-          other.classList.remove('tg-faq-open');
+        var otherIcon = other.querySelector('.tg-faq-icon');
+        other.classList.remove('tg-faq-open');
+        if (otherIcon && !other.classList.contains('tg-faq-open')) {
+          otherIcon.textContent = '+';
         }
       });
-      answer.style.display = isOpen ? 'none' : 'block';
-      if (icon) icon.textContent = isOpen ? '+' : '−';
-      item.classList.toggle('tg-faq-open', !isOpen);
+      // Open clicked if was closed
+      if (!isOpen) {
+        item.classList.add('tg-faq-open');
+        if (icon) icon.textContent = '+'; // CSS rotate handles visual
+      }
+    });
+  });
+
+  /* --- Search field enhancements (Cmd+K, suggestions, clear) --- */
+  var searchInput = document.getElementById('tg-search-input');
+  var searchClear = document.getElementById('tg-search-clear');
+  var searchSuggestions = document.getElementById('tg-search-suggestions');
+
+  if (searchInput) {
+    // Cmd+K / Ctrl+K focuses search
+    document.addEventListener('keydown', function(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInput.focus();
+      }
+    });
+
+    // Show suggestions on focus (when empty)
+    searchInput.addEventListener('focus', function() {
+      if (searchSuggestions && !searchInput.value.trim()) {
+        searchSuggestions.style.display = 'block';
+      }
+    });
+
+    // Hide suggestions on blur
+    searchInput.addEventListener('blur', function() {
+      setTimeout(function() {
+        if (searchSuggestions) searchSuggestions.style.display = 'none';
+      }, 200);
+    });
+
+    // Show/hide clear button
+    searchInput.addEventListener('input', function() {
+      if (searchClear) {
+        searchClear.style.display = searchInput.value ? 'flex' : 'none';
+      }
+      if (searchSuggestions) {
+        searchSuggestions.style.display = searchInput.value ? 'none' : 'block';
+      }
+    });
+
+    // Clear button action
+    if (searchClear) {
+      searchClear.addEventListener('click', function() {
+        searchInput.value = '';
+        searchClear.style.display = 'none';
+        searchInput.focus();
+        // Trigger input event for search reset
+        searchInput.dispatchEvent(new Event('input'));
+      });
+    }
+
+    // Quick search pill click
+    document.querySelectorAll('.tg-search-quick').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        searchInput.value = btn.dataset.query || btn.textContent;
+        if (searchSuggestions) searchSuggestions.style.display = 'none';
+        searchInput.dispatchEvent(new Event('input'));
+        if (searchClear) searchClear.style.display = 'flex';
+      });
+    });
+  }
+
+  /* --- Category filter pills --- */
+  document.querySelectorAll('.tg-filter-pill').forEach(function(pill) {
+    pill.addEventListener('click', function() {
+      document.querySelectorAll('.tg-filter-pill').forEach(function(p) {
+        p.classList.remove('active');
+        p.setAttribute('aria-pressed', 'false');
+      });
+      this.classList.add('active');
+      this.setAttribute('aria-pressed', 'true');
+      var filter = this.dataset.filter || this.dataset.cat;
+      document.querySelectorAll('.tg-tools-section').forEach(function(s) {
+        if (filter === 'all') {
+          s.style.display = 'block';
+        } else {
+          s.style.display = s.dataset.category === filter ? 'block' : 'none';
+        }
+      });
+      var gridWrapper = document.querySelector('#tg-tools-sections');
+      if (gridWrapper) gridWrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
   });
 

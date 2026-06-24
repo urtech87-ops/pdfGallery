@@ -58,6 +58,7 @@ $schema = [
 ];
 ?>
 <?php get_header(); ?>
+<script>document.body.dataset.category = '<?php echo esc_js($term ? $term->slug : 'default'); ?>';</script>
 
 <!-- Schema output -->
 <script type="application/ld+json"><?php echo wp_json_encode($schema, JSON_UNESCAPED_SLASHES); ?></script>
