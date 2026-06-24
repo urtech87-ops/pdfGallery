@@ -1,6 +1,6 @@
 <?php
 /**
- * ToolsGallery — functions.php
+ * Tool Acadmy — functions.php
  */
 
 defined('ABSPATH') || exit;
@@ -442,7 +442,7 @@ function tg_call_openrouter($tool, $payload) {
             'Authorization' => 'Bearer ' . OPENROUTER_API_KEY,
             'Content-Type'  => 'application/json',
             'HTTP-Referer'  => home_url(),
-            'X-Title'       => 'ToolsGallery',
+            'X-Title'       => 'Tool Acadmy',
         ],
         'body' => wp_json_encode($body),
     ]);
@@ -786,3 +786,50 @@ add_action('wp_head', 'tg_ai_meta_tags');
 function tg_ad_slot_blog($slot_name, $size = 'responsive') {
     return tg_ad_slot($slot_name, $size);
 }
+
+/* =============================================
+   SITEMAP ACCESSIBILITY (FIX 2)
+   ============================================= */
+add_action('init', function() {
+    if (isset($_GET['sitemap'])) {
+        return;
+    }
+});
+
+/* =============================================
+   CONTACT FORM HANDLER (FIX 4)
+   ============================================= */
+function tg_handle_contact_form() {
+    if (!wp_verify_nonce(
+        $_POST['tg_contact_nonce'] ?? '',
+        'tg_contact_form')) {
+        wp_die('Security check failed');
+    }
+    $name    = sanitize_text_field($_POST['tg_name'] ?? '');
+    $email   = sanitize_email($_POST['tg_email'] ?? '');
+    $subject = sanitize_text_field($_POST['tg_subject'] ?? '');
+    $message = sanitize_textarea_field($_POST['tg_message'] ?? '');
+
+    wp_insert_post([
+        'post_type'    => 'tg_contact',
+        'post_title'   => 'Message from ' . $name,
+        'post_content' => $message,
+        'post_status'  => 'private',
+        'meta_input'   => [
+            '_tg_contact_email'   => $email,
+            '_tg_contact_subject' => $subject,
+        ],
+    ]);
+
+    wp_mail(
+        get_option('admin_email'),
+        '[Tool Acadmy Contact] ' . $subject . ' from ' . $name,
+        "Name: $name\nEmail: $email\nSubject: $subject\n\nMessage:\n$message",
+        ['From: noreply@toolacadmy.com']
+    );
+
+    wp_redirect(home_url('/contact/?sent=1'));
+    exit;
+}
+add_action('admin_post_nopriv_tg_contact_submit', 'tg_handle_contact_form');
+add_action('admin_post_tg_contact_submit', 'tg_handle_contact_form');
