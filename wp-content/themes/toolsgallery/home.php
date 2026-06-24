@@ -39,10 +39,18 @@ function tg_reading_time($post_id) {
 
               <div class="tg-blog-card__body">
 
-                <?php $cats = get_the_category(); if ($cats) : ?>
-                  <a class="tg-blog-card__cat" href="<?php echo esc_url(get_category_link($cats[0]->term_id)); ?>">
-                    <?php echo esc_html($cats[0]->name); ?>
+                <?php
+                $cats = get_the_category();
+                $valid_cat = null;
+                foreach ((array) $cats as $c) {
+                    if ($c->slug !== 'uncategorized') { $valid_cat = $c; break; }
+                }
+                if ($valid_cat) : ?>
+                  <a class="tg-blog-card__cat" href="<?php echo esc_url(get_category_link($valid_cat->term_id)); ?>">
+                    <?php echo esc_html($valid_cat->name); ?>
                   </a>
+                <?php elseif ($cats) : ?>
+                  <span class="tg-blog-card__cat">Tool Tips</span>
                 <?php endif; ?>
 
                 <h2 class="tg-blog-card__title">
