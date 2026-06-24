@@ -54,10 +54,14 @@ while ( have_posts() ) :
             <?php endif; ?>
             <h1 class="tg-tool-title"><?php the_title(); ?></h1>
 
-            <!-- 2. Description / excerpt -->
-            <?php if ( has_excerpt() ) : ?>
-                <p class="tg-tool-desc"><?php the_excerpt(); ?></p>
-            <?php endif; ?>
+            <!-- 2. Quick Answer Box (D1 — Featured Snippet + AEO) -->
+            <div class="tg-quick-answer" itemscope itemtype="https://schema.org/HowTo">
+                <p itemprop="description">
+                    <strong><?php the_title(); ?></strong> is a free online tool by Tool Acadmy.
+                    <?php if ( has_excerpt() ) : ?><?php echo wp_kses_post( get_the_excerpt() ); ?><?php endif; ?>
+                    No signup required. Works in any browser.
+                </p>
+            </div>
 
             <!-- 3. TOOL UI BOX -->
             <?php if ( $tool_type === 'url-input' ) : ?>
@@ -256,8 +260,8 @@ while ( have_posts() ) :
             <?php echo tg_ad_slot( 'tool-in-content', 'responsive' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 
             <!-- 5. How to use -->
-            <div class="tg-tool-section">
-                <h2><?php esc_html_e( 'How to Use', 'toolsgallery' ); ?></h2>
+            <section class="tg-tool-section tg-how-to-use" id="how-to-use">
+                <h2><?php esc_html_e( 'How to Use', 'toolsgallery' ); ?> <?php the_title(); ?></h2>
                 <ol class="tg-steps-list">
                     <?php if ( ! empty( $steps ) ) :
                         foreach ( $steps as $i => $step ) : ?>
@@ -286,7 +290,7 @@ while ( have_posts() ) :
                         </li>
                     <?php endif; ?>
                 </ol>
-            </div>
+            </section>
 
             <!-- 6. Features -->
             <div class="tg-tool-section">
@@ -322,12 +326,38 @@ while ( have_posts() ) :
                 </div>
             </div>
 
-            <!-- 6b. Mid-content ad — between Features and FAQ -->
+            <!-- 6b. Why Use This Tool (AEO content) -->
+            <section class="tg-tool-section tg-why-use" id="why-use">
+                <h2><?php esc_html_e( 'Why Use', 'toolsgallery' ); ?> <?php the_title(); ?> <?php esc_html_e( 'Online?', 'toolsgallery' ); ?></h2>
+                <p><?php the_title(); ?> by Tool Acadmy is a free browser-based tool that requires no signup, no download, and no installation. Your files are processed locally in your browser and never uploaded to any server, ensuring complete privacy.</p>
+                <?php if ( ! empty( $features ) ) : ?>
+                    <ul>
+                        <?php foreach ( $features as $feature ) : ?>
+                            <li><strong><?php echo esc_html( $feature['title'] ?? '' ); ?>:</strong> <?php echo esc_html( $feature['desc'] ?? '' ); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </section>
+
+            <!-- 6c. Key Benefits (AEO featured snippet target) -->
+            <section class="tg-tool-section tg-benefits" id="benefits">
+                <h2><?php esc_html_e( 'Key Benefits', 'toolsgallery' ); ?></h2>
+                <ul class="tg-benefits-list">
+                    <li>&#x2705; 100% Free &mdash; no hidden costs</li>
+                    <li>&#x2705; No signup or account required</li>
+                    <li>&#x2705; Works in any modern browser</li>
+                    <li>&#x2705; Files processed locally &mdash; 100% private</li>
+                    <li>&#x2705; No software download required</li>
+                    <li>&#x2705; Fast processing &mdash; results in seconds</li>
+                </ul>
+            </section>
+
+            <!-- 6d. Mid-content ad — between Benefits and FAQ -->
             <?php echo tg_ad_slot( 'tool-mid-content', 'responsive' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 
             <!-- 7. FAQ — only if non-empty -->
             <?php if ( ! empty( $faqs ) ) : ?>
-                <div class="tg-tool-section">
+                <section class="tg-tool-section tg-faq-section" id="faq">
                     <h2><?php esc_html_e( 'Frequently Asked Questions', 'toolsgallery' ); ?></h2>
                     <div class="tg-faq-accordion">
                         <?php foreach ( $faqs as $faq ) : ?>
@@ -342,8 +372,11 @@ while ( have_posts() ) :
                             </details>
                         <?php endforeach; ?>
                     </div>
-                </div>
+                </section>
             <?php endif; ?>
+
+            <!-- Ad after FAQ -->
+            <?php echo tg_ad_slot( 'tool-below-faq', 'responsive' ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 
             <!-- 8. Related Tools -->
             <?php

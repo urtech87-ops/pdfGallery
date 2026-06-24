@@ -1534,3 +1534,121 @@ input, textarea, select {
   .tg-tools-grid--featured { grid-template-columns: 1fr; }
   .tg-tools-list { grid-template-columns: 1fr; }
 }
+
+/* =============================================
+   PHASE 9 — SEO / AEO Styles
+   ============================================= */
+
+/* Quick Answer Box (D1) */
+.tg-quick-answer {
+  background: rgba(249, 115, 22, 0.08);
+  border-left: 4px solid var(--color-primary, #F97316);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.tg-quick-answer p { margin: 0; }
+
+/* Why Use + Benefits sections */
+.tg-why-use ul,
+.tg-benefits-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+.tg-why-use ul li,
+.tg-benefits-list li {
+  padding: 6px 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Category link after content */
+.tg-category-link {
+  margin-top: 1.5rem;
+  padding: 12px 16px;
+  background: var(--color-bg-alt, #f8f8f8);
+  border-radius: 8px;
+  font-size: 15px;
+}
+.tg-category-link p { margin: 0; }
+
+/* Trust Signals Footer Bar */
+.tg-trust-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  justify-content: center;
+  padding: 1rem 0;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 1.5rem;
+  font-size: 13px;
+  color: var(--color-text-muted, #aaa);
+}
+
+/* SEO Content Section (F1) */
+.tg-seo-content {
+  background: var(--color-bg-alt, #f8f9fa);
+  padding: 3rem 0;
+}
+.tg-seo-content h2 { margin-bottom: 1rem; }
+.tg-seo-content h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; }
+.tg-seo-content ul { margin: 0.5rem 0 1rem 1.25rem; }
+.tg-seo-content ul li { margin-bottom: 0.35rem; }
+
+/* Blog Card Grid */
+.tg-blog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+.tg-blog-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.tg-blog-card__img-wrap { display: block; overflow: hidden; max-height: 200px; }
+.tg-blog-card__img { width: 100%; height: 200px; object-fit: cover; display: block; transition: transform 0.3s; }
+.tg-blog-card:hover .tg-blog-card__img { transform: scale(1.04); }
+.tg-blog-card__body { padding: 1.25rem; flex: 1; display: flex; flex-direction: column; }
+.tg-blog-card__cat { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-primary, #F97316); font-weight: 600; margin-bottom: 0.5rem; display: block; }
+.tg-blog-card__title { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.75rem; line-height: 1.35; }
+.tg-blog-card__title a { color: inherit; text-decoration: none; }
+.tg-blog-card__title a:hover { color: var(--color-primary, #F97316); }
+.tg-blog-card__excerpt { font-size: 14px; color: #666; line-height: 1.5; flex: 1; margin-bottom: 1rem; }
+.tg-blog-card__meta { font-size: 12px; color: #999; display: flex; gap: 1rem; margin-bottom: 1rem; }
+
+/* Archive Header */
+.tg-archive-header { margin-bottom: 2rem; }
+.tg-archive-title { font-size: 1.75rem; font-weight: 800; margin-bottom: 0.5rem; }
+.tg-archive-desc { font-size: 1rem; color: #666; }
+
+/* Sitemap Page */
+.tg-sitemap-section { margin-bottom: 2.5rem; }
+.tg-sitemap-section h2 { font-size: 1.25rem; margin-bottom: 0.75rem; border-bottom: 2px solid var(--color-primary, #F97316); padding-bottom: 0.5rem; }
+.tg-sitemap-list { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.4rem 1rem; }
+.tg-sitemap-list li { font-size: 14px; }
+.tg-sitemap-list a { color: var(--color-primary, #F97316); text-decoration: none; }
+.tg-sitemap-list a:hover { text-decoration: underline; }
+
+/* 404 Page Improvements */
+.tg-404__search { max-width: 480px; margin: 1.5rem auto; }
+.tg-404__categories { margin-top: 2rem; }
+.tg-404__cat-grid { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; margin-top: 1rem; }
+.tg-404__popular { margin-top: 2rem; }
+.tg-404__tool-list { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem; margin: 1rem 0; }
+.tg-404__tool-list a { color: var(--color-primary, #F97316); text-decoration: none; font-size: 14px; }
+.tg-404__tool-list a:hover { text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .tg-blog-grid { grid-template-columns: 1fr; }
+  .tg-trust-signals { font-size: 12px; gap: 0.75rem 1rem; }
+  .tg-sitemap-list { grid-template-columns: 1fr; }
+}

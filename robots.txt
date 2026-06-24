@@ -1,0 +1,40 @@
+User-agent: *
+Allow: /
+
+# Block admin and system paths
+Disallow: /wp-admin/
+Disallow: /wp-includes/
+Disallow: /wp-content/plugins/
+Disallow: /wp-content/themes/toolsgallery/assets/
+Disallow: /xmlrpc.php
+Disallow: /?s=
+Disallow: /search/
+Disallow: /feed/
+Disallow: /comments/feed/
+Disallow: /trackback/
+Disallow: /*?*
+
+# Allow important paths
+Allow: /wp-admin/admin-ajax.php
+Allow: /wp-content/uploads/
+Allow: /tool/
+Allow: /tools/
+Allow: /blog/
+
+# Crawl delay for bots
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://toolacadmy.com/sitemap_index.xml
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /

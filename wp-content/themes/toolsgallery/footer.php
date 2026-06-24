@@ -10,8 +10,8 @@
           <img src="<?php echo esc_url(get_template_directory_uri() . '/assets/images/logo.svg'); ?>" width="32" height="32" alt="">
           <span class="tg-footer__logo-text"><?php bloginfo('name'); ?></span>
         </div>
-        <p class="tg-footer__tagline"><?php esc_html_e('Free PDF Tools — Edit Your Documents Without Limits', 'toolsgallery'); ?></p>
-        <p class="tg-footer__desc"><?php esc_html_e('Fast, free, and privacy-friendly tools for PDF and image editing — no sign-up required.', 'toolsgallery'); ?></p>
+        <p class="tg-footer__tagline"><?php esc_html_e('150+ Free Online Tools — No Signup Required', 'toolsgallery'); ?></p>
+        <p class="tg-footer__desc"><?php esc_html_e('Fast, free, and privacy-friendly tools for PDF, images, AI writing, video, files and more — your files never leave your device.', 'toolsgallery'); ?></p>
       </div>
 
       <!-- Col 2: PDF Tools -->
@@ -74,11 +74,19 @@
 
     </div><!-- .tg-footer__grid -->
 
+    <!-- Trust Signals (D2 E-E-A-T) -->
+    <div class="tg-trust-signals">
+      <span>&#x1F512; <?php esc_html_e('Privacy First — Files Never Uploaded', 'toolsgallery'); ?></span>
+      <span>&#x26A1; <?php esc_html_e('150+ Free Tools', 'toolsgallery'); ?></span>
+      <span>&#x2705; <?php esc_html_e('No Signup Required', 'toolsgallery'); ?></span>
+      <span>&#x1F310; <?php esc_html_e('Works in Any Browser', 'toolsgallery'); ?></span>
+    </div>
+
     <div class="tg-footer__bottom">
       <span class="tg-footer__copyright">
         &copy; <?php echo esc_html(gmdate('Y')); ?> <?php bloginfo('name'); ?>. <?php esc_html_e('All rights reserved.', 'toolsgallery'); ?>
       </span>
-      <span class="tg-footer__bottom-tagline"><?php esc_html_e('Free tools for everyone', 'toolsgallery'); ?></span>
+      <span class="tg-footer__bottom-tagline"><a href="<?php echo esc_url(home_url('/sitemap-page/')); ?>"><?php esc_html_e('Sitemap', 'toolsgallery'); ?></a> &mdash; <?php esc_html_e('Free tools for everyone', 'toolsgallery'); ?></span>
     </div>
   </div>
 </footer>
