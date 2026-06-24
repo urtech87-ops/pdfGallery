@@ -47,6 +47,7 @@ function tg_enqueue_assets() {
 
     // Tool icons & background animations
     wp_enqueue_script('tg-tool-icons', get_template_directory_uri() . '/assets/js/tool-icons.js', [], $ver, true);
+    wp_enqueue_script('tg-unique-icons', get_template_directory_uri() . '/assets/js/tool-icons-unique.js', [], '1.0', true);
     wp_enqueue_script('tg-bg-animations', get_template_directory_uri() . '/assets/js/bg-animations.js', ['tg-theme'], $ver, true);
 
     if (is_page('tools')) {

@@ -86,7 +86,7 @@ $schema = [
       <?php foreach ($tools as $tool) :
         $icon = get_post_meta($tool->ID, '_tg_icon', true) ?: '🔧';
       ?>
-        <a class="tg-tool-card" href="<?php echo esc_url(get_permalink($tool->ID)); ?>">
+        <a class="tg-tool-card" href="<?php echo esc_url(get_permalink($tool->ID)); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta($tool->ID, '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($icon); ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($tool->post_title); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(wp_trim_words($tool->post_excerpt, 12, '…')); ?></div>

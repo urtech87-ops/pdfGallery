@@ -124,7 +124,7 @@
       if ($cpt_query->have_posts()) :
         while ($cpt_query->have_posts()) : $cpt_query->the_post();
       ?>
-        <a class="tg-tool-card" href="<?php the_permalink(); ?>">
+        <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
             <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '📄'); ?>
           </div>
@@ -138,7 +138,7 @@
       else :
         foreach ($pdf_tools as $t) :
       ?>
-        <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>">
+        <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>" data-tool-handler="<?php echo esc_attr($t['slug']); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
@@ -185,7 +185,7 @@
       if ($img_cpt_query->have_posts()) :
         while ($img_cpt_query->have_posts()) : $img_cpt_query->the_post();
       ?>
-        <a class="tg-tool-card" href="<?php the_permalink(); ?>">
+        <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
             <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '🖼️'); ?>
           </div>
@@ -199,7 +199,7 @@
       else :
         foreach ($image_tools_static as $t) :
       ?>
-        <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>">
+        <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>" data-tool-handler="<?php echo esc_attr($t['slug']); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
@@ -236,7 +236,7 @@
       if ($ai_tools_cpt->have_posts()) :
         while ($ai_tools_cpt->have_posts()) : $ai_tools_cpt->the_post();
       ?>
-        <a class="tg-tool-card" href="<?php the_permalink(); ?>">
+        <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
             <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '✍️'); ?>
           </div>
@@ -304,7 +304,7 @@
       if ($vid_cpt_query->have_posts()) :
         while ($vid_cpt_query->have_posts()) : $vid_cpt_query->the_post();
       ?>
-        <a class="tg-tool-card" href="<?php the_permalink(); ?>">
+        <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
             <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '🎬'); ?>
           </div>
@@ -318,7 +318,7 @@
       else :
         foreach ($video_tools_static as $t) :
       ?>
-        <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>">
+        <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>" data-tool-handler="<?php echo esc_attr($t['slug']); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
