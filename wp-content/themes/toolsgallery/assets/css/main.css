@@ -2641,3 +2641,774 @@ input, textarea, select {
   .tg-filter-pill { padding: 8px 14px; font-size: 13px; }
   .tg-search-kbd { display: none; }
 }
+
+/* ===================================
+   DARK THEME NUCLEAR OVERRIDE
+   These rules override ALL hardcoded
+   colors. Added at bottom for priority.
+   =================================== */
+
+/* TOOL CARDS */
+[data-theme="dark"] .tg-tool-card,
+[data-theme="dark"] [class*="tool-card"],
+[data-theme="dark"] .tg-card {
+  background: #1e1e1e !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+
+[data-theme="dark"] .tg-tool-card *,
+[data-theme="dark"] [class*="tool-card"] *,
+[data-theme="dark"] .tg-card * {
+  color: #F0F0F0 !important;
+}
+
+/* Tool card specific elements */
+[data-theme="dark"] .tg-tool-card-title,
+[data-theme="dark"] .tg-tool-card h3,
+[data-theme="dark"] .tg-tool-card h2,
+[data-theme="dark"] .tg-card-title {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .tg-tool-card-desc,
+[data-theme="dark"] .tg-tool-card p,
+[data-theme="dark"] .tg-card-desc {
+  color: #A0A0A0 !important;
+}
+
+[data-theme="dark"] .tg-tool-card-cta,
+[data-theme="dark"] .tg-card-cta,
+[data-theme="dark"] .tg-tool-card a {
+  color: #F97316 !important;
+}
+
+/* FREE badge */
+[data-theme="dark"] .tg-free-badge {
+  background: #166534 !important;
+  color: #86efac !important;
+}
+
+/* ===================================
+   SECTION HEADINGS
+   =================================== */
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] h6 {
+  color: #FFFFFF !important;
+}
+
+/* Category section titles */
+[data-theme="dark"] .tg-tools-section h2,
+[data-theme="dark"] .tg-category-title,
+[data-theme="dark"] [class*="section"] h2,
+[data-theme="dark"] [class*="section"] h3 {
+  color: #FFFFFF !important;
+}
+
+/* "See all X tools" links */
+[data-theme="dark"] [class*="see-all"],
+[data-theme="dark"] [class*="view-all"] {
+  color: #F97316 !important;
+}
+
+/* ===================================
+   TOOL BOX AND UPLOAD ZONE
+   =================================== */
+[data-theme="dark"] .tg-tool-box,
+[data-theme="dark"] [class*="tool-box"],
+[data-theme="dark"] .tg-tool-container {
+  background: #1e1e1e !important;
+  border-color: rgba(249,115,22,0.2) !important;
+}
+
+[data-theme="dark"] .tg-upload-zone,
+[data-theme="dark"] [class*="drop-zone"],
+[data-theme="dark"] [class*="upload-area"],
+[data-theme="dark"] [class*="upload-zone"] {
+  background: rgba(249,115,22,0.05) !important;
+  border-color: rgba(249,115,22,0.25) !important;
+}
+
+[data-theme="dark"] .tg-upload-zone p,
+[data-theme="dark"] .tg-upload-zone span,
+[data-theme="dark"] .tg-upload-zone svg,
+[data-theme="dark"] [class*="upload-zone"] p,
+[data-theme="dark"] [class*="upload-zone"] span,
+[data-theme="dark"] [class*="drop-zone"] p,
+[data-theme="dark"] [class*="drop-zone"] span {
+  color: #A0A0A0 !important;
+}
+
+/* Upload icon/SVG */
+[data-theme="dark"] .tg-upload-zone svg *,
+[data-theme="dark"] [class*="upload"] svg * {
+  stroke: #A0A0A0 !important;
+  fill: none !important;
+}
+
+/* ===================================
+   ACTION BUTTON (Merge PDFs, etc)
+   =================================== */
+[data-theme="dark"] .tg-action-btn,
+[data-theme="dark"] button[class*="action"],
+[data-theme="dark"] .tg-tool-box button:not([class*="faq"]):not([class*="filter"]) {
+  background: #F97316 !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+[data-theme="dark"] .tg-action-btn:disabled,
+[data-theme="dark"] .tg-action-btn[disabled] {
+  background: #3a3a3a !important;
+  color: #666666 !important;
+}
+
+/* ===================================
+   FAQ ACCORDION — COMPLETE FIX
+   =================================== */
+[data-theme="dark"] .tg-faq-accordion {
+  background: transparent !important;
+  border: none !important;
+}
+
+[data-theme="dark"] .tg-faq-item {
+  background: #1e1e1e !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 14px !important;
+}
+
+[data-theme="dark"] .tg-faq-question {
+  background: transparent !important;
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-faq-item.tg-faq-open .tg-faq-question {
+  color: #F97316 !important;
+}
+
+[data-theme="dark"] .tg-faq-icon {
+  background: rgba(249,115,22,0.15) !important;
+  color: #F97316 !important;
+}
+
+[data-theme="dark"] .tg-faq-item.tg-faq-open .tg-faq-icon {
+  background: #F97316 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .tg-faq-answer {
+  color: #A0A0A0 !important;
+}
+
+[data-theme="dark"] .tg-faq-answer p,
+[data-theme="dark"] .tg-faq-answer li,
+[data-theme="dark"] .tg-faq-answer span {
+  color: #A0A0A0 !important;
+}
+
+/* ===================================
+   RELATED TOOLS CARDS
+   =================================== */
+[data-theme="dark"] .tg-related-card,
+[data-theme="dark"] [class*="related-card"],
+[data-theme="dark"] .tg-related-tools a,
+[data-theme="dark"] .tg-related-grid a {
+  background: #1e1e1e !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 12px !important;
+}
+
+[data-theme="dark"] .tg-related-card *,
+[data-theme="dark"] [class*="related-card"] *,
+[data-theme="dark"] .tg-related-grid a * {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-related-title,
+[data-theme="dark"] .tg-related-card span {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-related-link {
+  color: #F97316 !important;
+}
+
+/* ===================================
+   SIDEBAR WIDGETS
+   =================================== */
+[data-theme="dark"] .tg-sidebar-widget {
+  background: #1e1e1e !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+[data-theme="dark"] .tg-sidebar-widget h2,
+[data-theme="dark"] .tg-sidebar-widget h3,
+[data-theme="dark"] .tg-sidebar-title,
+[data-theme="dark"] [class*="sidebar"] h2,
+[data-theme="dark"] [class*="sidebar"] h3 {
+  color: #A0A0A0 !important;
+}
+
+[data-theme="dark"] .tg-sidebar-tool-item a,
+[data-theme="dark"] .tg-sidebar-tools-list a {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-sidebar-tool-item a:hover {
+  color: #F97316 !important;
+  background: rgba(249,115,22,0.1) !important;
+}
+
+[data-theme="dark"] .tg-sidebar-tool-cat {
+  background: #2a2a2a !important;
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-sidebar-cat-link {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-sidebar-cat-name {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-sidebar-cat-count {
+  background: #2a2a2a !important;
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-sidebar-post-item a {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-sidebar-post-date {
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-sidebar-view-all {
+  color: #F97316 !important;
+  border-color: rgba(249,115,22,0.3) !important;
+}
+
+/* ===================================
+   CATEGORY FILTER PILLS
+   =================================== */
+[data-theme="dark"] .tg-category-filter-bar {
+  background: #1a1a1a !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+[data-theme="dark"] .tg-filter-pill {
+  color: #A0A0A0 !important;
+  background: transparent !important;
+}
+
+[data-theme="dark"] .tg-filter-pill:hover {
+  background: #2a2a2a !important;
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-filter-pill.active {
+  background: #F97316 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .tg-pill-count {
+  background: rgba(255,255,255,0.1) !important;
+  color: #A0A0A0 !important;
+}
+
+[data-theme="dark"] .tg-filter-pill.active .tg-pill-count {
+  background: rgba(255,255,255,0.2) !important;
+  color: #ffffff !important;
+}
+
+/* ===================================
+   QUICK ANSWER BOX
+   =================================== */
+[data-theme="dark"] .tg-quick-answer {
+  background: rgba(249,115,22,0.1) !important;
+  border-left: 4px solid #F97316 !important;
+}
+
+[data-theme="dark"] .tg-quick-answer p,
+[data-theme="dark"] .tg-quick-answer *,
+[data-theme="dark"] .tg-quick-answer {
+  color: #D0D0D0 !important;
+}
+
+[data-theme="dark"] .tg-quick-answer strong {
+  color: #FFFFFF !important;
+}
+
+/* ===================================
+   BREADCRUMB
+   =================================== */
+[data-theme="dark"] .tg-breadcrumb,
+[data-theme="dark"] [class*="breadcrumb"] {
+  background: transparent !important;
+}
+
+[data-theme="dark"] .tg-breadcrumb a,
+[data-theme="dark"] [class*="breadcrumb"] a {
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-breadcrumb a:hover {
+  color: #F97316 !important;
+}
+
+[data-theme="dark"] .tg-breadcrumb span,
+[data-theme="dark"] [class*="breadcrumb"] span {
+  color: #A0A0A0 !important;
+}
+
+[data-theme="dark"] .tg-breadcrumb span:last-child,
+[data-theme="dark"] [class*="breadcrumb"] > *:last-child {
+  color: #F0F0F0 !important;
+}
+
+/* ===================================
+   BLOG CARDS
+   =================================== */
+[data-theme="dark"] .tg-blog-card,
+[data-theme="dark"] [class*="blog-card"] {
+  background: #1e1e1e !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+[data-theme="dark"] .tg-blog-card h2,
+[data-theme="dark"] .tg-blog-card h3,
+[data-theme="dark"] .tg-blog-card-title {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .tg-blog-card p,
+[data-theme="dark"] .tg-blog-card-excerpt {
+  color: #A0A0A0 !important;
+}
+
+[data-theme="dark"] .tg-blog-card-meta,
+[data-theme="dark"] .tg-blog-card-date,
+[data-theme="dark"] .tg-blog-card time {
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-blog-card-cat {
+  color: #F97316 !important;
+}
+
+[data-theme="dark"] .tg-blog-card .tg-btn-outline,
+[data-theme="dark"] .tg-blog-card a[class*="btn"] {
+  color: #F97316 !important;
+  border-color: #F97316 !important;
+  background: transparent !important;
+}
+
+/* ===================================
+   TOOL PAGE SPECIFIC SECTIONS
+   =================================== */
+[data-theme="dark"] .tg-why-use,
+[data-theme="dark"] [class*="why-use"] {
+  background: #1a1a1a !important;
+  border-radius: 12px !important;
+}
+
+[data-theme="dark"] .tg-why-use *,
+[data-theme="dark"] [class*="why-use"] * {
+  color: #D0D0D0 !important;
+}
+
+[data-theme="dark"] .tg-why-use h2,
+[data-theme="dark"] [class*="why-use"] h2 {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .tg-benefits,
+[data-theme="dark"] [class*="benefits"] {
+  background: transparent !important;
+}
+
+[data-theme="dark"] .tg-benefits-list li,
+[data-theme="dark"] [class*="benefits"] li {
+  color: #D0D0D0 !important;
+}
+
+[data-theme="dark"] .tg-how-to-use,
+[data-theme="dark"] [class*="how-to"] {
+  background: transparent !important;
+}
+
+[data-theme="dark"] .tg-how-to-use h2 {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .tg-step-item,
+[data-theme="dark"] [class*="step-item"] {
+  color: #D0D0D0 !important;
+}
+
+[data-theme="dark"] .tg-step-item strong,
+[data-theme="dark"] [class*="step-item"] strong {
+  color: #FFFFFF !important;
+}
+
+/* ===================================
+   SEARCH BOX
+   =================================== */
+[data-theme="dark"] .tg-search-wrapper {
+  background: #1e1e1e !important;
+  border-color: rgba(255,255,255,0.15) !important;
+}
+
+[data-theme="dark"] .tg-search-input,
+[data-theme="dark"] .tg-search-wrapper input {
+  background: transparent !important;
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-search-input::placeholder {
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-search-icon,
+[data-theme="dark"] .tg-search-wrapper svg {
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-search-kbd kbd {
+  background: #2a2a2a !important;
+  border-color: rgba(255,255,255,0.1) !important;
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-search-suggestions {
+  background: #1e1e1e !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+
+[data-theme="dark"] .tg-search-hint {
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-search-quick {
+  background: #2a2a2a !important;
+  color: #F0F0F0 !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+/* ===================================
+   TOOLS PAGE HEADER SECTION
+   =================================== */
+[data-theme="dark"] .tg-tools-page-header,
+[data-theme="dark"] [class*="page-header"] {
+  background: #1a1a1a !important;
+}
+
+[data-theme="dark"] .tg-tools-page-header h1,
+[data-theme="dark"] [class*="page-header"] h1 {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .tg-tools-page-header p,
+[data-theme="dark"] [class*="page-header"] p {
+  color: #A0A0A0 !important;
+}
+
+/* ===================================
+   HERO SECTION STATS
+   =================================== */
+[data-theme="dark"] .tg-stats-bar,
+[data-theme="dark"] [class*="stats-bar"] {
+  background: #1a1a1a !important;
+}
+
+[data-theme="dark"] .tg-stat strong,
+[data-theme="dark"] .tg-stat-number {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .tg-stat span,
+[data-theme="dark"] .tg-stat-label {
+  color: #A0A0A0 !important;
+}
+
+/* ===================================
+   ALL GENERIC TEXT ELEMENTS
+   =================================== */
+[data-theme="dark"] p {
+  color: #C0C0C0 !important;
+}
+
+[data-theme="dark"] li {
+  color: #C0C0C0 !important;
+}
+
+[data-theme="dark"] span:not([class*="badge"]):not([class*="btn"]):not([class*="tag"]):not([class*="icon"]) {
+  color: inherit;
+}
+
+/* ===================================
+   PENCIL/GENERIC ICONS IN DARK MODE
+   =================================== */
+[data-theme="dark"] .tg-related-tools .tg-tool-icon,
+[data-theme="dark"] [class*="tool-icon"] {
+  opacity: 1 !important;
+  filter: brightness(1.2) !important;
+}
+
+/* ===================================
+   CATEGORY PAGE HEADER
+   =================================== */
+[data-theme="dark"] .tg-category-page-header,
+[data-theme="dark"] .taxonomy-tool_category .tg-page-hero {
+  background: #1a1a1a !important;
+}
+
+[data-theme="dark"] .tg-category-page-header h1,
+[data-theme="dark"] .tg-category-page-header p {
+  color: inherit !important;
+}
+
+/* ===================================
+   FORMS ON ALL PAGES
+   =================================== */
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background: #2a2a2a !important;
+  border-color: rgba(255,255,255,0.12) !important;
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #606060 !important;
+}
+
+[data-theme="dark"] label {
+  color: #D0D0D0 !important;
+}
+
+[data-theme="dark"] input[type="range"] {
+  background: #3a3a3a !important;
+}
+
+[data-theme="dark"] input[type="color"] {
+  border-color: rgba(255,255,255,0.2) !important;
+}
+
+/* ===================================
+   TAGS — category labels on blog
+   =================================== */
+[data-theme="dark"] .tg-blog-card-cat,
+[data-theme="dark"] [class*="cat-badge"],
+[data-theme="dark"] [class*="post-cat"],
+[data-theme="dark"] .tg-cat-label {
+  background: rgba(249,115,22,0.15) !important;
+  color: #F97316 !important;
+}
+
+/* ===================================
+   TRUST SIGNALS BAR (footer top)
+   =================================== */
+[data-theme="dark"] .tg-trust-signals {
+  background: #1a1a1a !important;
+  border-top: 1px solid rgba(255,255,255,0.06) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+[data-theme="dark"] .tg-trust-signals span {
+  color: #A0A0A0 !important;
+}
+
+/* ===================================
+   ABOUT PAGE DARK
+   =================================== */
+[data-theme="dark"] .tg-about-page {
+  color: #C0C0C0 !important;
+}
+
+[data-theme="dark"] .tg-about-stat {
+  background: rgba(249,115,22,0.1) !important;
+}
+
+[data-theme="dark"] .tg-about-stat strong {
+  color: #F97316 !important;
+}
+
+[data-theme="dark"] .tg-about-stat span {
+  color: #A0A0A0 !important;
+}
+
+[data-theme="dark"] .tg-about-page h2 {
+  color: #FFFFFF !important;
+  border-color: rgba(249,115,22,0.2) !important;
+}
+
+[data-theme="dark"] .tg-about-contact {
+  background: rgba(249,115,22,0.08) !important;
+  border: 1px solid rgba(249,115,22,0.2) !important;
+}
+
+/* ===================================
+   CONTACT PAGE DARK
+   =================================== */
+[data-theme="dark"] .tg-contact-info-card {
+  background: #222222 !important;
+}
+
+[data-theme="dark"] .tg-contact-info-item strong {
+  color: #707070 !important;
+}
+
+[data-theme="dark"] .tg-contact-info-item p {
+  color: #D0D0D0 !important;
+}
+
+[data-theme="dark"] .tg-contact-topics li {
+  color: #C0C0C0 !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* ===================================
+   LEGAL PAGES DARK
+   =================================== */
+[data-theme="dark"] .tg-legal-page p,
+[data-theme="dark"] .tg-legal-page li {
+  color: #C0C0C0 !important;
+}
+
+[data-theme="dark"] .tg-legal-page h1 {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .tg-legal-page h2 {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-legal-page h3 {
+  color: #D0D0D0 !important;
+}
+
+[data-theme="dark"] .tg-legal-updated {
+  color: #707070 !important;
+}
+
+/* ===================================
+   FOOTER — ALWAYS DARK (both themes)
+   =================================== */
+.tg-footer,
+footer,
+[class*="footer"] {
+  background: #0a0a0a !important;
+}
+
+.tg-footer h2,
+.tg-footer h3,
+.tg-footer h4,
+footer h2,
+footer h3,
+footer h4 {
+  color: #ffffff !important;
+}
+
+.tg-footer p,
+.tg-footer li,
+.tg-footer span,
+footer p,
+footer li,
+footer span {
+  color: rgba(255,255,255,0.6) !important;
+}
+
+.tg-footer a,
+footer a {
+  color: rgba(255,255,255,0.6) !important;
+}
+
+.tg-footer a:hover,
+footer a:hover {
+  color: #F97316 !important;
+}
+
+.tg-footer .tg-logo-text,
+footer .tg-logo-text {
+  color: #ffffff !important;
+}
+
+.tg-footer .tg-footer-tagline,
+footer .tg-footer-tagline {
+  color: #F97316 !important;
+}
+
+.tg-footer hr,
+footer hr,
+.tg-footer-divider {
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+.tg-footer-bottom,
+[class*="footer-bottom"] {
+  color: rgba(255,255,255,0.4) !important;
+  border-top: 1px solid rgba(255,255,255,0.06) !important;
+}
+
+.tg-footer-bottom a,
+[class*="footer-bottom"] a {
+  color: #F97316 !important;
+}
+
+/* ===================================
+   HEADER — BOTH THEMES EXPLICIT
+   =================================== */
+
+/* LIGHT theme header */
+[data-theme="light"] .tg-header,
+[data-theme="light"] header {
+  background: rgba(255,255,255,0.97) !important;
+}
+
+[data-theme="light"] .tg-nav a,
+[data-theme="light"] header nav a {
+  color: #0F0F0F !important;
+}
+
+[data-theme="light"] .tg-logo-text {
+  color: #0F0F0F !important;
+}
+
+/* DARK theme header */
+[data-theme="dark"] .tg-header,
+[data-theme="dark"] header {
+  background: rgba(17,17,17,0.98) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+[data-theme="dark"] .tg-nav a,
+[data-theme="dark"] header nav a {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-nav a:hover,
+[data-theme="dark"] header nav a:hover {
+  color: #F97316 !important;
+  background: rgba(249,115,22,0.1) !important;
+}
+
+[data-theme="dark"] .tg-logo-text {
+  color: #F0F0F0 !important;
+}
+
+/* Theme toggle button */
+[data-theme="dark"] .tg-theme-toggle {
+  background: #2a2a2a !important;
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-theme-toggle:hover {
+  background: rgba(249,115,22,0.15) !important;
+}
