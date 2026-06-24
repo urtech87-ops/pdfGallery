@@ -1652,3 +1652,242 @@ input, textarea, select {
   .tg-trust-signals { font-size: 12px; gap: 0.75rem 1rem; }
   .tg-sitemap-list { grid-template-columns: 1fr; }
 }
+
+/* =============================================
+   FAQ ACCORDION (FIX 7)
+   ============================================= */
+.tg-faq-accordion {
+  margin: 24px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--color-border, rgba(0,0,0,0.1));
+}
+.tg-faq-item {
+  border-bottom: 1px solid var(--color-border, rgba(0,0,0,0.1));
+}
+.tg-faq-item:last-child { border-bottom: none; }
+.tg-faq-question {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 18px 20px;
+  text-align: left;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text, #0F0F0F);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: background 0.2s;
+}
+.tg-faq-question:hover { background: rgba(249,115,22,0.05); }
+.tg-faq-item.tg-faq-open .tg-faq-question {
+  color: #F97316;
+  background: rgba(249,115,22,0.05);
+}
+.tg-faq-icon {
+  font-size: 20px;
+  font-weight: 400;
+  color: #F97316;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+  width: 24px;
+  text-align: center;
+}
+.tg-faq-answer {
+  padding: 0 20px 18px 20px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--color-text-muted, #555);
+}
+.tg-faq-answer p { margin: 0; }
+
+/* =============================================
+   ABOUT PAGE (FIX 8)
+   ============================================= */
+.tg-about-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+.tg-about-hero {
+  text-align: center;
+  margin-bottom: 48px;
+}
+.tg-about-hero h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+.tg-about-lead {
+  font-size: 18px;
+  line-height: 1.7;
+  color: #555;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.tg-about-stats {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 32px 0;
+}
+.tg-about-stat {
+  text-align: center;
+  background: rgba(249,115,22,0.08);
+  border-radius: 12px;
+  padding: 20px 28px;
+  min-width: 120px;
+}
+.tg-about-stat strong {
+  display: block;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #F97316;
+}
+.tg-about-stat span {
+  font-size: 13px;
+  color: #666;
+  margin-top: 4px;
+  display: block;
+}
+.tg-about-page h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 40px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(249,115,22,0.2);
+}
+.tg-about-page ul {
+  padding-left: 20px;
+  line-height: 1.8;
+}
+.tg-about-contact {
+  background: rgba(249,115,22,0.06);
+  border-radius: 16px;
+  padding: 32px;
+  margin-top: 48px;
+  text-align: center;
+}
+
+/* =============================================
+   CONTACT PAGE (FIX 9)
+   ============================================= */
+.tg-contact-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+.tg-contact-hero {
+  text-align: center;
+  margin-bottom: 40px;
+}
+.tg-contact-hero h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.tg-contact-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  margin-bottom: 48px;
+}
+@media (max-width: 768px) {
+  .tg-contact-grid { grid-template-columns: 1fr; }
+}
+.tg-form-group { margin-bottom: 20px; }
+.tg-form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.tg-form-group input,
+.tg-form-group select,
+.tg-form-group textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.tg-form-group input:focus,
+.tg-form-group select:focus,
+.tg-form-group textarea:focus {
+  outline: none;
+  border-color: #F97316;
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.1);
+}
+.tg-contact-info-card {
+  background: #f8f8f8;
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 16px;
+}
+.tg-contact-info-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+.tg-contact-info-item:last-child { margin-bottom: 0; }
+.tg-contact-icon { font-size: 24px; flex-shrink: 0; }
+.tg-contact-info-item strong {
+  display: block;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin-bottom: 2px;
+}
+.tg-contact-info-item p { margin: 0; font-weight: 500; }
+.tg-contact-topics { list-style: none; padding: 0; margin: 0; }
+.tg-contact-topics li {
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.tg-contact-topics li:last-child { border-bottom: none; }
+
+/* =============================================
+   LEGAL PAGES (FIX 10)
+   ============================================= */
+.tg-legal-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  line-height: 1.8;
+}
+.tg-legal-page h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.tg-legal-updated {
+  color: #888;
+  font-size: 14px;
+  margin-bottom: 32px;
+}
+.tg-legal-page h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 32px 0 12px;
+  color: #0F0F0F;
+}
+.tg-legal-page h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 20px 0 8px;
+  color: #333;
+}
+.tg-legal-page ul { padding-left: 20px; margin: 8px 0; }
+.tg-legal-page li { margin-bottom: 6px; }
+.tg-legal-page a { color: #F97316; text-decoration: underline; }
