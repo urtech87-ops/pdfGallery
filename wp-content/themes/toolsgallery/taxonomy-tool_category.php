@@ -63,8 +63,6 @@ $schema = [
 <!-- Schema output -->
 <script type="application/ld+json"><?php echo wp_json_encode($schema, JSON_UNESCAPED_SLASHES); ?></script>
 
-<!-- Breadcrumb -->
-<?php tg_breadcrumbs(); ?>
 
 <div class="tg-container" style="padding-top:2rem;padding-bottom:4rem;">
 

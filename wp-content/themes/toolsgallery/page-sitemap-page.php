@@ -6,7 +6,6 @@
 get_header();
 ?>
 
-<?php tg_breadcrumbs(); ?>
 
 <div class="tg-container" style="padding-top:2rem;padding-bottom:4rem;">
 

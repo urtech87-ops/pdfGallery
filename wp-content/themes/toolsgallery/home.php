@@ -13,7 +13,6 @@ function tg_reading_time($post_id) {
 }
 ?>
 
-<?php tg_breadcrumbs(); ?>
 
 <div class="tg-container" style="padding-top:2rem;padding-bottom:4rem;">
   <div class="tg-layout--sidebar">
