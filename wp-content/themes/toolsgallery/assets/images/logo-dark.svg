@@ -3,6 +3,6 @@
   <rect x="8" y="10" width="24" height="5" rx="2.5" fill="white"/>
   <rect x="17" y="15" width="6" height="16" rx="3" fill="white"/>
   <circle cx="32" cy="10" r="3" fill="white" opacity="0.9"/>
-  <text x="48" y="26" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="800" fill="#0F0F0F" letter-spacing="-0.3">Tool</text>
-  <text x="92" y="26" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="400" fill="#0F0F0F" letter-spacing="-0.3">Acadmy</text>
+  <text x="48" y="26" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="800" fill="#F0F0F0" letter-spacing="-0.3">Tool</text>
+  <text x="92" y="26" font-family="Inter, system-ui, sans-serif" font-size="16" font-weight="400" fill="#F0F0F0" letter-spacing="-0.3">Acadmy</text>
 </svg>

@@ -319,44 +319,45 @@ function tg_ad_slot($slot_id, $size = 'responsive') {
 }
 
 /* =============================================
-   BREADCRUMBS
+   BREADCRUMBS — single authoritative function
+   Called ONLY from header.php; never from templates
    ============================================= */
 function tg_breadcrumbs() {
+    if (is_front_page() || is_home()) return;
+
     $crumbs   = [];
     $crumbs[] = ['label' => __('Home', 'toolsgallery'), 'url' => home_url('/')];
 
-    if (is_singular('tg_tool')) {
+    if (is_tax('tool_category')) {
+        $term     = get_queried_object();
         $crumbs[] = ['label' => __('Tools', 'toolsgallery'), 'url' => home_url('/tools/')];
+        $crumbs[] = ['label' => $term->name, 'url' => ''];
 
+    } elseif (is_singular('tg_tool')) {
+        $crumbs[] = ['label' => __('Tools', 'toolsgallery'), 'url' => home_url('/tools/')];
         $terms = get_the_terms(get_the_ID(), 'tool_category');
         if ($terms && !is_wp_error($terms)) {
             $term     = $terms[0];
             $crumbs[] = ['label' => $term->name, 'url' => get_term_link($term)];
         }
-
         $crumbs[] = ['label' => get_the_title(), 'url' => ''];
 
-    } elseif (is_page('tools') || (is_post_type_archive('tg_tool'))) {
+    } elseif (is_page('tools') || is_post_type_archive('tg_tool')) {
         $crumbs[] = ['label' => __('Tools', 'toolsgallery'), 'url' => ''];
 
-    } elseif (is_single()) {
-        $crumbs[] = ['label' => __('Blog', 'toolsgallery'), 'url' => get_permalink(get_option('page_for_posts'))];
-
+    } elseif (is_single() && get_post_type() === 'post') {
+        $blog_url = get_permalink(get_option('page_for_posts'));
+        $crumbs[] = ['label' => __('Blog', 'toolsgallery'), 'url' => $blog_url ?: home_url('/blog/')];
         $cats = get_the_category();
         if ($cats) {
-            // Skip "uncategorized" in breadcrumb
             $valid_cat = null;
             foreach ($cats as $c) {
-                if ($c->slug !== 'uncategorized') {
-                    $valid_cat = $c;
-                    break;
-                }
+                if ($c->slug !== 'uncategorized') { $valid_cat = $c; break; }
             }
             if ($valid_cat) {
                 $crumbs[] = ['label' => $valid_cat->name, 'url' => get_category_link($valid_cat->term_id)];
             }
         }
-
         $crumbs[] = ['label' => get_the_title(), 'url' => ''];
 
     } elseif (is_archive()) {
@@ -366,10 +367,15 @@ function tg_breadcrumbs() {
         $crumbs[] = ['label' => sprintf(__('Search Results for "%s"', 'toolsgallery'), get_search_query()), 'url' => ''];
 
     } elseif (is_page()) {
+        $page = get_queried_object();
+        if ($page->post_parent) {
+            $parent   = get_post($page->post_parent);
+            $crumbs[] = ['label' => $parent->post_title, 'url' => get_permalink($parent->ID)];
+        }
         $crumbs[] = ['label' => get_the_title(), 'url' => ''];
 
-    } elseif (is_home()) {
-        $crumbs[] = ['label' => __('Blog', 'toolsgallery'), 'url' => ''];
+    } elseif (is_404()) {
+        $crumbs[] = ['label' => __('404 — Page Not Found', 'toolsgallery'), 'url' => ''];
     }
 
     if (count($crumbs) < 2) return;
@@ -384,12 +390,11 @@ function tg_breadcrumbs() {
             'item'     => $crumb['url'] ?: (string) get_permalink(),
         ];
     }
-    $ld = [
+    echo '<script type="application/ld+json">' . wp_json_encode([
         '@context'        => 'https://schema.org',
         '@type'           => 'BreadcrumbList',
         'itemListElement' => $ld_items,
-    ];
-    echo '<script type="application/ld+json">' . wp_json_encode($ld) . '</script>' . "\n";
+    ]) . '</script>' . "\n";
 
     // HTML
     echo '<nav class="tg-breadcrumb" aria-label="' . esc_attr__('Breadcrumb', 'toolsgallery') . '" itemscope itemtype="https://schema.org/BreadcrumbList">' . "\n";
@@ -414,6 +419,18 @@ function tg_breadcrumbs() {
     echo '</div>' . "\n";
     echo '</nav>' . "\n";
 }
+
+/* =============================================
+   FAVICON
+   ============================================= */
+function tg_favicon() {
+    $uri = get_template_directory_uri();
+    echo '<link rel="icon" type="image/svg+xml" href="' . esc_url($uri . '/assets/images/logo-icon.svg') . '">' . "\n";
+    echo '<link rel="alternate icon" href="' . esc_url($uri . '/assets/images/favicon.png') . '">' . "\n";
+    echo '<link rel="apple-touch-icon" href="' . esc_url($uri . '/assets/images/logo-icon.svg') . '">' . "\n";
+}
+add_action('wp_head', 'tg_favicon', 1);
+add_action('admin_head', 'tg_favicon', 1);
 
 /* =============================================
    OPENROUTER AI PROXY
