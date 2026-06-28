@@ -75,10 +75,6 @@ get_header();
 <!-- Tools Hero -->
 <section class="tg-tools-hero" aria-labelledby="tools-hero-title">
   <div class="tg-container">
-    <nav class="tg-breadcrumb tg-breadcrumb--inline" aria-label="<?php esc_attr_e('Breadcrumb', 'toolsgallery'); ?>">
-      <a class="tg-breadcrumb__link" href="<?php echo esc_url(home_url('/')); ?>"><?php esc_html_e('Home', 'toolsgallery'); ?></a>
-      <span class="tg-breadcrumb__sep" aria-hidden="true">&rsaquo;</span>
-      <span class="tg-breadcrumb__current"><?php esc_html_e('Tools', 'toolsgallery'); ?></span>
     </nav>
 
     <h1 class="tg-tools-hero__title" id="tools-hero-title">
