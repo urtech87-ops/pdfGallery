@@ -66,6 +66,24 @@ while ( have_posts() ) :
                 </p>
             </div>
 
+            <!-- 2b. Definition Box (AEO — AI assistants + featured snippets) -->
+            <div class="tg-definition-box">
+                <strong>What is <?php the_title(); ?>?</strong>
+                <p>
+                    <?php the_title(); ?> is a free online tool that
+                    <?php echo has_excerpt() ? strtolower( wp_strip_all_tags( get_the_excerpt() ) ) : 'helps you process files quickly and easily.'; ?>
+                    Tool Acadmy's <?php the_title(); ?> runs entirely in your web browser — no software installation or account required.
+                </p>
+            </div>
+
+            <!-- 2c. Trust meta bar -->
+            <div class="tg-tool-meta-bar">
+                <span class="tg-tool-meta-item">&#x2705; Free Forever</span>
+                <span class="tg-tool-meta-item">&#x1F512; Files Stay on Your Device</span>
+                <span class="tg-tool-meta-item">&#x26A1; No Signup Required</span>
+                <span class="tg-tool-meta-item">&#x1F310; Works in Any Browser</span>
+            </div>
+
             <!-- 3. TOOL UI BOX -->
             <?php if ( $tool_type === 'url-input' ) : ?>
 
@@ -344,14 +362,14 @@ while ( have_posts() ) :
 
             <!-- 6c. Key Benefits (AEO featured snippet target) -->
             <section class="tg-tool-section tg-benefits" id="benefits">
-                <h2><?php esc_html_e( 'Key Benefits', 'toolsgallery' ); ?></h2>
+                <h2>Key Benefits of Using This Free <?php echo esc_html( $cat ? $cat->name : 'Online' ); ?> Tool</h2>
                 <ul class="tg-benefits-list">
-                    <li>&#x2705; 100% Free &mdash; no hidden costs</li>
-                    <li>&#x2705; No signup or account required</li>
-                    <li>&#x2705; Works in any modern browser</li>
-                    <li>&#x2705; Files processed locally &mdash; 100% private</li>
-                    <li>&#x2705; No software download required</li>
-                    <li>&#x2705; Fast processing &mdash; results in seconds</li>
+                    <li><strong>Completely free</strong> &mdash; No hidden fees, no premium tier, no credit card required. Tool Acadmy is free to use forever.</li>
+                    <li><strong>No account needed</strong> &mdash; Start using <?php the_title(); ?> immediately without registering or entering your email address.</li>
+                    <li><strong>Privacy guaranteed</strong> &mdash; All processing happens locally in your browser. We never receive or store your files.</li>
+                    <li><strong>Works everywhere</strong> &mdash; Compatible with Windows, Mac, Linux, iPhone, and Android through any modern browser.</li>
+                    <li><strong>Fast processing</strong> &mdash; Get results in seconds using WebAssembly and modern browser APIs.</li>
+                    <li><strong>No downloads</strong> &mdash; No software installation needed. Run directly in your browser tab.</li>
                 </ul>
             </section>
 
