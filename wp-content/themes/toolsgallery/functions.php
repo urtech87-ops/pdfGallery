@@ -633,6 +633,16 @@ function tg_tool_json_ld() {
         'itemListElement' => $crumb_items,
     ];
 
+    /* 5b. SpeakableSpecification (AEO — voice search) */
+    $schema_graph[] = [
+        '@type'       => 'WebPage',
+        '@id'         => $tool_url . '#speakable',
+        'speakable'   => [
+            '@type'       => 'SpeakableSpecification',
+            'cssSelector' => ['.tg-definition-box', '.tg-quick-answer', '.tg-tool-meta-bar'],
+        ],
+    ];
+
     $full_schema = [
         '@context' => 'https://schema.org',
         '@graph'   => $schema_graph,
@@ -870,3 +880,54 @@ function tg_handle_contact_form() {
 }
 add_action('admin_post_nopriv_tg_contact_submit', 'tg_handle_contact_form');
 add_action('admin_post_tg_contact_submit', 'tg_handle_contact_form');
+
+/* =============================================
+   PART F FIX 1 — Canonical URLs
+   ============================================= */
+function tg_canonical_url() {
+    if (is_singular()) {
+        $url = get_permalink();
+    } elseif (is_tax('tool_category')) {
+        $obj = get_queried_object();
+        $url = $obj ? get_term_link($obj) : home_url('/tools/');
+        if (is_wp_error($url)) $url = home_url('/tools/');
+    } elseif (is_home()) {
+        $page_for_posts = get_option('page_for_posts');
+        $url = $page_for_posts ? get_permalink($page_for_posts) : home_url('/blog/');
+    } elseif (is_front_page()) {
+        $url = home_url('/');
+    } elseif (is_search()) {
+        $url = home_url('/?s=' . rawurlencode(get_search_query()));
+    } else {
+        $url = home_url(sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'] ?? '/')));
+    }
+    echo '<link rel="canonical" href="' . esc_url($url) . '">' . "\n";
+}
+add_action('wp_head', 'tg_canonical_url', 2);
+
+/* =============================================
+   PART F FIX 2 — Noindex search/archive pages
+   ============================================= */
+function tg_noindex_pages() {
+    if (is_search() || is_author() || is_date() || is_tag()) {
+        echo '<meta name="robots" content="noindex, follow">' . "\n";
+    }
+}
+add_action('wp_head', 'tg_noindex_pages', 2);
+
+/* =============================================
+   PART F FIX 5 — Internal linking: blog → tools
+   ============================================= */
+function tg_get_blog_related_tools() {
+    $cats = get_the_category();
+    $map  = [
+        'pdf-guides'       => ['merge-pdf' => 'Merge PDF', 'compress-pdf' => 'Compress PDF', 'pdf-to-jpg' => 'PDF to JPG'],
+        'image-guides'     => ['img-remove-bg' => 'Remove Background', 'img-compress' => 'Compress Image', 'img-resize' => 'Resize Image'],
+        'ai-writing-guides'=> ['grammar-fixer' => 'Grammar Checker', 'paraphraser' => 'Paraphraser', 'summarizer' => 'Text Summarizer'],
+        'video-guides'     => ['video-compressor' => 'Video Compressor', 'video-to-mp3' => 'Video to MP3', 'trim-video' => 'Trim Video'],
+    ];
+    foreach ((array) $cats as $cat) {
+        if (isset($map[$cat->slug])) return $map[$cat->slug];
+    }
+    return [];
+}

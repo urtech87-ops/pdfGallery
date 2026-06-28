@@ -76,6 +76,26 @@ endif;
             ]);
             ?>
           </div>
+
+          <?php
+          $related_tools = tg_get_blog_related_tools();
+          if (!empty($related_tools)) : ?>
+          <div class="tg-blog-tools-cta" style="margin-top:2rem;padding:1.5rem;background:var(--color-primary-light,#fff7ed);border-radius:8px;border-left:4px solid var(--color-primary,#F97316);">
+            <h3 style="margin-top:0;"><?php esc_html_e('Try These Free Tools', 'toolsgallery'); ?></h3>
+            <div class="tg-blog-tools-grid" style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:1rem;">
+              <?php foreach ($related_tools as $slug => $name) :
+                $tool = get_page_by_path($slug, OBJECT, 'tg_tool');
+                if ($tool) : ?>
+                <a href="<?php echo esc_url(get_permalink($tool->ID)); ?>"
+                   class="tg-btn tg-btn--primary"
+                   style="font-size:0.875rem;padding:0.5rem 1rem;">
+                  <?php echo esc_html($name); ?> &mdash; Try Free &rarr;
+                </a>
+              <?php endif; endforeach; ?>
+            </div>
+          </div>
+          <?php endif; ?>
+
         </article>
 
         <!-- In-content Ad -->
