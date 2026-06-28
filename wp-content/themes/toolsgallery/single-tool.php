@@ -4,9 +4,11 @@
  * Phase 2: SEO, AdSense, tool UI shells
  */
 
+echo "MARKER-A-BEFORE-LOOP";
 get_header();
 
 while ( have_posts() ) :
+    echo "MARKER-B-INSIDE-LOOP";
     the_post();
 
     $post_id      = get_the_ID();

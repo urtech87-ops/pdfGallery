@@ -88,9 +88,11 @@ $table_prefix = 'tg_';
  * @link https://wordpress.org/support/article/debugging-in-wordpress/
  */
 if (!defined('WP_DEBUG')) {
-	define('WP_DEBUG', false);
+	define('WP_DEBUG', true);
 }
-define('OPENROUTER_API_KEY', 'your-openrouter-key-here');
+define('WP_DEBUG_DISPLAY', true);
+define('WP_DEBUG_LOG', true);
+define('OPENROUTER_API_KEY', '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');
 define('ADSENSE_PUBLISHER_ID', '');
 define('REMOVEBG_API_KEY', '');
 define('SCREENSHOT_API_KEY', '');
