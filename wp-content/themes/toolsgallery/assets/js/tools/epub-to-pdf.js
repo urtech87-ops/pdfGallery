@@ -19,7 +19,15 @@
   }
 
   async function run(file, options, onProgress) {
-    if (!window.JSZip) throw new Error('JSZip library not loaded. Please refresh.');
+    if (!window.JSZip) {
+      await new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
 
     onProgress && onProgress(0.1, 'Reading EPUB...');
     var arrayBuffer = await file.arrayBuffer();
@@ -99,8 +107,7 @@
       setTimeout(function () { win.print(); }, 500);
     }
 
-    var blob = new Blob(['EPUB to PDF: Print window opened. Select "Save as PDF" in print dialog.'], { type: 'text/plain' });
-    return { blob: blob, filename: 'epub-to-pdf-instructions.txt' };
+    return { noDownload: true };
   }
 
   window.TGTools = window.TGTools || {};
