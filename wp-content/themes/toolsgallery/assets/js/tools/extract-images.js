@@ -77,7 +77,15 @@
 
   async function run(file, options, onProgress) {
     if (!window.pdfjsLib) throw new Error('PDF.js not loaded.');
-    if (!window.JSZip) throw new Error('JSZip not loaded.');
+    if (!window.JSZip) {
+      await new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
 
     _extractedImages = [];
 

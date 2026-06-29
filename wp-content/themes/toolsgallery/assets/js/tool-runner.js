@@ -1631,6 +1631,13 @@
           if (labelEl && msg) labelEl.textContent = msg;
         }).then(function (result) {
           finishProgress();
+          if (result && result.noDownload) {
+            if (resultEl)      resultEl.hidden      = false;
+            if (successBanner) successBanner.hidden = false;
+            if (errorBanner)   errorBanner.hidden   = true;
+            if (downloadBtn)   downloadBtn.hidden   = true;
+            return;
+          }
           if (result && result.html && !result.blob) {
             // Inline HTML result (e.g. ppt-to-pdf instructions panel)
             var inlineWrap = document.createElement('div');
@@ -1647,7 +1654,7 @@
             if (downloadBtn)   downloadBtn.hidden   = true;
           } else {
             blobUrl = URL.createObjectURL(result.blob);
-            downloadFilename = result.filename || 'output';
+            downloadFilename = result.filename || 'output.pdf';
             showSuccessResult();
           }
         }).catch(function (e) {
