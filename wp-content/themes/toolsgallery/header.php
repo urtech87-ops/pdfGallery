@@ -65,15 +65,14 @@
 <!-- Mobile drawer -->
 <div class="tg-mobile-menu" id="tg-mobile-menu" role="dialog" aria-label="<?php esc_attr_e('Navigation menu', 'toolsgallery'); ?>" aria-hidden="true">
 
-  <div class="tg-mobile-menu-header">
+  <!-- Header -->
+  <div class="tg-mobile-menu__head">
     <a href="<?php echo esc_url(home_url('/')); ?>" class="tg-logo">
       <div class="tg-logo-icon">
         <svg viewBox="0 0 40 40" fill="none" width="32" height="32">
           <rect width="40" height="40" rx="10" fill="#F97316"/>
           <rect x="6" y="9" width="28" height="6" rx="3" fill="white"/>
           <rect x="15" y="15" width="10" height="18" rx="5" fill="white"/>
-          <circle cx="34" cy="9" r="4" fill="white" opacity="0.85"/>
-          <circle cx="34" cy="9" r="2" fill="#F97316"/>
         </svg>
       </div>
       <span class="tg-logo-text">Tool<span class="tg-logo-accent">Acadmy</span></span>
@@ -85,28 +84,86 @@
     </button>
   </div>
 
+  <!-- Search -->
+  <div class="tg-mobile-menu__search">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/>
+      <path d="M21 21l-4.35-4.35"/>
+    </svg>
+    <input type="text" placeholder="<?php esc_attr_e('Search tools...', 'toolsgallery'); ?>" class="tg-mobile-search-input" id="tg-mobile-search"/>
+  </div>
+
+  <!-- Nav -->
   <nav class="tg-mobile-nav">
+    <a href="<?php echo esc_url(home_url('/')); ?>" class="tg-mobile-nav__link"><?php esc_html_e('Home', 'toolsgallery'); ?></a>
+    <a href="<?php echo esc_url(home_url('/blog/')); ?>" class="tg-mobile-nav__link"><?php esc_html_e('Blog', 'toolsgallery'); ?></a>
+    <a href="<?php echo esc_url(home_url('/about/')); ?>" class="tg-mobile-nav__link"><?php esc_html_e('About', 'toolsgallery'); ?></a>
+    <a href="<?php echo esc_url(home_url('/contact/')); ?>" class="tg-mobile-nav__link"><?php esc_html_e('Contact', 'toolsgallery'); ?></a>
+
+    <div class="tg-mobile-nav__divider"><?php esc_html_e('Tools by Category', 'toolsgallery'); ?></div>
+
     <?php
-    $tg_mobile_pages = [
-      __('Home', 'toolsgallery')    => home_url('/'),
-      __('Tools', 'toolsgallery')   => home_url('/tools/'),
-      __('Blog', 'toolsgallery')    => home_url('/blog/'),
-      __('About', 'toolsgallery')   => home_url('/about/'),
-      __('Contact', 'toolsgallery') => home_url('/contact/'),
+    $tg_mob_cats = get_terms([
+        'taxonomy'   => 'tool_category',
+        'hide_empty' => true,
+        'orderby'    => 'count',
+        'order'      => 'DESC',
+    ]);
+    $tg_cat_colors = [
+        'pdf-tools'     => '#EF4444',
+        'image-tools'   => '#8B5CF6',
+        'ai-tools'      => '#22C55E',
+        'video-tools'   => '#F97316',
+        'file-tools'    => '#3B82F6',
+        'utility-tools' => '#F59E0B',
     ];
-    foreach ($tg_mobile_pages as $label => $url) :
-      $req_path  = rtrim(parse_url(esc_url_raw(wp_unslash($_SERVER['REQUEST_URI'] ?? '')), PHP_URL_PATH), '/');
-      $link_path = rtrim(parse_url($url, PHP_URL_PATH), '/');
-      $active    = ($req_path === $link_path) ? ' tg-mobile-nav-active' : '';
+    if (!is_wp_error($tg_mob_cats)) :
+        foreach ($tg_mob_cats as $tg_mob_cat) :
+            $tg_mob_color = $tg_cat_colors[$tg_mob_cat->slug] ?? '#F97316';
+            $tg_mob_tools = get_posts([
+                'post_type'      => 'tg_tool',
+                'posts_per_page' => 8,
+                'post_status'    => 'publish',
+                'tax_query'      => [[
+                    'taxonomy' => 'tool_category',
+                    'field'    => 'term_id',
+                    'terms'    => $tg_mob_cat->term_id,
+                ]],
+            ]);
     ?>
-    <a href="<?php echo esc_url($url); ?>" class="tg-mobile-nav-link<?php echo esc_attr($active); ?>"><?php echo esc_html($label); ?></a>
-    <?php endforeach; ?>
+    <div class="tg-mobile-cat" data-cat="<?php echo esc_attr($tg_mob_cat->slug); ?>">
+      <button class="tg-mobile-cat__btn" aria-expanded="false">
+        <span class="tg-mobile-cat__dot" style="background:<?php echo esc_attr($tg_mob_color); ?>"></span>
+        <span class="tg-mobile-cat__name"><?php echo esc_html($tg_mob_cat->name); ?></span>
+        <span class="tg-mobile-cat__count"><?php echo esc_html($tg_mob_cat->count); ?></span>
+        <svg class="tg-mobile-cat__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      <div class="tg-mobile-cat__tools" hidden>
+        <?php foreach ($tg_mob_tools as $tg_mob_tool) : ?>
+        <a href="<?php echo esc_url(get_permalink($tg_mob_tool->ID)); ?>" class="tg-mobile-cat__tool">
+          <?php echo esc_html($tg_mob_tool->post_title); ?>
+        </a>
+        <?php endforeach; ?>
+        <a href="<?php echo esc_url(get_term_link($tg_mob_cat)); ?>" class="tg-mobile-cat__viewall">
+          <?php printf(esc_html__('View all %d tools &rarr;', 'toolsgallery'), (int) $tg_mob_cat->count); ?>
+        </a>
+      </div>
+    </div>
+    <?php
+        endforeach;
+    endif;
+    ?>
   </nav>
 
-  <div class="tg-mobile-menu-footer">
-    <a href="<?php echo esc_url(home_url('/tools/')); ?>" class="tg-btn tg-btn-primary" style="width:100%;text-align:center;justify-content:center;"><?php esc_html_e('Try Free Tools', 'toolsgallery'); ?></a>
+  <!-- Footer -->
+  <div class="tg-mobile-menu__foot">
+    <a href="<?php echo esc_url(home_url('/tools/')); ?>" class="tg-btn tg-btn-primary" style="width:100%;text-align:center;justify-content:center;display:flex;">
+      <?php esc_html_e('Try Free Tools', 'toolsgallery'); ?>
+    </a>
     <div class="tg-mobile-theme-row">
-      <span><?php esc_html_e('Theme', 'toolsgallery'); ?></span>
+      <span><?php esc_html_e('Switch Theme', 'toolsgallery'); ?></span>
       <button class="tg-theme-toggle" aria-label="<?php esc_attr_e('Toggle theme', 'toolsgallery'); ?>"></button>
     </div>
   </div>
