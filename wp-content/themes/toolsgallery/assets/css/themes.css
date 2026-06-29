@@ -796,3 +796,105 @@ h1, h2, h3, h4, h5, h6 {
   --color-text-light: #A0A0A0;
   --color-heading: #FFFFFF;
 }
+
+/* ================================
+   DARK THEME NUCLEAR TEXT FIX
+   Must be last rule in file
+   ================================ */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] h5,
+[data-theme="dark"] h6 {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] p {
+  color: #C0C0C0 !important;
+}
+
+[data-theme="dark"] li {
+  color: #C0C0C0 !important;
+}
+
+[data-theme="dark"] label {
+  color: #D0D0D0 !important;
+}
+
+[data-theme="dark"] td,
+[data-theme="dark"] th {
+  color: #D0D0D0 !important;
+}
+
+[data-theme="dark"] a:not([class*="btn"]):not(.tg-btn):not(.tg-mobile-nav__link):not(.tg-nav a) {
+  color: #93C5FD !important;
+}
+
+[data-theme="dark"] a:not([class*="btn"]):not(.tg-btn):hover {
+  color: #F97316 !important;
+}
+
+[data-theme="dark"] .tg-tool-cat-badge {
+  color: #F0F0F0 !important;
+  background: rgba(255,255,255,0.1) !important;
+}
+
+[data-theme="dark"] .tg-category-title,
+[data-theme="dark"] .tg-section-title,
+[data-theme="dark"] .tg-page-title,
+[data-theme="dark"] .tg-hero__title,
+[data-theme="dark"] .tg-tools-hero__title,
+[data-theme="dark"] .tg-tool-page-title {
+  color: #FFFFFF !important;
+}
+
+[data-theme="dark"] .tg-tool-lead,
+[data-theme="dark"] .tg-tool-meta-bar,
+[data-theme="dark"] .tg-definition-box,
+[data-theme="dark"] .tg-definition-box p,
+[data-theme="dark"] .tg-step-desc,
+[data-theme="dark"] .tg-feature-desc,
+[data-theme="dark"] .tg-benefits-list li {
+  color: #C0C0C0 !important;
+}
+
+[data-theme="dark"] .tg-step-title,
+[data-theme="dark"] .tg-feature-title {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-mobile-menu {
+  background: #1a1a1a !important;
+}
+
+[data-theme="dark"] .tg-mobile-cat__btn {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-mobile-cat__tool {
+  color: #A0A0A0 !important;
+}
+
+[data-theme="dark"] .tg-mobile-menu__search {
+  background: #2a2a2a !important;
+  border-color: rgba(255,255,255,0.1) !important;
+}
+
+[data-theme="dark"] .tg-mobile-search-input {
+  color: #F0F0F0 !important;
+}
+
+[data-theme="dark"] .tg-mobile-cat__count {
+  background: #2a2a2a !important;
+  color: #9CA3AF !important;
+}
+
+[data-theme="dark"] .tg-mobile-nav__link {
+  color: #F0F0F0 !important;
+}

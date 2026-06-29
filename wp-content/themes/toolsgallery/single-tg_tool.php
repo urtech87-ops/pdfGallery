@@ -52,7 +52,10 @@ while ( have_posts() ) :
             <!-- 1. H1 -->
             <?php if ( $cat ) : ?>
                 <div class="tg-tool-cat-badge">
-                    <a href="<?php echo esc_url( get_term_link( $cat ) ); ?>"><?php echo esc_html( $cat->name ); ?></a>
+                    <a href="<?php echo esc_url( get_term_link( $cat ) ); ?>">
+                        <?php echo tg_get_category_icon( $cat->slug ); // phpcs:ignore WordPress.Security.EscapeOutput ?>
+                        <?php echo esc_html( strtoupper( $cat->name ) ); ?>
+                    </a>
                 </div>
             <?php endif; ?>
             <h1 class="tg-tool-title"><?php the_title(); ?></h1>
