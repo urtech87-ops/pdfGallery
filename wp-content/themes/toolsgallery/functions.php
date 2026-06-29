@@ -323,7 +323,34 @@ function tg_ad_slot($slot_id, $size = 'responsive') {
    Called ONLY from header.php; never from templates
    ============================================= */
 function tg_breadcrumbs() {
-    if (is_front_page() || is_home()) return;
+    if (is_front_page()) return;
+
+    // Blog listing page (static page set as posts page)
+    if (is_home()) {
+        $crumbs[] = ['label' => __('Blog', 'toolsgallery'), 'url' => '', 'current' => true];
+        // Need at least Home + Blog
+        echo '<script type="application/ld+json">' . wp_json_encode([
+            '@context'        => 'https://schema.org',
+            '@type'           => 'BreadcrumbList',
+            'itemListElement' => [
+                ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => home_url('/')],
+                ['@type' => 'ListItem', 'position' => 2, 'name' => 'Blog', 'item' => get_permalink(get_option('page_for_posts'))],
+            ],
+        ]) . '</script>' . "\n";
+        echo '<nav class="tg-breadcrumb" aria-label="' . esc_attr__('Breadcrumb', 'toolsgallery') . '" itemscope itemtype="https://schema.org/BreadcrumbList">' . "\n";
+        echo '<div class="tg-breadcrumb__inner tg-container">' . "\n";
+        echo '<span itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">';
+        echo '<a class="tg-breadcrumb__link" itemprop="item" href="' . esc_url(home_url('/')) . '"><span itemprop="name">' . esc_html__('Home', 'toolsgallery') . '</span></a>';
+        echo '<meta itemprop="position" content="1" />';
+        echo '</span>';
+        echo '<span class="tg-breadcrumb__sep" aria-hidden="true">&rsaquo;</span>';
+        echo '<span itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">';
+        echo '<span class="tg-breadcrumb__current" itemprop="name">' . esc_html__('Blog', 'toolsgallery') . '</span>';
+        echo '<meta itemprop="position" content="2" />';
+        echo '</span>';
+        echo '</div>' . "\n" . '</nav>' . "\n";
+        return;
+    }
 
     $crumbs   = [];
     $crumbs[] = ['label' => __('Home', 'toolsgallery'), 'url' => home_url('/')];
@@ -930,4 +957,50 @@ function tg_get_blog_related_tools() {
         if (isset($map[$cat->slug])) return $map[$cat->slug];
     }
     return [];
+}
+
+/* =============================================
+   CATEGORY ICON HELPER
+   ============================================= */
+function tg_get_category_icon($slug) {
+    $icons = [
+        'pdf-tools'     => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+        'image-tools'   => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+        'ai-tools'      => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
+        'video-tools'   => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
+        'file-tools'    => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>',
+        'utility-tools' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>',
+    ];
+    return $icons[$slug] ?? $icons['pdf-tools'];
+}
+
+/* =============================================
+   COMMENT CALLBACK
+   ============================================= */
+function tg_comment_callback($comment, $args, $depth) {
+    $add_below = 'comment';
+    ?>
+    <li <?php comment_class('tg-comment', $comment); ?> id="comment-<?php comment_ID(); ?>">
+        <article class="tg-comment__body">
+            <header class="tg-comment__header">
+                <div class="tg-comment__avatar">
+                    <?php echo get_avatar($comment, 48, '', '', ['class' => 'tg-comment__img']); ?>
+                </div>
+                <div class="tg-comment__meta">
+                    <span class="tg-comment__author"><?php comment_author(); ?></span>
+                    <time class="tg-comment__time" datetime="<?php comment_date('c'); ?>"><?php comment_date('F j, Y'); ?></time>
+                </div>
+            </header>
+            <div class="tg-comment__text"><?php comment_text(); ?></div>
+            <footer class="tg-comment__actions">
+                <?php comment_reply_link(array_merge($args, [
+                    'add_below' => $add_below,
+                    'depth'     => $depth,
+                    'max_depth' => $args['max_depth'],
+                    'before'    => '<div class="tg-comment__reply">',
+                    'after'     => '</div>',
+                ])); ?>
+            </footer>
+        </article>
+    <?php
 }
