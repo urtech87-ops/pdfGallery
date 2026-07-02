@@ -1209,5 +1209,322 @@ function tg_comment_callback($comment, $args, $depth) {
                 ])); ?>
             </footer>
         </article>
+		
+		
+		
     <?php
+}
+
+// =============================================
+// TOOL META BOXES — Admin UI for Steps/FAQs/Features
+// =============================================
+
+add_action('add_meta_boxes', 'tg_register_tool_meta_boxes');
+function tg_register_tool_meta_boxes() {
+    add_meta_box(
+        'tg_tool_steps',
+        'How to Use Steps',
+        'tg_render_steps_meta_box',
+        'tg_tool',
+        'normal',
+        'high'
+    );
+    add_meta_box(
+        'tg_tool_features',
+        'Tool Features',
+        'tg_render_features_meta_box',
+        'tg_tool',
+        'normal',
+        'high'
+    );
+    add_meta_box(
+        'tg_tool_faqs',
+        'FAQs',
+        'tg_render_faqs_meta_box',
+        'tg_tool',
+        'normal',
+        'default'
+    );
+    add_meta_box(
+        'tg_tool_settings',
+        'Tool Settings',
+        'tg_render_settings_meta_box',
+        'tg_tool',
+        'side',
+        'high'
+    );
+}
+
+// =============================================
+// STEPS META BOX
+// =============================================
+function tg_render_steps_meta_box($post) {
+    $steps_raw = get_post_meta($post->ID, '_tg_steps', true);
+    $steps = $steps_raw ? json_decode($steps_raw, true) : [];
+    if (empty($steps)) {
+        $steps = [
+            ['step' => '', 'desc' => ''],
+            ['step' => '', 'desc' => ''],
+            ['step' => '', 'desc' => ''],
+        ];
+    }
+    wp_nonce_field('tg_tool_meta_save', 'tg_tool_meta_nonce');
+    ?>
+    <style>
+        .tg-meta-step { background:#f9f9f9; border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:10px; }
+        .tg-meta-step label { font-weight:600; display:block; margin-bottom:4px; font-size:13px; }
+        .tg-meta-step input, .tg-meta-step textarea { width:100%; margin-bottom:8px; }
+        .tg-meta-step textarea { height:60px; }
+        .tg-add-btn { background:#F97316; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-size:13px; }
+        .tg-remove-btn { background:#ef4444; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; float:right; }
+    </style>
+    <div id="tg-steps-wrap">
+        <?php foreach ($steps as $i => $step): ?>
+        <div class="tg-meta-step">
+            <button type="button" class="tg-remove-btn" onclick="this.parentNode.remove()">Remove</button>
+            <label>Step Title</label>
+            <input type="text" name="tg_steps[<?php echo $i; ?>][step]"
+                value="<?php echo esc_attr($step['step'] ?? ''); ?>"
+                placeholder="e.g. Upload your file"/>
+            <label>Step Description</label>
+            <textarea name="tg_steps[<?php echo $i; ?>][desc]"
+                placeholder="Describe this step..."><?php echo esc_textarea($step['desc'] ?? ''); ?></textarea>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <button type="button" class="tg-add-btn" onclick="tgAddStep()">+ Add Step</button>
+    <script>
+    var tgStepCount = <?php echo count($steps); ?>;
+    function tgAddStep() {
+        tgStepCount++;
+        var wrap = document.getElementById('tg-steps-wrap');
+        var div = document.createElement('div');
+        div.className = 'tg-meta-step';
+        div.innerHTML =
+            '<button type="button" class="tg-remove-btn" onclick="this.parentNode.remove()">Remove</button>' +
+            '<label>Step Title</label>' +
+            '<input type="text" name="tg_steps[' + tgStepCount + '][step]" placeholder="e.g. Upload your file"/>' +
+            '<label>Step Description</label>' +
+            '<textarea name="tg_steps[' + tgStepCount + '][desc]" placeholder="Describe this step..."></textarea>';
+        wrap.appendChild(div);
+    }
+    </script>
+    <?php
+}
+
+// =============================================
+// FEATURES META BOX
+// =============================================
+function tg_render_features_meta_box($post) {
+    $features_raw = get_post_meta($post->ID, '_tg_features', true);
+    $features = $features_raw ? json_decode($features_raw, true) : [];
+    if (empty($features)) {
+        $features = [
+            ['icon' => '', 'title' => '', 'desc' => ''],
+            ['icon' => '', 'title' => '', 'desc' => ''],
+            ['icon' => '', 'title' => '', 'desc' => ''],
+        ];
+    }
+    ?>
+    <style>
+        .tg-meta-feature { background:#f9f9f9; border:1px solid #ddd; border-radius:6px; padding:12px; margin-bottom:10px; }
+        .tg-meta-feature label { font-weight:600; display:block; margin-bottom:4px; font-size:13px; }
+        .tg-meta-feature input, .tg-meta-feature textarea { width:100%; margin-bottom:8px; }
+        .tg-meta-feature textarea { height:60px; }
+    </style>
+    <p style="color:#666;font-size:12px;margin-bottom:10px;">
+        Icon field accepts Lucide icon names e.g: <strong>shield, zap, download, eye, lock, file, image, star, check</strong>
+    </p>
+    <div id="tg-features-wrap">
+        <?php foreach ($features as $i => $feature): ?>
+        <div class="tg-meta-feature">
+            <button type="button" class="tg-remove-btn" onclick="this.parentNode.remove()">Remove</button>
+            <label>Icon Name</label>
+            <input type="text" name="tg_features[<?php echo $i; ?>][icon]"
+                value="<?php echo esc_attr($feature['icon'] ?? ''); ?>"
+                placeholder="e.g. shield, zap, download, eye"/>
+            <label>Feature Title</label>
+            <input type="text" name="tg_features[<?php echo $i; ?>][title]"
+                value="<?php echo esc_attr($feature['title'] ?? ''); ?>"
+                placeholder="e.g. Fast Processing"/>
+            <label>Feature Description</label>
+            <textarea name="tg_features[<?php echo $i; ?>][desc]"
+                placeholder="Describe this feature..."><?php echo esc_textarea($feature['desc'] ?? ''); ?></textarea>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <button type="button" class="tg-add-btn" onclick="tgAddFeature()">+ Add Feature</button>
+    <script>
+    var tgFeatureCount = <?php echo count($features); ?>;
+    function tgAddFeature() {
+        tgFeatureCount++;
+        var wrap = document.getElementById('tg-features-wrap');
+        var div = document.createElement('div');
+        div.className = 'tg-meta-feature';
+        div.innerHTML =
+            '<button type="button" class="tg-remove-btn" onclick="this.parentNode.remove()">Remove</button>' +
+            '<label>Icon Name</label>' +
+            '<input type="text" name="tg_features[' + tgFeatureCount + '][icon]" placeholder="e.g. shield, zap, download"/>' +
+            '<label>Feature Title</label>' +
+            '<input type="text" name="tg_features[' + tgFeatureCount + '][title]" placeholder="e.g. Fast Processing"/>' +
+            '<label>Feature Description</label>' +
+            '<textarea name="tg_features[' + tgFeatureCount + '][desc]" placeholder="Describe this feature..."></textarea>';
+        wrap.appendChild(div);
+    }
+    </script>
+    <?php
+}
+
+// =============================================
+// FAQs META BOX
+// =============================================
+function tg_render_faqs_meta_box($post) {
+    $faqs_raw = get_post_meta($post->ID, '_tg_faqs', true);
+    $faqs = $faqs_raw ? json_decode($faqs_raw, true) : [];
+    if (empty($faqs)) {
+        $faqs = [
+            ['q' => '', 'a' => ''],
+            ['q' => '', 'a' => ''],
+        ];
+    }
+    ?>
+    <div id="tg-faqs-wrap">
+        <?php foreach ($faqs as $i => $faq): ?>
+        <div class="tg-meta-step">
+            <button type="button" class="tg-remove-btn" onclick="this.parentNode.remove()">Remove</button>
+            <label>Question</label>
+            <input type="text" name="tg_faqs[<?php echo $i; ?>][q]"
+                value="<?php echo esc_attr($faq['q'] ?? ''); ?>"
+                placeholder="e.g. Is this tool free?"/>
+            <label>Answer</label>
+            <textarea name="tg_faqs[<?php echo $i; ?>][a]"
+                placeholder="Answer this question..."><?php echo esc_textarea($faq['a'] ?? ''); ?></textarea>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <button type="button" class="tg-add-btn" onclick="tgAddFaq()">+ Add FAQ</button>
+    <script>
+    var tgFaqCount = <?php echo count($faqs); ?>;
+    function tgAddFaq() {
+        tgFaqCount++;
+        var wrap = document.getElementById('tg-faqs-wrap');
+        var div = document.createElement('div');
+        div.className = 'tg-meta-step';
+        div.innerHTML =
+            '<button type="button" class="tg-remove-btn" onclick="this.parentNode.remove()">Remove</button>' +
+            '<label>Question</label>' +
+            '<input type="text" name="tg_faqs[' + tgFaqCount + '][q]" placeholder="e.g. Is this tool free?"/>' +
+            '<label>Answer</label>' +
+            '<textarea name="tg_faqs[' + tgFaqCount + '][a]" placeholder="Answer this question..."></textarea>';
+        wrap.appendChild(div);
+    }
+    </script>
+    <?php
+}
+
+// =============================================
+// TOOL SETTINGS META BOX (sidebar)
+// =============================================
+function tg_render_settings_meta_box($post) {
+    $handler      = get_post_meta($post->ID, '_tg_handler', true);
+    $action_label = get_post_meta($post->ID, '_tg_action_label', true);
+    $accept_types = get_post_meta($post->ID, '_tg_accept_types', true);
+    ?>
+    <table class="form-table" style="font-size:13px;">
+        <tr>
+            <td><label><strong>Handler Key</strong></label></td>
+            <td><input type="text" name="tg_handler"
+                value="<?php echo esc_attr($handler); ?>"
+                style="width:100%"
+                placeholder="e.g. merge-pdf"/></td>
+        </tr>
+        <tr>
+            <td><label><strong>Button Label</strong></label></td>
+            <td><input type="text" name="tg_action_label"
+                value="<?php echo esc_attr($action_label); ?>"
+                style="width:100%"
+                placeholder="e.g. Merge PDFs"/></td>
+        </tr>
+        <tr>
+            <td><label><strong>Accept File Types</strong></label></td>
+            <td><input type="text" name="tg_accept_types"
+                value="<?php echo esc_attr($accept_types); ?>"
+                style="width:100%"
+                placeholder="e.g. .pdf,.doc"/></td>
+        </tr>
+    </table>
+    <?php
+}
+
+// =============================================
+// SAVE ALL META BOX DATA
+// =============================================
+add_action('save_post_tg_tool', 'tg_save_tool_meta_boxes');
+function tg_save_tool_meta_boxes($post_id) {
+    // Security checks
+    if (!isset($_POST['tg_tool_meta_nonce'])) return;
+    if (!wp_verify_nonce($_POST['tg_tool_meta_nonce'], 'tg_tool_meta_save')) return;
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+    if (!current_user_can('edit_post', $post_id)) return;
+
+    // Save Steps
+    if (isset($_POST['tg_steps']) && is_array($_POST['tg_steps'])) {
+        $steps = [];
+        foreach ($_POST['tg_steps'] as $step) {
+            $s = sanitize_text_field($step['step'] ?? '');
+            $d = sanitize_textarea_field($step['desc'] ?? '');
+            if ($s || $d) {
+                $steps[] = ['step' => $s, 'desc' => $d];
+            }
+        }
+        update_post_meta($post_id, '_tg_steps',
+            wp_json_encode($steps));
+    }
+
+    // Save Features
+    if (isset($_POST['tg_features']) && is_array($_POST['tg_features'])) {
+        $features = [];
+        foreach ($_POST['tg_features'] as $feature) {
+            $icon  = sanitize_text_field($feature['icon'] ?? '');
+            $title = sanitize_text_field($feature['title'] ?? '');
+            $desc  = sanitize_textarea_field($feature['desc'] ?? '');
+            if ($title || $desc) {
+                $features[] = [
+                    'icon'  => $icon,
+                    'title' => $title,
+                    'desc'  => $desc,
+                ];
+            }
+        }
+        update_post_meta($post_id, '_tg_features',
+            wp_json_encode($features));
+    }
+
+    // Save FAQs
+    if (isset($_POST['tg_faqs']) && is_array($_POST['tg_faqs'])) {
+        $faqs = [];
+        foreach ($_POST['tg_faqs'] as $faq) {
+            $q = sanitize_text_field($faq['q'] ?? '');
+            $a = sanitize_textarea_field($faq['a'] ?? '');
+            if ($q || $a) {
+                $faqs[] = ['q' => $q, 'a' => $a];
+            }
+        }
+        update_post_meta($post_id, '_tg_faqs',
+            wp_json_encode($faqs));
+    }
+
+    // Save Tool Settings
+    if (isset($_POST['tg_handler'])) {
+        update_post_meta($post_id, '_tg_handler',
+            sanitize_text_field($_POST['tg_handler']));
+    }
+    if (isset($_POST['tg_action_label'])) {
+        update_post_meta($post_id, '_tg_action_label',
+            sanitize_text_field($_POST['tg_action_label']));
+    }
+    if (isset($_POST['tg_accept_types'])) {
+        update_post_meta($post_id, '_tg_accept_types',
+            sanitize_text_field($_POST['tg_accept_types']));
+    }
 }
