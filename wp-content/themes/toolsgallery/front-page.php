@@ -5,10 +5,22 @@
   <div class="tg-container">
     <div class="tg-hero__badge">⚡ 100% Free — No Sign-up Required</div>
 
-    <h1 class="tg-hero__title" id="hero-title">
+<!--     <h1 class="tg-hero__title" id="hero-title">
       <?php esc_html_e('Free Online Tools for PDF, Images,', 'toolsgallery'); ?><br>
       <span><?php esc_html_e('AI Writing &amp; More', 'toolsgallery'); ?></span>
-    </h1>
+    </h1> -->
+	  <h1 class="tg-hero__title" id="hero-title">
+		  Free Online Tools related to
+		  <span class="flip-wrapper">
+			  <span class="flip-text">
+				  <span>Business</span>
+				  <span>Education</span>
+				  <span>Office</span>
+				  <span>Enterprise</span>
+			  </span>
+		  </span>
+		  Solutions
+	  </h1>
 
     <p class="tg-hero__subtitle">
       <?php esc_html_e('150+ free browser-based tools. No signup. No download. No limits. Tool Acadmy — your academy for free online tools.', 'toolsgallery'); ?>

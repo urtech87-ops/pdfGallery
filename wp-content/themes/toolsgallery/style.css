@@ -10,3 +10,7 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: toolsgallery
 Tags: custom-logo, custom-menu, featured-images, threaded-comments, translation-ready
 */
+
+html[data-theme="dark"] body{
+ 	background:#1a1a1a !important
+}

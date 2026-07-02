@@ -833,7 +833,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 [data-theme="dark"] a:not([class*="btn"]):not(.tg-btn):not(.tg-mobile-nav__link):not(.tg-nav a) {
-  color: #93C5FD !important;
+  color: #F97316 !important;
 }
 
 [data-theme="dark"] a:not([class*="btn"]):not(.tg-btn):hover {
@@ -898,3 +898,60 @@ h1, h2, h3, h4, h5, h6 {
 [data-theme="dark"] .tg-mobile-nav__link {
   color: #F0F0F0 !important;
 }
+html[data-theme="dark"] body{
+ 	background:#1a1a1a !important
+}
+html[data-theme="dark"] .tg-seo-content {
+    background-color: var(--color-bg-alt, #1a1a1a);
+}
+
+html[data-theme="dark"] .tg-feature-card {
+	background: #1e1e1e !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+	box-shadow: var(--shadow-card, 0 2px 8px rgba(0, 0, 0, 0.06));
+}
+html[data-theme="dark"]  .tg-ai-input {
+	border-color: rgba(255, 255, 255, 0.08) !important;
+}
+html[data-theme="dark"] .tg-tools-tabs-wrap {
+    background-color: var(--color-bg-alt, #1a1a1a);
+	border-color:#1a1a1a
+}
+html[data-theme="dark"] .tg-hiw-step__icon,
+html[data-theme="dark"] .tg-feature-card__icon,
+html[data-theme="dark"] .tg-sidebar-cat-link:hover, 
+html[data-theme="dark"] .tg-sidebar-cat-link.is-current {
+	background: #000000;
+}
+
+html[data-theme="dark"] .tg-hero__stat-value {
+	color:#fff
+}
+
+html[data-theme="dark"] .tg-hiw-step__icon {
+	border:1px solid #4f4e4e;
+	background-color:#1a1a1a
+}
+
+html[data-theme="dark"] .tg-layout__main header {
+	background:transparent !important;
+	padding-bottom:10px;
+}
+html[data-theme="dark"] .tg-entry__meta {
+	color:#fff
+}
+
+html[data-theme="dark"] .tg-widget {
+    background: #1a1a1a;
+	border: 1px solid #393939;
+	margin-bottom: 30px;
+}
+html[data-theme="dark"] #block-4,
+html[data-theme="dark"] #block-5 {
+	margin-bottom: 0 !important;
+}
+
+html[data-theme="dark"] .tg-blog-tools-cta {
+	background:#2a2a2a !important
+}
+
