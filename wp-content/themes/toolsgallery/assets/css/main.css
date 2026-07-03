@@ -4081,6 +4081,6 @@ textarea {
 .widget_block  footer a {
     color: rgba(0, 0, 0, 1) !important;
 }
-[data-theme="light"] .tg-logo-text {
+[data-theme="light"] .tg-footer .tg-logo-text {
     color: #fff !important;
 }

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   var CONFIG = { handler: 'pdf-to-txt' };
-
+	
   function getOptionsHTML() {
     return `
 <div class="tg-options">

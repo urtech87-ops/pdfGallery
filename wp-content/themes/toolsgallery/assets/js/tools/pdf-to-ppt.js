@@ -9,7 +9,7 @@
     handler: 'pdf-to-ppt',
     downloadName: 'presentation.pptx',
   };
-
+	
   function getOptionsHTML(pageCount) {
     return '<div class="tg-opt-row">' +
       '<label class="tg-opt-label">Slide size</label>' +
