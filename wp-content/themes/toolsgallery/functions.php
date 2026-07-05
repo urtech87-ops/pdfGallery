@@ -87,6 +87,17 @@ function tg_enqueue_assets() {
             wp_enqueue_script('tg-pdf-decrypt', get_template_directory_uri() . '/assets/js/pdf-decrypt.js', ['tg-pdf-tools'], $ver, true);
             $tool_runner_deps[] = 'tg-pdf-decrypt';
         }
+        if ($tg_handler === 'pdf-to-ppt') {
+            $ppt_tool_file = get_template_directory() . '/assets/js/tools/pdf-to-ppt.js';
+            wp_enqueue_script(
+                'tg-tool-pdf-to-ppt',
+                get_template_directory_uri() . '/assets/js/tools/pdf-to-ppt.js',
+                ['tg-pdf-tools'],
+                file_exists($ppt_tool_file) ? filemtime($ppt_tool_file) : $ver,
+                true
+            );
+            $tool_runner_deps[] = 'tg-tool-pdf-to-ppt';
+        }
 
         /* =============================================
            Phase 8 — Utility Tools

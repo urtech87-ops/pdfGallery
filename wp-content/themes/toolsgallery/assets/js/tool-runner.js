@@ -1631,6 +1631,13 @@
           if (labelEl && msg) labelEl.textContent = msg;
         }).then(function (result) {
           finishProgress();
+          if (!result) {
+            actionBtn.hidden = false;
+            if (fileSelected && currentFile) fileSelected.hidden = false;
+            if (fileListEl && isMulti && currentFiles.length) fileListEl.hidden = false;
+            showErrorResult('Tool returned no result. Please try again.');
+            return;
+          }
           if (result && result.noDownload) {
             if (resultEl)      resultEl.hidden      = false;
             if (successBanner) successBanner.hidden = false;
@@ -1653,8 +1660,11 @@
             if (errorBanner)   errorBanner.hidden   = true;
             if (downloadBtn)   downloadBtn.hidden   = true;
           } else {
+            if (blobUrl) URL.revokeObjectURL(blobUrl);
             blobUrl = URL.createObjectURL(result.blob);
-            downloadFilename = result.filename || 'output.pdf';
+            downloadFilename = result.filename
+              || (tool3c.CONFIG && tool3c.CONFIG.downloadName)
+              || 'output.pdf';
             showSuccessResult();
           }
         }).catch(function (e) {
