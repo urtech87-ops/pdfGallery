@@ -101,13 +101,18 @@
       '</body></html>';
 
     var win = window.open('', '_blank', 'width=900,height=700');
-    if (win) {
-      win.document.write(combined);
-      win.document.close();
-      setTimeout(function () { win.print(); }, 500);
-    }
+    if (!win) throw new Error('Popup blocked. Please allow popups for this site and try again.');
+    win.document.write(combined);
+    win.document.close();
+    setTimeout(function () { win.print(); }, 500);
 
-    return { noDownload: true };
+    onProgress && onProgress(1.0, 'EPUB opened for printing!');
+
+    return {
+      blob: new Blob([''], { type: 'text/plain' }),
+      filename: 'converted.pdf',
+      noDownload: true,
+    };
   }
 
   window.TGTools = window.TGTools || {};

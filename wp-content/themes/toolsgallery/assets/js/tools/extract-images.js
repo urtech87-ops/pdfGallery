@@ -31,19 +31,20 @@
         '<option value="200">200px (large only)</option>' +
       '</select>' +
     '</div>' +
-    '<p class="tg-opt-info">If direct image extraction fails, each page will be rendered as an image instead.</p>' +
-    '<div id="ei-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>' +
-    '<div id="ei-download-all-wrap" hidden style="margin-top:10px;">' +
-      '<button type="button" id="ei-download-all" class="tg-action-btn" style="width:auto;padding:10px 20px;">Download All as ZIP</button>' +
-    '</div>' +
-    '<script>' +
-    '(function(){' +
-      'var pagesR=document.querySelectorAll("input[name=\\'ei-pages\\']");' +
-      'pagesR.forEach(function(r){r.addEventListener("change",function(){' +
-        'var w=document.getElementById("ei-pages-wrap");if(w)w.hidden=r.value!=="specific";' +
-      '});});' +
-    '})();' +
-    '<\/script>';
+    '<p class="tg-opt-info">If direct image extraction fails, each page will be rendered as an image instead. All images are packaged into a ZIP for download.</p>' +
+    '<div id="ei-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;"></div>';
+  }
+
+  function onFileReady(file, optionsEl) {
+    if (!optionsEl) return;
+    var wrap = optionsEl.querySelector('#ei-pages-wrap');
+    if (!wrap || wrap.dataset.wired) return;
+    wrap.dataset.wired = '1';
+    optionsEl.querySelectorAll('input[name="ei-pages"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        wrap.hidden = r.value !== 'specific';
+      });
+    });
   }
 
   function getOptions(optionsEl) {
@@ -211,36 +212,23 @@
       });
     }
 
-    var dlAllWrap = document.getElementById('ei-download-all-wrap');
-    if (dlAllWrap) dlAllWrap.hidden = false;
+    onProgress && onProgress(0.9, 'Packaging ' + _extractedImages.length + ' image(s) into ZIP...');
 
-    var dlAllBtn = document.getElementById('ei-download-all');
-    if (dlAllBtn) {
-      dlAllBtn.addEventListener('click', async function () {
-        dlAllBtn.disabled = true;
-        dlAllBtn.textContent = 'Building ZIP...';
-        var zip = new JSZip();
-        _extractedImages.forEach(function (img) {
-          var base64 = img.dataUrl.replace(/^data:image\/png;base64,/, '');
-          zip.file(img.name, base64, { base64: true });
-        });
-        var zipData = await zip.generateAsync({ type: 'blob' });
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(zipData);
-        a.download = 'extracted-images.zip';
-        a.click();
-        dlAllBtn.disabled = false;
-        dlAllBtn.textContent = 'Download All as ZIP';
-      });
-    }
+    var zip = new JSZip();
+    _extractedImages.forEach(function (img) {
+      var base64 = img.dataUrl.replace(/^data:image\/png;base64,/, '');
+      zip.file(img.name, base64, { base64: true });
+    });
+    var zipBlob = await zip.generateAsync({ type: 'blob' });
 
-    // Return first image as the "result"
-    var base64 = _extractedImages[0].dataUrl.replace(/^data:image\/png;base64,/, '');
-    var bytes = Uint8Array.from(atob(base64), function (c) { return c.charCodeAt(0); });
-    var blob = new Blob([bytes], { type: 'image/png' });
-    return { blob: blob, filename: _extractedImages[0].name };
+    onProgress && onProgress(1.0, 'Done!');
+
+    return {
+      blob: zipBlob,
+      filename: file.name.replace(/\.pdf$/i, '') + '-images.zip',
+    };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

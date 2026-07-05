@@ -71,30 +71,59 @@
     return false;
   }
 
-  async function run(file, options, onProgress) {
-    if (!window.pdfjsLib) throw new Error('PDF library not loaded. Please refresh the page.');
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
 
-    onProgress && onProgress(0.05, 'Loading PDF...');
+  async function run(file, options, onProgress) {
+    onProgress && onProgress(0.05, 'Loading libraries...');
+
+    if (!window.pdfjsLib) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    var docxLoaded = await waitForDocx(3);
+    if (!docxLoaded) {
+      await loadScript('https://unpkg.com/docx@7.8.2/build/index.umd.js');
+      docxLoaded = await waitForDocx(5);
+      if (!docxLoaded) {
+        throw new Error('Document library failed to load. Please check your internet connection and refresh.');
+      }
+    }
+    var docx = window.docx;
+
+    onProgress && onProgress(0.15, 'Reading PDF...');
     var arrayBuffer = await file.arrayBuffer();
     var pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     var totalPages = pdf.numPages;
 
-    var pageNums;
+    var pageNums = null;
     if (options.pages === 'custom' && options.range) {
       pageNums = parsePageRange(options.range, totalPages);
-      if (!pageNums) pageNums = Array.from({ length: totalPages }, function (_, i) { return i + 1; });
-    } else {
+    }
+    if (!pageNums || !pageNums.length) {
       pageNums = Array.from({ length: totalPages }, function (_, i) { return i + 1; });
     }
 
-    onProgress && onProgress(0.1, 'Extracting text...');
-    var paragraphTexts = [];
-    for (var pi = 0; pi < pageNums.length; pi++) {
-      var pageNum = pageNums[pi];
-      onProgress && onProgress(0.1 + (pi / pageNums.length) * 0.5, 'Reading page ' + pageNum + '...');
-      var page = await pdf.getPage(pageNum);
+    var fontSize = parseInt(options.fontsize || '11', 10);
+    var paragraphs = [];
+    var foundText = false;
+
+    for (var p = 0; p < pageNums.length; p++) {
+      onProgress && onProgress(0.2 + (p / pageNums.length) * 0.5, 'Extracting page ' + pageNums[p] + '...');
+
+      var page = await pdf.getPage(pageNums[p]);
       var tc   = await page.getTextContent();
 
+      /* Group text items into lines by Y position */
       var lines = [];
       var currentLine = null;
       tc.items.forEach(function (item) {
@@ -106,63 +135,72 @@
         }
         currentLine.texts.push(item.str);
       });
-
       lines.sort(function (a, b) { return b.y - a.y; });
+
+      /* Page heading */
+      if (pageNums.length > 1) {
+        paragraphs.push(new docx.Paragraph({
+          text: 'Page ' + pageNums[p],
+          heading: docx.HeadingLevel.HEADING_2,
+          spacing: { before: 300, after: 100 },
+        }));
+      }
+
       lines.forEach(function (line) {
         var text = line.texts.join(' ').trim();
-        if (text) paragraphTexts.push(text);
+        if (!text) return;
+        foundText = true;
+        paragraphs.push(new docx.Paragraph({
+          children: [new docx.TextRun({ text: text, size: fontSize * 2 })],
+          spacing: { after: 100 },
+        }));
       });
 
-      if (pi < pageNums.length - 1) {
-        paragraphTexts.push('');
+      /* Page break between pages */
+      if (p < pageNums.length - 1) {
+        paragraphs.push(new docx.Paragraph({
+          children: [new docx.PageBreak()],
+        }));
       }
     }
 
-    if (!paragraphTexts.some(function (t) { return t.trim().length > 0; })) {
+    if (!foundText) {
       throw new Error('No text found in PDF. The document may contain only images or be scanned.');
     }
 
-    onProgress && onProgress(0.65, 'Loading Word library...');
+    onProgress && onProgress(0.8, 'Creating Word document...');
 
-    var docxLoaded = await waitForDocx();
-    if (!docxLoaded) {
-      await new Promise(function (resolve, reject) {
-        var s = document.createElement('script');
-        s.src = 'https://unpkg.com/docx@7.8.2/build/index.umd.js';
-        s.onload = resolve;
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
-      docxLoaded = await waitForDocx(5);
-      if (!docxLoaded) {
-        throw new Error('Document library failed to load. Please check your internet connection and refresh.');
-      }
-    }
-
-    onProgress && onProgress(0.75, 'Building Word document...');
-
-    var fontSize = (options.fontsize || 11) * 2; // half-points
-
-    var children = paragraphTexts.map(function (text) {
-      return new window.docx.Paragraph({
-        children: [new window.docx.TextRun({ text: text, size: fontSize })],
-        spacing: { after: text ? 120 : 0 },
-      });
-    });
-
-    var doc = new window.docx.Document({
+    var doc = new docx.Document({
       sections: [{
         properties: {},
-        children: children,
+        children: paragraphs,
       }],
     });
 
     onProgress && onProgress(0.9, 'Generating .docx file...');
-    var blob = await window.docx.Packer.toBlob(doc);
+    var blob = await docx.Packer.toBlob(doc);
 
-    return { blob: blob, filename: CONFIG.downloadName };
+    onProgress && onProgress(1.0, 'Done!');
+
+    return {
+      blob: blob,
+      filename: file.name.replace(/\.pdf$/i, '') + '.docx',
+    };
+  }
+
+  function onFileReady(file, optionsEl) {
+    if (!optionsEl) return;
+    var rangeInput = optionsEl.querySelector('#word-page-range');
+    if (!rangeInput || rangeInput.dataset.wired) return;
+    rangeInput.dataset.wired = '1';
+    optionsEl.querySelectorAll('input[name="word-pages"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var input = optionsEl.querySelector('#word-page-range');
+        if (input) input.style.display = r.value === 'custom' ? 'block' : 'none';
+      });
+    });
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();
