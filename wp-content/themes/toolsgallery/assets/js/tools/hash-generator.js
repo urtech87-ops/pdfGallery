@@ -74,8 +74,9 @@
   <p style="font-size:12px;color:#888;margin-top:10px">Tip: Hash two files and compare — identical hashes mean identical files.</p>
 </div>`;
 
-    // MD5 implementation (pure JS)
-    function md5(inputStr) {
+    // MD5 implementation (pure JS). Pass raw=true when inputStr is already
+    // a binary (latin1) string that must not be re-encoded as UTF-8.
+    function md5(inputStr, raw) {
       function safeAdd(x, y) { const lsw=(x&0xFFFF)+(y&0xFFFF); return (((x>>16)+(y>>16)+(lsw>>16))<<16)|(lsw&0xFFFF); }
       function bitRotateLeft(num, cnt) { return (num<<cnt)|(num>>>(32-cnt)); }
       function md5cmn(q,a,b,x,s,t) { return safeAdd(bitRotateLeft(safeAdd(safeAdd(a,q),safeAdd(x,t)),s),b); }
@@ -83,7 +84,7 @@
       function md5gg(a,b,c,d,x,s,t) { return md5cmn((b&d)|(c&(~d)),a,b,x,s,t); }
       function md5hh(a,b,c,d,x,s,t) { return md5cmn(b^c^d,a,b,x,s,t); }
       function md5ii(a,b,c,d,x,s,t) { return md5cmn(c^(b|(~d)),a,b,x,s,t); }
-      const utf8 = unescape(encodeURIComponent(inputStr));
+      const utf8 = raw ? inputStr : unescape(encodeURIComponent(inputStr));
       const n = utf8.length;
       const state = [1732584193, -271733879, -1732584194, 271733878];
       const words = [];
@@ -122,8 +123,12 @@
 
     async function hashBuffer(buf, algo) {
       if (algo === 'MD5') {
-        const dec = new TextDecoder('latin1');
-        return md5(dec.decode(buf));
+        const bytes = new Uint8Array(buf);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 32768) {
+          bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+        }
+        return md5(bin, true);
       }
       const hashBuf = await crypto.subtle.digest(algo, buf);
       return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2,'0')).join('');

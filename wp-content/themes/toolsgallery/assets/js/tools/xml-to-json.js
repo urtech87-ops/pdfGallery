@@ -87,7 +87,7 @@
   }
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(10, 'Reading XML…');
+    onProgress && onProgress(0.1, 'Reading XML…');
     const text = await file.text();
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(text, 'application/xml');
@@ -95,14 +95,14 @@
     const parseError = xmlDoc.querySelector('parsererror');
     if (parseError) throw new Error('Invalid XML: ' + parseError.textContent.slice(0, 200));
 
-    onProgress && onProgress(40, 'Converting…');
+    onProgress && onProgress(0.4, 'Converting…');
     const { count, depth } = countElements(xmlDoc.documentElement);
     const json = {};
     const rootName = xmlDoc.documentElement.nodeName;
     json[options.removeNS ? rootName.replace(/^[^:]+:/, '') : rootName] = xmlToJson(xmlDoc.documentElement, options);
 
     const jsonStr = options.pretty ? JSON.stringify(json, null, 2) : JSON.stringify(json);
-    onProgress && onProgress(80, 'Done');
+    onProgress && onProgress(0.8, 'Done');
 
     showOutput(jsonStr, count, depth);
     const blob = new Blob([jsonStr], { type: 'application/json' });

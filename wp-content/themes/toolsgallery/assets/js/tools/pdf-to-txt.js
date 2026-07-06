@@ -16,19 +16,13 @@
   </div>
   <div class="tg-option-group">
     <label>Pages</label>
-    <select id="opt-pages">
+    <select id="opt-pages" onchange="document.getElementById('opt-page-range').style.display=this.value==='range'?'block':'none'">
       <option value="all">All Pages</option>
       <option value="range">Page Range…</option>
     </select>
     <input id="opt-page-range" type="text" placeholder="e.g. 1-3, 5, 7-9" style="display:none;margin-top:6px;width:100%;padding:6px;border:1px solid #ddd;border-radius:4px">
   </div>
-</div>
-<script>
-(function(){
-  var s=document.getElementById('opt-pages'),r=document.getElementById('opt-page-range');
-  if(s) s.addEventListener('change',function(){ r.style.display=s.value==='range'?'block':'none'; });
-})();
-</script>`;
+</div>`;
   }
 
   function getOptions(el) {
@@ -55,7 +49,8 @@
   }
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(10, 'Loading PDF…');
+    if (!window.pdfjsLib) throw new Error('PDF library not loaded. Please refresh.');
+    onProgress && onProgress(0.1, 'Loading PDF…');
     const buf = await file.arrayBuffer();
     const pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
     const total = pdfDoc.numPages;
@@ -70,7 +65,7 @@
     let fullText = '';
     for (let idx = 0; idx < pageNums.length; idx++) {
       const pageNum = pageNums[idx];
-      onProgress && onProgress(10 + Math.round((idx / pageNums.length) * 80), `Extracting page ${pageNum}/${total}…`);
+      onProgress && onProgress(0.1 + (idx / pageNums.length) * 0.8, `Extracting page ${pageNum}/${total}…`);
       const page = await pdfDoc.getPage(pageNum);
       const tc = await page.getTextContent();
       const pageText = tc.items.map(i => i.str).join(' ').replace(/ {2,}/g, ' ').trim();
@@ -80,7 +75,7 @@
       else fullText += pageText + '\n\n';
     }
 
-    onProgress && onProgress(95, 'Done');
+    onProgress && onProgress(0.95, 'Done');
     showOutput(fullText, total);
     const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8' });
     return { blob, filename: file.name.replace(/\.pdf$/i, '') + '.txt' };

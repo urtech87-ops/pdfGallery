@@ -76,14 +76,14 @@
   };
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(10, 'Reading text…');
+    onProgress && onProgress(0.1, 'Reading text…');
     const text = await file.text();
     if (!text.trim()) throw new Error('File is empty. Please upload a text file with content.');
 
-    if (typeof PDFLib === 'undefined') throw new Error('pdf-lib not loaded.');
+    if (typeof PDFLib === 'undefined') throw new Error('PDF library not loaded. Please refresh.');
     const { PDFDocument, StandardFonts, rgb } = PDFLib;
 
-    onProgress && onProgress(20, 'Creating PDF…');
+    onProgress && onProgress(0.2, 'Creating PDF…');
     const pdfDoc = await PDFDocument.create();
     const [pageWidth, pageHeight] = PAGE_SIZES[options.pageSize] || PAGE_SIZES.a4;
     const margin = options.margin;
@@ -118,7 +118,7 @@
     const linesPerPage = Math.floor((pageHeight - 2 * margin) / lineHeight);
     const totalPages = Math.ceil(wrappedLines.length / linesPerPage);
 
-    onProgress && onProgress(40, `Building ${totalPages} page(s)…`);
+    onProgress && onProgress(0.4, `Building ${totalPages} page(s)…`);
 
     for (let p = 0; p < totalPages; p++) {
       const page = pdfDoc.addPage([pageWidth, pageHeight]);
@@ -142,7 +142,7 @@
           color: rgb(0.5, 0.5, 0.5),
         });
       }
-      onProgress && onProgress(40 + Math.round((p / totalPages) * 50), `Page ${p + 1}/${totalPages}…`);
+      onProgress && onProgress(0.4 + (p / totalPages) * 0.5, `Page ${p + 1}/${totalPages}…`);
     }
 
     const pdfBytes = await pdfDoc.save();

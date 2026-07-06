@@ -73,12 +73,12 @@
   }
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(10, 'Reading CSV…');
+    onProgress && onProgress(0.1, 'Reading CSV…');
     const text = await file.text();
     const delim = detectDelimiter(text);
     const lines = text.split(/\r?\n/).filter(l => l.trim());
 
-    onProgress && onProgress(40, 'Parsing…');
+    onProgress && onProgress(0.4, 'Parsing…');
     let headers, dataLines;
     if (options.hasHeader) {
       headers = parseCSVLine(lines[0], delim).map(h => h.trim());
@@ -107,7 +107,7 @@
     }
 
     const jsonStr = options.pretty ? JSON.stringify(result, null, 2) : JSON.stringify(result);
-    onProgress && onProgress(80, 'Rendering…');
+    onProgress && onProgress(0.8, 'Rendering…');
 
     showOutput(jsonStr, rows.length, headers.length);
     const blob = new Blob([jsonStr], { type: 'application/json' });

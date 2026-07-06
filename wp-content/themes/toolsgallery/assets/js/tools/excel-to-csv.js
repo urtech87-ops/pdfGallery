@@ -37,8 +37,23 @@
     };
   }
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   async function run(file, options, onProgress) {
-    onProgress && onProgress(10, 'Reading Excel file…');
+    if (!window.XLSX) {
+      onProgress && onProgress(0.05, 'Loading spreadsheet library…');
+      await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+      if (!window.XLSX) throw new Error('Excel library not loaded. Please refresh the page.');
+    }
+    onProgress && onProgress(0.1, 'Reading Excel file…');
     const buf = await file.arrayBuffer();
     const workbook = XLSX.read(buf, { type: 'array' });
     const names = workbook.SheetNames;
@@ -57,7 +72,7 @@
     const selectedSheet = options.sheet || 'all';
     const sheets = selectedSheet === 'all' ? names : [selectedSheet];
 
-    onProgress && onProgress(40, 'Converting sheets…');
+    onProgress && onProgress(0.4, 'Converting sheets…');
 
     const results = sheets.map(name => {
       const ws = workbook.Sheets[name];
@@ -65,7 +80,7 @@
       return { name, csv };
     });
 
-    onProgress && onProgress(80, 'Preparing download…');
+    onProgress && onProgress(0.8, 'Preparing download…');
 
     if (results.length === 1) {
       let content = results[0].csv;
@@ -80,6 +95,7 @@
     }
 
     // Multiple sheets → ZIP
+    if (!window.JSZip) throw new Error('ZIP library not loaded. Please refresh the page.');
     const zip = new JSZip();
     results.forEach(r => {
       let content = r.csv;
