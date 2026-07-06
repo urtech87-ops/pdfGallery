@@ -235,12 +235,14 @@
       document.getElementById('cp-harmonies').innerHTML=Object.entries(harmonies).map(([name,colors])=>`
         <div style="margin-bottom:10px"><strong style="font-size:12px;color:#555">${name}</strong>
         <div class="cp-harmony-row">${colors.map(c=>`<div class="cp-harmony-item"><div class="cp-harmony-swatch" style="background:${c}" onclick="cpSetColor('${c}')"></div><div>${c}</div></div>`).join('')}</div></div>`).join('');
-      let recent=JSON.parse(localStorage.getItem('cp-recent')||'[]');
-      recent=recent.filter(c=>c!==hex);
-      recent.unshift(hex);
-      recent=recent.slice(0,10);
-      localStorage.setItem('cp-recent',JSON.stringify(recent));
-      buildSwatches(recent,'cp-recent');
+      try{
+        let recent=JSON.parse(localStorage.getItem('cp-recent')||'[]');
+        recent=recent.filter(c=>c!==hex);
+        recent.unshift(hex);
+        recent=recent.slice(0,10);
+        localStorage.setItem('cp-recent',JSON.stringify(recent));
+        buildSwatches(recent,'cp-recent');
+      }catch(e){/* localStorage unavailable (privacy mode) — skip recent colors */}
     }
 
     document.getElementById('cp-color').addEventListener('input',updateAll);

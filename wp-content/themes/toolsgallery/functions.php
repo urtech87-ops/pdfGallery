@@ -141,11 +141,12 @@ function tg_enqueue_assets() {
 
         if (isset($tool_files_8[$tg_handler])) {
             $p8_handle = 'tg-tool-' . $tg_handler;
+            $p8_file_path = get_template_directory() . '/assets/js/tools/' . $tool_files_8[$tg_handler];
             wp_enqueue_script(
                 $p8_handle,
                 get_template_directory_uri() . '/assets/js/tools/' . $tool_files_8[$tg_handler],
                 [],
-                $ver,
+                file_exists($p8_file_path) ? filemtime($p8_file_path) : $ver,
                 true
             );
             $tool_runner_deps[] = $p8_handle;
