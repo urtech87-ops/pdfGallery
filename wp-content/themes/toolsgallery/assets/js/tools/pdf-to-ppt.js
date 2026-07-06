@@ -1,7 +1,3 @@
-/* ToolsGallery — pdf-to-ppt.js
-   Handler: pdf-to-ppt
-   Phase 3C
-*/
 (function () {
   'use strict';
 
@@ -9,7 +5,9 @@
     handler: 'pdf-to-ppt',
     downloadName: 'presentation.pptx',
   };
-	
+
+  var PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
   function getOptionsHTML(pageCount) {
     return '<div class="tg-opt-row">' +
       '<label class="tg-opt-label">Slide size</label>' +
@@ -38,6 +36,31 @@
     };
   }
 
+  // Convert a base64 string to a Uint8Array (fallback for old pptxgenjs versions)
+  function base64ToBytes(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  // Normalize whatever pptx.write() returns into a proper binary Blob
+  function toPptxBlob(out) {
+    if (out instanceof Blob) {
+      // Re-wrap to force the correct MIME type
+      return new Blob([out], { type: PPTX_MIME });
+    }
+    if (out instanceof ArrayBuffer || ArrayBuffer.isView(out)) {
+      return new Blob([out], { type: PPTX_MIME });
+    }
+    if (typeof out === 'string') {
+      // Old pptxgenjs returned base64 — decode it to real bytes
+      var b64 = out.indexOf('base64,') !== -1 ? out.split('base64,')[1] : out;
+      return new Blob([base64ToBytes(b64)], { type: PPTX_MIME });
+    }
+    throw new Error('Unexpected output from PptxGenJS: ' + Object.prototype.toString.call(out));
+  }
+
   async function run(file, options, onProgress) {
     if (!window.PptxGenJS) throw new Error('PptxGenJS library not loaded. Please refresh the page.');
     if (!window.pdfjsLib) throw new Error('PDF library not loaded.');
@@ -56,10 +79,10 @@
     }
 
     var slideW = options.slideSize === '43' ? 10 : 13.33;
-    var slideH = options.slideSize === '43' ? 7.5 : 7.5;
+    var slideH = 7.5;
 
     for (var p = 1; p <= totalPages; p++) {
-      onProgress && onProgress(p / totalPages * 0.9, 'Converting page ' + p + ' of ' + totalPages + ' to slide...');
+      onProgress && onProgress(0.05 + (p / totalPages) * 0.85, 'Converting page ' + p + ' of ' + totalPages + ' to slide...');
 
       var page = await pdf.getPage(p);
       var viewport = page.getViewport({ scale: 2.0 });
@@ -71,12 +94,28 @@
 
       await page.render({ canvasContext: ctx, viewport: viewport }).promise;
 
+      // Full data URL — pptxgenjs v3 accepts this directly in `data`
       var imgData = canvas.toDataURL('image/png');
-      // Strip data URL prefix for pptxgenjs
-      var base64 = imgData.replace(/^data:image\/png;base64,/, '');
 
       var slide = pptx.addSlide();
-      slide.addImage({ data: 'image/png;base64,' + base64, x: 0, y: 0, w: slideW, h: slideH });
+
+      // Fit the page image inside the slide while preserving aspect ratio
+      var pageRatio = viewport.width / viewport.height;
+      var slideRatio = slideW / slideH;
+      var imgW, imgH, imgX, imgY;
+      if (pageRatio > slideRatio) {
+        imgW = slideW;
+        imgH = slideW / pageRatio;
+        imgX = 0;
+        imgY = (slideH - imgH) / 2;
+      } else {
+        imgH = slideH;
+        imgW = slideH * pageRatio;
+        imgY = 0;
+        imgX = (slideW - imgW) / 2;
+      }
+
+      slide.addImage({ data: imgData, x: imgX, y: imgY, w: imgW, h: imgH });
 
       if (options.includeText === 'yes') {
         try {
@@ -85,28 +124,49 @@
           tc.items.forEach(function (item) {
             if (!item.str || !item.str.trim()) return;
             var xPct = item.transform[4] / pgVp.width;
-            var yPct = 1 - (item.transform[5] + item.height) / pgVp.height;
+            var yPct = 1 - (item.transform[5] + (item.height || 12)) / pgVp.height;
             var wPct = (item.width || 100) / pgVp.width;
             var hPct = (item.height || 12) / pgVp.height;
             slide.addText(item.str, {
-              x: xPct * slideW,
-              y: yPct * slideH,
-              w: Math.max(wPct * slideW, 0.5),
-              h: Math.max(hPct * slideH, 0.2),
+              x: imgX + xPct * imgW,
+              y: imgY + yPct * imgH,
+              w: Math.max(wPct * imgW, 0.5),
+              h: Math.max(hPct * imgH, 0.2),
               fontSize: 10,
               color: 'FFFFFF',
-              transparent: true,
+              // Invisible overlay text: no fill, no border (default), near-white text
             });
           });
         } catch (e) { /* text layer optional */ }
       }
+
+      // Free canvas memory on large PDFs
+      canvas.width = 0;
+      canvas.height = 0;
     }
 
     onProgress && onProgress(0.95, 'Building presentation file...');
-    var pptxArrayBuffer = await pptx.write({ outputType: 'arraybuffer' });
-    var blob = new Blob([pptxArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
 
-    return { blob: blob, filename: CONFIG.downloadName };
+    var out;
+    try {
+      // pptxgenjs v3.x style
+      out = await pptx.write({ outputType: 'blob' });
+    } catch (e1) {
+      try {
+        // pptxgenjs older v3 / v2 style
+        out = await pptx.write('arraybuffer');
+      } catch (e2) {
+        out = await pptx.write('base64');
+      }
+    }
+
+    var blob = toPptxBlob(out);
+
+    if (!blob || blob.size < 1000) {
+      throw new Error('Generated PPTX appears empty (' + (blob ? blob.size : 0) + ' bytes). Check console for PptxGenJS errors.');
+    }
+
+    return { blob: blob, filename: CONFIG.downloadName, mimeType: PPTX_MIME };
   }
 
   window.TGTools = window.TGTools || {};
