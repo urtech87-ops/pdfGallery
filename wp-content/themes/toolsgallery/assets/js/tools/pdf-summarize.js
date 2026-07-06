@@ -84,10 +84,7 @@
 
     var fullText = textParts.join('\n\n');
     if (!fullText || fullText.trim().length < 50) {
-      callbacks.onError ?
-        callbacks.onError('Could not extract text from this PDF. The document may contain only images or be scanned. Text-based PDFs work best for summarization.') :
-        (() => { throw new Error('Could not extract text from this PDF. The document may contain only images or be scanned.'); })();
-      return;
+      throw new Error('Could not extract text from this PDF. The document may contain only images or be scanned. Text-based PDFs work best for summarization.');
     }
 
     var maxChars = options.length === 'brief' ? 2000 : options.length === 'detailed' ? 5000 : 3500;
@@ -125,21 +122,21 @@
 
     var copyBtn = document.getElementById('sum-copy-btn');
     if (copyBtn) {
-      copyBtn.addEventListener('click', function () {
+      copyBtn.onclick = function () {
         navigator.clipboard.writeText(summary).catch(function () {});
         copyBtn.textContent = 'Copied!';
         setTimeout(function () { copyBtn.textContent = 'Copy Text'; }, 2000);
-      });
+      };
     }
 
     var dlTxt = document.getElementById('sum-dl-txt');
     if (dlTxt) {
-      dlTxt.addEventListener('click', function () {
+      dlTxt.onclick = function () {
         var a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([summary], { type: 'text/plain' }));
         a.download = 'summary.txt';
         a.click();
-      });
+      };
     }
 
     var blob = new Blob([summary], { type: 'text/plain' });

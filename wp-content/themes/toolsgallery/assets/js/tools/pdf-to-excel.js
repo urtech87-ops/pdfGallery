@@ -62,9 +62,28 @@
     return pages.length ? pages : null;
   }
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   async function run(file, options, onProgress) {
-    if (!window.XLSX) throw new Error('Spreadsheet library failed to load. Please refresh.');
-    if (!window.pdfjsLib) throw new Error('PDF library not loaded.');
+    onProgress && onProgress(0.05, 'Loading libraries...');
+
+    if (!window.pdfjsLib) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    if (!window.XLSX) {
+      await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+      if (!window.XLSX) throw new Error('Spreadsheet library failed to load. Please refresh.');
+    }
 
     var arrayBuffer = await file.arrayBuffer();
     var pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -161,9 +180,22 @@
     var xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     var blob = new Blob([xlsxData], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
-    return { blob: blob, filename: CONFIG.downloadName };
+    return { blob: blob, filename: file.name.replace(/\.pdf$/i, '') + '.xlsx' };
+  }
+
+  function onFileReady(file, optionsEl) {
+    if (!optionsEl) return;
+    var wrap = optionsEl.querySelector('#xls-pages-wrap');
+    if (!wrap || wrap.dataset.wired) return;
+    wrap.dataset.wired = '1';
+    optionsEl.querySelectorAll('input[name="xls-pages"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var w = optionsEl.querySelector('#xls-pages-wrap');
+        if (w) w.hidden = r.value !== 'specific';
+      });
+    });
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

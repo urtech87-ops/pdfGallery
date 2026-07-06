@@ -26,8 +26,22 @@
     return {};
   }
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   async function run(file, options, onProgress) {
-    if (!window.mammoth) throw new Error('mammoth.js not loaded');
+    if (!window.mammoth) {
+      onProgress && onProgress(0.05, 'Loading converter...');
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js');
+      if (!window.mammoth) throw new Error('Document library failed to load. Please refresh and try again.');
+    }
 
     onProgress && onProgress(0.2, 'Converting document...');
     var ab = await file.arrayBuffer();
@@ -74,9 +88,11 @@
     setTimeout(function () { printWindow.print(); }, 600);
 
     onProgress && onProgress(1, 'Done! Use the print dialog to save as PDF.');
-    // Return a text file as nominal result so tool-runner doesn't error
-    var blob = new Blob([_lastHtml], { type: 'text/html' });
-    return { blob: blob, filename: _lastFileName + '.html' };
+    return {
+      blob: new Blob([''], { type: 'text/plain' }),
+      filename: _lastFileName + '.pdf',
+      noDownload: true,
+    };
   }
 
   function escHtml(s) {

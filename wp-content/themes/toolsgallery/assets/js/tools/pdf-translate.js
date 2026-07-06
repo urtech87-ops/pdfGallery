@@ -41,15 +41,19 @@
         '<button type="button" id="trans-dl-txt" class="tg-btn-secondary">Download .txt</button>' +
       '</div>' +
       '<div id="trans-output-content" style="background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:12px;max-height:300px;overflow-y:auto;white-space:pre-wrap;font-family:Georgia,serif;line-height:1.6;font-size:14px;"></div>' +
-    '</div>' +
-    '<script>' +
-    '(function(){' +
-      'var pagesR=document.querySelectorAll("input[name=\\'trans-pages\\']");' +
-      'pagesR.forEach(function(r){r.addEventListener("change",function(){' +
-        'var w=document.getElementById("trans-pages-wrap");if(w)w.hidden=r.value!=="specific";' +
-      '});});' +
-    '})();' +
-    '<\/script>';
+    '</div>';
+  }
+
+  function onFileReady(file, optionsEl) {
+    if (!optionsEl) return;
+    var wrap = optionsEl.querySelector('#trans-pages-wrap');
+    if (!wrap || wrap.dataset.wired) return;
+    wrap.dataset.wired = '1';
+    optionsEl.querySelectorAll('input[name="trans-pages"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        wrap.hidden = r.value !== 'specific';
+      });
+    });
   }
 
   function getOptions(optionsEl) {
@@ -142,7 +146,7 @@
 
     var copyBtn = document.getElementById('trans-copy-btn');
     if (copyBtn) {
-      copyBtn.addEventListener('click', function () {
+      copyBtn.onclick = function () {
         navigator.clipboard.writeText(translated).catch(function () {
           var ta = document.createElement('textarea');
           ta.value = translated;
@@ -153,17 +157,17 @@
         });
         copyBtn.textContent = 'Copied!';
         setTimeout(function () { copyBtn.textContent = 'Copy Text'; }, 2000);
-      });
+      };
     }
 
     var dlTxt = document.getElementById('trans-dl-txt');
     if (dlTxt) {
-      dlTxt.addEventListener('click', function () {
+      dlTxt.onclick = function () {
         var a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([translated], { type: 'text/plain' }));
         a.download = 'translated.txt';
         a.click();
-      });
+      };
     }
 
     var blob = new Blob([translated], { type: 'text/plain' });
@@ -171,5 +175,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

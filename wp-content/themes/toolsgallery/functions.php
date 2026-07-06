@@ -87,16 +87,40 @@ function tg_enqueue_assets() {
             wp_enqueue_script('tg-pdf-decrypt', get_template_directory_uri() . '/assets/js/pdf-decrypt.js', ['tg-pdf-tools'], $ver, true);
             $tool_runner_deps[] = 'tg-pdf-decrypt';
         }
-        if ($tg_handler === 'pdf-to-ppt') {
-            $ppt_tool_file = get_template_directory() . '/assets/js/tools/pdf-to-ppt.js';
+        /* =============================================
+           Phase 10 — PDF tool scripts with filemtime
+           cache busting so browsers pick up JS changes
+           ============================================= */
+        $pdf_tool_files = [
+            'url-to-pdf'       => 'url-to-pdf.js',
+            'redact-pdf'       => 'redact-pdf.js',
+            'extract-images'   => 'extract-images.js',
+            'pdf-summarize'    => 'pdf-summarize.js',
+            'pdf-translate'    => 'pdf-translate.js',
+            'remove-watermark' => 'remove-watermark.js',
+            'crop-pdf'         => 'crop-pdf.js',
+            'add-signature'    => 'add-signature.js',
+            'epub-to-pdf'      => 'epub-to-pdf.js',
+            'pdf-to-epub'      => 'pdf-to-epub.js',
+            'ppt-to-pdf'       => 'ppt-to-pdf.js',
+            'pdf-to-ppt'       => 'pdf-to-ppt.js',
+            'pdf-to-word'      => 'pdf-to-word.js',
+            'word-to-pdf'      => 'word-to-pdf.js',
+            'pdf-to-excel'     => 'pdf-to-excel.js',
+            'excel-to-pdf'     => 'excel-to-pdf.js',
+        ];
+
+        if (isset($pdf_tool_files[$tg_handler])) {
+            $tool_file_path = get_template_directory() . '/assets/js/tools/' . $pdf_tool_files[$tg_handler];
+            $handle = 'tg-tool-' . $tg_handler;
             wp_enqueue_script(
-                'tg-tool-pdf-to-ppt',
-                get_template_directory_uri() . '/assets/js/tools/pdf-to-ppt.js',
+                $handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $pdf_tool_files[$tg_handler],
                 ['tg-pdf-tools'],
-                file_exists($ppt_tool_file) ? filemtime($ppt_tool_file) : $ver,
+                file_exists($tool_file_path) ? filemtime($tool_file_path) : $ver,
                 true
             );
-            $tool_runner_deps[] = 'tg-tool-pdf-to-ppt';
+            $tool_runner_deps[] = $handle;
         }
 
         /* =============================================

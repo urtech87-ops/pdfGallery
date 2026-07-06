@@ -1,6 +1,6 @@
 /* ToolsGallery — redact-pdf.js
    Handler: redact-pdf
-   Phase 3C
+   Phase 10 — draw boxes on a live preview, apply with pdf-lib
 */
 (function () {
   'use strict';
@@ -10,7 +10,8 @@
     downloadName: 'redacted.pdf',
   };
 
-  var _redactAreas = []; // [{pageIndex, x, y, w, h} in PDF coords]
+  var _boxes = [];        // [{xFrac, yFrac, wFrac, hFrac}]
+  var _pageSnapshot = null; // offscreen canvas of the rendered page
 
   function getOptionsHTML(pageCount) {
     return '<div style="background:#ffebee;border:1px solid #ef9a9a;border-radius:6px;padding:10px;margin-bottom:12px;">' +
@@ -28,7 +29,6 @@
       '<canvas id="redact-canvas" style="border:1px solid #ccc;max-width:100%;cursor:crosshair;display:block;"></canvas>' +
       '<div style="display:flex;gap:8px;margin-top:6px;">' +
         '<button type="button" id="redact-clear" class="tg-btn-secondary">Clear All Boxes</button>' +
-        '<button type="button" id="redact-preview" class="tg-btn-secondary">Preview Redactions</button>' +
       '</div>' +
     '</div>' +
     '<div id="redact-text-opts" hidden>' +
@@ -47,35 +47,121 @@
       '<div id="redact-custom-pages-wrap" hidden style="margin-top:6px;">' +
         '<input type="text" id="redact-custom-pages" class="tg-text-input" placeholder="e.g. 1,3,5-8">' +
       '</div>' +
-    '</div>' +
-    '<script>' +
-    '(function(){' +
-      'window._tgRedactBoxes=[];window._tgRedactPageSize={w:612,h:792};' +
-      'var methodR=document.querySelectorAll("input[name=\\'redact-method\\']");' +
-      'methodR.forEach(function(r){r.addEventListener("change",function(){' +
-        'document.getElementById("redact-manual-opts").hidden=r.value!=="manual";' +
-        'document.getElementById("redact-text-opts").hidden=r.value!=="text";' +
-      '});});' +
-      'var pagesR=document.querySelectorAll("input[name=\\'redact-pages\\']");' +
-      'pagesR.forEach(function(r){r.addEventListener("change",function(){' +
-        'var w=document.getElementById("redact-custom-pages-wrap");if(w)w.hidden=r.value!=="custom";' +
-      '});});' +
-      'var rc=document.getElementById("redact-canvas");' +
-      'if(rc){var rctx=rc.getContext("2d");var drawing=false,sx=0,sy=0;' +
-        'rc.addEventListener("mousedown",function(e){drawing=true;var r=rc.getBoundingClientRect();sx=e.clientX-r.left;sy=e.clientY-r.top;});' +
-        'rc.addEventListener("mouseup",function(e){if(!drawing)return;drawing=false;' +
-          'var r=rc.getBoundingClientRect();var ex=e.clientX-r.left;var ey=e.clientY-r.top;' +
-          'var box={x:Math.min(sx,ex),y:Math.min(sy,ey),w:Math.abs(ex-sx),h:Math.abs(ey-sy)};' +
-          'rctx.fillStyle="#000000";rctx.fillRect(box.x,box.y,box.w,box.h);' +
-          'var cw=rc.offsetWidth,ch=rc.offsetHeight;' +
-          'window._tgRedactBoxes.push({xFrac:box.x/cw,yFrac:box.y/ch,wFrac:box.w/cw,hFrac:box.h/ch});' +
-        '});' +
-        'var clearBtn=document.getElementById("redact-clear");' +
-        'if(clearBtn)clearBtn.addEventListener("click",function(){window._tgRedactBoxes=[];rctx.clearRect(0,0,rc.width,rc.height);window._tgRedactRenderedPage&&renderPage(window._tgRedactRenderedPage);});' +
-      '}' +
-      'window.renderRedactCanvas=function(canvas,pageNum){window._tgRedactRenderedPage=pageNum;};' +
-    '})();' +
-    '<\/script>';
+    '</div>';
+  }
+
+  function redrawCanvas(canvas) {
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (_pageSnapshot) ctx.drawImage(_pageSnapshot, 0, 0);
+    ctx.fillStyle = '#000000';
+    _boxes.forEach(function (b) {
+      ctx.fillRect(b.xFrac * canvas.width, b.yFrac * canvas.height, b.wFrac * canvas.width, b.hFrac * canvas.height);
+    });
+  }
+
+  function wireOptions(optionsEl) {
+    var canvas = optionsEl.querySelector('#redact-canvas');
+    if (!canvas || canvas.dataset.wired) return;
+    canvas.dataset.wired = '1';
+
+    optionsEl.querySelectorAll('input[name="redact-method"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var manual = optionsEl.querySelector('#redact-manual-opts');
+        var text = optionsEl.querySelector('#redact-text-opts');
+        if (manual) manual.hidden = r.value !== 'manual';
+        if (text) text.hidden = r.value !== 'text';
+      });
+    });
+
+    optionsEl.querySelectorAll('input[name="redact-pages"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var w = optionsEl.querySelector('#redact-custom-pages-wrap');
+        if (w) w.hidden = r.value !== 'custom';
+      });
+    });
+
+    var drawing = false, sx = 0, sy = 0;
+
+    function canvasPos(e) {
+      var r = canvas.getBoundingClientRect();
+      var cl = e.touches ? e.touches[0] : e;
+      return {
+        x: (cl.clientX - r.left) * (canvas.width / r.width),
+        y: (cl.clientY - r.top) * (canvas.height / r.height),
+      };
+    }
+
+    canvas.addEventListener('mousedown', function (e) {
+      drawing = true;
+      var p = canvasPos(e);
+      sx = p.x; sy = p.y;
+    });
+
+    canvas.addEventListener('mousemove', function (e) {
+      if (!drawing) return;
+      var p = canvasPos(e);
+      redrawCanvas(canvas);
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(Math.min(sx, p.x), Math.min(sy, p.y), Math.abs(p.x - sx), Math.abs(p.y - sy));
+    });
+
+    document.addEventListener('mouseup', function (e) {
+      if (!drawing) return;
+      drawing = false;
+      var p = canvasPos(e);
+      var box = {
+        x: Math.min(sx, p.x),
+        y: Math.min(sy, p.y),
+        w: Math.abs(p.x - sx),
+        h: Math.abs(p.y - sy),
+      };
+      if (box.w < 3 || box.h < 3) { redrawCanvas(canvas); return; }
+      _boxes.push({
+        xFrac: box.x / canvas.width,
+        yFrac: box.y / canvas.height,
+        wFrac: box.w / canvas.width,
+        hFrac: box.h / canvas.height,
+      });
+      redrawCanvas(canvas);
+    });
+
+    var clearBtn = optionsEl.querySelector('#redact-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        _boxes = [];
+        redrawCanvas(canvas);
+      });
+    }
+  }
+
+  function onFileReady(file, optionsEl) {
+    if (!optionsEl) return;
+    _boxes = [];
+    _pageSnapshot = null;
+    wireOptions(optionsEl);
+
+    var canvas = optionsEl.querySelector('#redact-canvas');
+    if (!canvas || !window.pdfjsLib) return;
+
+    file.arrayBuffer().then(function (ab) {
+      return pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise;
+    }).then(function (pdf) {
+      return pdf.getPage(1);
+    }).then(function (page) {
+      var vp = page.getViewport({ scale: 1.0 });
+      var scale = Math.min(500 / vp.width, 400 / vp.height);
+      var rvp = page.getViewport({ scale: scale });
+      canvas.width = rvp.width;
+      canvas.height = rvp.height;
+      return page.render({ canvasContext: canvas.getContext('2d'), viewport: rvp }).promise;
+    }).then(function () {
+      _pageSnapshot = document.createElement('canvas');
+      _pageSnapshot.width = canvas.width;
+      _pageSnapshot.height = canvas.height;
+      _pageSnapshot.getContext('2d').drawImage(canvas, 0, 0);
+    }).catch(function () {});
   }
 
   function getOptions(optionsEl) {
@@ -89,7 +175,7 @@
       searchText: searchText ? searchText.value.trim() : '',
       pagesMode: pages ? pages.value : 'all',
       customPagesStr: customPages ? customPages.value : '',
-      manualBoxes: window._tgRedactBoxes || [],
+      manualBoxes: _boxes.slice(),
     };
   }
 
@@ -120,21 +206,6 @@
     var allPages = pdfDoc.getPages();
     var totalPages = allPages.length;
 
-    // Render page 1 to canvas for user to draw
-    var rc = document.getElementById('redact-canvas');
-    if (rc && rc.width === 0) {
-      try {
-        var pdf4render = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-        var pg1 = await pdf4render.getPage(1);
-        var vp = pg1.getViewport({ scale: 1.0 });
-        var scale = Math.min(500 / vp.width, 400 / vp.height);
-        var rvp = pg1.getViewport({ scale: scale });
-        rc.width = rvp.width;
-        rc.height = rvp.height;
-        await pg1.render({ canvasContext: rc.getContext('2d'), viewport: rvp }).promise;
-      } catch (e) {}
-    }
-
     var targetIndices;
     if (options.pagesMode === 'current') {
       targetIndices = [0];
@@ -143,6 +214,7 @@
     } else {
       targetIndices = allPages.map(function (_, i) { return i; });
     }
+    if (!targetIndices.length) throw new Error('No valid pages selected.');
 
     if (options.method === 'manual') {
       var boxes = options.manualBoxes || [];
@@ -168,12 +240,11 @@
       var pdf4search = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
       var searchLower = options.searchText.toLowerCase();
 
-      for (var i = 0; i < targetIndices.length; i++) {
-        onProgress && onProgress(0.2 + i / targetIndices.length * 0.7, 'Searching page ' + (targetIndices[i] + 1) + '...');
-        var page4 = await pdf4search.getPage(targetIndices[i] + 1);
+      for (var j = 0; j < targetIndices.length; j++) {
+        onProgress && onProgress(0.2 + j / targetIndices.length * 0.7, 'Searching page ' + (targetIndices[j] + 1) + '...');
+        var page4 = await pdf4search.getPage(targetIndices[j] + 1);
         var tc = await page4.getTextContent();
-        var pg = allPages[targetIndices[i]];
-        var sz = pg.getSize();
+        var pg2 = allPages[targetIndices[j]];
 
         tc.items.forEach(function (item) {
           if (!item.str || !item.str.toLowerCase().includes(searchLower)) return;
@@ -181,7 +252,7 @@
           var y = item.transform[5];
           var w = Math.max(item.width || 60, 60);
           var h = Math.max(item.height || 14, 14);
-          pg.drawRectangle({
+          pg2.drawRectangle({
             x: x - 2,
             y: y - 2,
             width: w + 4,
@@ -195,9 +266,12 @@
     onProgress && onProgress(0.95, 'Saving...');
     var pdfBytes = await pdfDoc.save();
     var blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    return { blob: blob, filename: CONFIG.downloadName };
+    return {
+      blob: blob,
+      filename: file.name.replace(/\.pdf$/i, '') + '-redacted.pdf',
+    };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

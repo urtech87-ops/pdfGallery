@@ -19,7 +19,7 @@
         '<label><input type="radio" name="epub-chapters" value="none"> Single chapter</label>' +
       '</div>' +
     '</div>' +
-    '<p class="tg="tg-opt-info">Extracts all text from the PDF and packages it as a standard EPUB 2.0 ebook.</p>';
+    '<p class="tg-opt-info">Extracts all text from the PDF and packages it as a standard EPUB 2.0 ebook.</p>';
   }
 
   function getOptions(optionsEl) {
@@ -37,9 +37,26 @@
       .replace(/'/g, '&apos;');
   }
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   async function run(file, options, onProgress) {
-    if (!window.JSZip) throw new Error('JSZip library not loaded. Please refresh.');
-    if (!window.pdfjsLib) throw new Error('PDF library not loaded.');
+    if (!window.pdfjsLib) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    if (!window.JSZip) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      if (!window.JSZip) throw new Error('JSZip library failed to load. Please refresh.');
+    }
 
     onProgress && onProgress(0.05, 'Loading PDF...');
     var arrayBuffer = await file.arrayBuffer();
@@ -115,7 +132,7 @@
 
     zip.file('META-INF/container.xml',
       '<?xml version="1.0" encoding="UTF-8"?>\n' +
-      '<container version="1.0" xmlns="urn:oasis:schemas:container">\n' +
+      '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n' +
       '  <rootfiles>\n' +
       '    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>\n' +
       '  </rootfiles>\n' +
@@ -176,7 +193,7 @@
     onProgress && onProgress(0.95, 'Compressing...');
     var epubData = await zip.generateAsync({ type: 'arraybuffer', mimeType: 'application/epub+zip' });
     var blob = new Blob([epubData], { type: 'application/epub+zip' });
-    return { blob: blob, filename: CONFIG.downloadName };
+    return { blob: blob, filename: title + '.epub' };
   }
 
   window.TGTools = window.TGTools || {};
