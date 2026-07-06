@@ -42,16 +42,30 @@
   const GITHUB_CSS = `body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;color:#24292e;max-width:980px;margin:0 auto;padding:45px}h1,h2,h3,h4,h5,h6{margin-top:24px;margin-bottom:16px;font-weight:600;line-height:1.25}h1{font-size:2em;border-bottom:1px solid #eaecef;padding-bottom:.3em}h2{font-size:1.5em;border-bottom:1px solid #eaecef;padding-bottom:.3em}p{margin-top:0;margin-bottom:16px}code{background:#f6f8fa;padding:.2em .4em;border-radius:3px;font-family:monospace}pre{background:#f6f8fa;padding:16px;border-radius:6px;overflow:auto}pre code{background:none;padding:0}blockquote{margin:0;padding:0 1em;color:#6a737d;border-left:.25em solid #dfe2e5}table{border-collapse:collapse;width:100%}th,td{padding:6px 13px;border:1px solid #dfe2e5}tr:nth-child(even){background:#f6f8fa}a{color:#0366d6}img{max-width:100%}ul,ol{padding-left:2em;margin:0 0 16px}`;
   const BASIC_CSS = `body{font-family:Georgia,serif;font-size:16px;line-height:1.6;max-width:800px;margin:40px auto;padding:0 20px;color:#333}h1,h2,h3{margin-top:1.5em}code{background:#f4f4f4;padding:2px 6px;border-radius:3px;font-family:monospace}pre{background:#f4f4f4;padding:12px;border-radius:4px}blockquote{border-left:4px solid #ccc;padding-left:16px;color:#666}`;
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   async function run(file, options, onProgress) {
-    onProgress && onProgress(10, 'Reading Markdown…');
+    onProgress && onProgress(0.1, 'Reading Markdown…');
     const mdText = await file.text();
 
-    if (typeof marked === 'undefined') throw new Error('marked.js not loaded. Please refresh.');
+    if (typeof marked === 'undefined') {
+      onProgress && onProgress(0.2, 'Loading Markdown parser…');
+      await loadScript('https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js');
+      if (typeof marked === 'undefined') throw new Error('marked.js not loaded. Please refresh.');
+    }
 
     marked.setOptions({ breaks: true, gfm: true });
     const htmlContent = marked.parse(mdText);
 
-    onProgress && onProgress(60, 'Building output…');
+    onProgress && onProgress(0.6, 'Building output…');
 
     let finalHtml;
     if (options.outputType === 'full') {

@@ -151,6 +151,41 @@ function tg_enqueue_assets() {
             $tool_runner_deps[] = $p8_handle;
         }
 
+        /* =============================================
+           Phase 7 — File converter & data-input tools
+           with filemtime cache busting
+           ============================================= */
+        $file_tool_files = [
+            'excel-to-csv'   => 'excel-to-csv.js',
+            'csv-to-excel'   => 'csv-to-excel.js',
+            'json-to-csv'    => 'json-to-csv.js',
+            'csv-to-json'    => 'csv-to-json.js',
+            'xml-to-json'    => 'xml-to-json.js',
+            'json-to-xml'    => 'json-to-xml.js',
+            'md-to-html'     => 'md-to-html.js',
+            'html-to-md'     => 'html-to-md.js',
+            'txt-to-pdf'     => 'txt-to-pdf.js',
+            'pdf-to-txt'     => 'pdf-to-txt.js',
+            'html-to-pdf'    => 'html-to-pdf.js',
+            'base64-encoder' => 'base64-encoder.js',
+            'base64-decoder' => 'base64-decoder.js',
+            'url-encoder'    => 'url-encoder.js',
+            'hash-generator' => 'hash-generator.js',
+        ];
+
+        if (isset($file_tool_files[$tg_handler])) {
+            $ft_file_path = get_template_directory() . '/assets/js/tools/' . $file_tool_files[$tg_handler];
+            $ft_handle = 'tg-tool-' . $tg_handler;
+            wp_enqueue_script(
+                $ft_handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $file_tool_files[$tg_handler],
+                ['tg-pdf-tools'],
+                file_exists($ft_file_path) ? filemtime($ft_file_path) : $ver,
+                true
+            );
+            $tool_runner_deps[] = $ft_handle;
+        }
+
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 

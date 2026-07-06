@@ -70,7 +70,7 @@
   }
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(10, 'Reading JSON…');
+    onProgress && onProgress(0.1, 'Reading JSON…');
     const text = await file.text();
     let json;
     try {
@@ -96,7 +96,7 @@
       rows = expanded;
     }
 
-    onProgress && onProgress(40, 'Flattening…');
+    onProgress && onProgress(0.4, 'Flattening…');
     const flatRows = options.flatten ? rows.map(r => flattenObject(r)) : rows;
     const headers = [...new Set(flatRows.flatMap(r => Object.keys(r)))];
     const delim = options.delimiter;
@@ -110,7 +110,7 @@
     });
     const csv = csvLines.join('\n');
 
-    onProgress && onProgress(80, 'Done');
+    onProgress && onProgress(0.8, 'Done');
     showInfo(rows.length, headers.length, json);
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });

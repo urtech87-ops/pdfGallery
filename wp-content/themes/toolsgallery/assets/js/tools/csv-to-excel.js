@@ -25,20 +25,13 @@
   </div>
   <div class="tg-option-group">
     <label>Sheet Name</label>
-    <select id="opt-sheetname">
+    <select id="opt-sheetname" onchange="document.getElementById('opt-sheetname-custom').style.display=this.value==='custom'?'block':'none'">
       <option value="filename">Use Filename</option>
       <option value="custom">Custom…</option>
     </select>
     <input id="opt-sheetname-custom" type="text" placeholder="Sheet name" style="display:none;margin-top:6px;width:100%;padding:6px;border:1px solid #ddd;border-radius:4px">
   </div>
-</div>
-<script>
-(function(){
-  var sel = document.getElementById('opt-sheetname');
-  var inp = document.getElementById('opt-sheetname-custom');
-  if(sel) sel.addEventListener('change', function(){ inp.style.display = sel.value==='custom'?'block':'none'; });
-})();
-</script>`;
+</div>`;
   }
 
   function getOptions(el) {
@@ -58,13 +51,28 @@
     return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
   }
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   async function run(files, options, onProgress) {
+    if (!window.XLSX) {
+      onProgress && onProgress(0.05, 'Loading spreadsheet library…');
+      await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+      if (!window.XLSX) throw new Error('Excel library not loaded. Please refresh the page.');
+    }
     const fileList = Array.isArray(files) ? files : [files];
     const workbook = XLSX.utils.book_new();
 
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
-      onProgress && onProgress(Math.round((i / fileList.length) * 80), `Processing ${file.name}…`);
+      onProgress && onProgress((i / fileList.length) * 0.8, `Processing ${file.name}…`);
       const text = await file.text();
       const delim = options.delimiter === 'auto' ? detectDelimiter(text) : options.delimiter;
       const ws = XLSX.utils.csv_to_sheet(text, { FS: delim });
@@ -74,7 +82,7 @@
       XLSX.utils.book_append_sheet(workbook, ws, sheetName);
     }
 
-    onProgress && onProgress(90, 'Writing Excel…');
+    onProgress && onProgress(0.9, 'Writing Excel…');
     const excelBuf = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([excelBuf], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -82,7 +90,10 @@
 
     showPreview(fileList[0]);
 
-    return { blob, filename: 'converted.xlsx' };
+    const outName = fileList.length === 1
+      ? fileList[0].name.replace(/\.csv$/i, '') + '.xlsx'
+      : 'converted.xlsx';
+    return { blob, filename: outName };
   }
 
   async function showPreview(file) {

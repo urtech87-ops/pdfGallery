@@ -16,7 +16,7 @@
   <div class="tg-option-group">
     <label>Code Block Style</label>
     <select id="opt-code">
-      <option value="fenced">Fenced (```)</option>
+      <option value="fenced">Fenced (\`\`\`)</option>
       <option value="indented">Indented (4 spaces)</option>
     </select>
   </div>
@@ -46,13 +46,27 @@
     };
   }
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   async function run(file, options, onProgress) {
-    onProgress && onProgress(10, 'Reading HTML…');
+    onProgress && onProgress(0.1, 'Reading HTML…');
     const html = await file.text();
 
-    if (typeof TurndownService === 'undefined') throw new Error('Turndown.js not loaded. Please refresh.');
+    if (typeof TurndownService === 'undefined') {
+      onProgress && onProgress(0.2, 'Loading converter…');
+      await loadScript('https://cdn.jsdelivr.net/npm/turndown@7.1.2/dist/turndown.umd.min.js');
+      if (typeof TurndownService === 'undefined') throw new Error('Turndown.js not loaded. Please refresh.');
+    }
 
-    onProgress && onProgress(40, 'Converting…');
+    onProgress && onProgress(0.4, 'Converting…');
     const td = new TurndownService({
       headingStyle: options.headingStyle,
       codeBlockStyle: options.codeBlockStyle,
@@ -84,7 +98,7 @@
     }
 
     const markdown = td.turndown(html);
-    onProgress && onProgress(80, 'Done');
+    onProgress && onProgress(0.8, 'Done');
 
     showOutput(markdown);
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
