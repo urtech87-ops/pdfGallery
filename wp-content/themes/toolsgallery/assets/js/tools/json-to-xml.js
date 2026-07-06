@@ -83,19 +83,19 @@
   }
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(10, 'Reading JSON…');
+    onProgress && onProgress(0.1, 'Reading JSON…');
     const text = await file.text();
     let json;
     try { json = JSON.parse(text); } catch (e) { throw new Error('Invalid JSON: ' + e.message); }
 
-    onProgress && onProgress(40, 'Converting…');
+    onProgress && onProgress(0.4, 'Converting…');
     const indentChar = options.indent === 'tab' ? '\t' : options.indent === '0' ? '' : ' '.repeat(Number(options.indent));
     const nl = indentChar ? '\n' : '';
     const inner = jsonToXml(json, options.itemTag, indentChar, 1);
     let xml = `${indentChar ? '' : ''}<${options.rootName}>${nl}${inner}${nl}</${options.rootName}>`;
     if (options.declaration) xml = `<?xml version="1.0" encoding="UTF-8"?>${nl}${xml}`;
 
-    onProgress && onProgress(80, 'Done');
+    onProgress && onProgress(0.8, 'Done');
     showOutput(xml);
     const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' });
     return { blob, filename: file.name.replace(/\.json$/i, '') + '.xml' };

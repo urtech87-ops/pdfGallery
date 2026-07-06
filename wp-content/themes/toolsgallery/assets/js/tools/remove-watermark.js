@@ -28,7 +28,7 @@
       '</div>' +
     '</div>' +
     '<div id="wm-manual-opts" hidden>' +
-      '<p class="tg-opt-info">After processing starts, you can draw rectangles on the PDF page preview to mark watermark areas.</p>' +
+      '<p class="tg-opt-info">Draw rectangles on the PDF page preview below to mark watermark areas.</p>' +
       '<canvas id="wm-draw-canvas" style="border:1px solid #ccc;max-width:100%;cursor:crosshair;display:block;margin-bottom:8px;"></canvas>' +
       '<button type="button" id="wm-clear-rects" class="tg-btn-secondary">Clear All Rectangles</button>' +
     '</div>' +
@@ -41,34 +41,107 @@
       '<div id="wm-custom-pages-wrap" hidden style="margin-top:6px;">' +
         '<input type="text" id="wm-custom-pages" class="tg-text-input" placeholder="e.g. 1,3,5-8">' +
       '</div>' +
-    '</div>' +
-    '<script>' +
-    '(function(){' +
-      'var methodRadios=document.querySelectorAll("input[name=\\'wm-method\\']");' +
-      'methodRadios.forEach(function(r){r.addEventListener("change",function(){' +
-        'document.getElementById("wm-auto-opts").hidden=r.value!=="auto";' +
-        'document.getElementById("wm-manual-opts").hidden=r.value!=="manual";' +
-      '});});' +
-      'var pagesRadios=document.querySelectorAll("input[name=\\'wm-pages\\']");' +
-      'pagesRadios.forEach(function(r){r.addEventListener("change",function(){' +
-        'var wrap=document.getElementById("wm-custom-pages-wrap");if(wrap)wrap.hidden=r.value!=="custom";' +
-      '});});' +
-      // Manual drawing
-      'var dc=document.getElementById("wm-draw-canvas");' +
-      'window._tgWmRects=[];' +
-      'if(dc){var dctx=dc.getContext("2d");var drawing=false,startX=0,startY=0;' +
-        'dc.addEventListener("mousedown",function(e){drawing=true;var r=dc.getBoundingClientRect();startX=e.clientX-r.left;startY=e.clientY-r.top;});' +
-        'dc.addEventListener("mouseup",function(e){if(!drawing)return;drawing=false;var r=dc.getBoundingClientRect();var ex=e.clientX-r.left;var ey=e.clientY-r.top;' +
-          'var rect={x:Math.min(startX,ex)/dc.offsetWidth,y:Math.min(startY,ey)/dc.offsetHeight,w:Math.abs(ex-startX)/dc.offsetWidth,h:Math.abs(ey-startY)/dc.offsetHeight};' +
-          'window._tgWmRects.push(rect);' +
-          'dctx.strokeStyle="#FF0000";dctx.lineWidth=2;' +
-          'dctx.strokeRect(Math.min(startX,ex),Math.min(startY,ey),Math.abs(ex-startX),Math.abs(ey-startY));' +
-        '});' +
-        'var clearBtn=document.getElementById("wm-clear-rects");' +
-        'if(clearBtn)clearBtn.addEventListener("click",function(){window._tgWmRects=[];dctx.clearRect(0,0,dc.width,dc.height);});' +
-      '}' +
-    '})();' +
-    '<\/script>';
+    '</div>';
+  }
+
+  var _rects = [];        // [{x, y, w, h}] as fractions of the page
+  var _pageSnapshot = null;
+
+  function redrawCanvas(canvas) {
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (_pageSnapshot) ctx.drawImage(_pageSnapshot, 0, 0);
+    ctx.strokeStyle = '#FF0000';
+    ctx.lineWidth = 2;
+    _rects.forEach(function (r) {
+      ctx.strokeRect(r.x * canvas.width, r.y * canvas.height, r.w * canvas.width, r.h * canvas.height);
+    });
+  }
+
+  function wireOptions(optionsEl) {
+    var dc = optionsEl.querySelector('#wm-draw-canvas');
+    if (!dc || dc.dataset.wired) return;
+    dc.dataset.wired = '1';
+
+    optionsEl.querySelectorAll('input[name="wm-method"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var autoOpts = optionsEl.querySelector('#wm-auto-opts');
+        var manualOpts = optionsEl.querySelector('#wm-manual-opts');
+        if (autoOpts) autoOpts.hidden = r.value !== 'auto';
+        if (manualOpts) manualOpts.hidden = r.value !== 'manual';
+      });
+    });
+
+    optionsEl.querySelectorAll('input[name="wm-pages"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var wrap = optionsEl.querySelector('#wm-custom-pages-wrap');
+        if (wrap) wrap.hidden = r.value !== 'custom';
+      });
+    });
+
+    var drawing = false, startX = 0, startY = 0;
+
+    function canvasPos(e) {
+      var r = dc.getBoundingClientRect();
+      return {
+        x: (e.clientX - r.left) * (dc.width / r.width),
+        y: (e.clientY - r.top) * (dc.height / r.height),
+      };
+    }
+
+    dc.addEventListener('mousedown', function (e) {
+      drawing = true;
+      var p = canvasPos(e);
+      startX = p.x; startY = p.y;
+    });
+    document.addEventListener('mouseup', function (e) {
+      if (!drawing) return;
+      drawing = false;
+      var p = canvasPos(e);
+      var rect = {
+        x: Math.min(startX, p.x) / dc.width,
+        y: Math.min(startY, p.y) / dc.height,
+        w: Math.abs(p.x - startX) / dc.width,
+        h: Math.abs(p.y - startY) / dc.height,
+      };
+      if (rect.w * dc.width < 3 || rect.h * dc.height < 3) return;
+      _rects.push(rect);
+      redrawCanvas(dc);
+    });
+
+    var clearBtn = optionsEl.querySelector('#wm-clear-rects');
+    if (clearBtn) clearBtn.addEventListener('click', function () {
+      _rects = [];
+      redrawCanvas(dc);
+    });
+  }
+
+  function onFileReady(file, optionsEl) {
+    if (!optionsEl) return;
+    _rects = [];
+    _pageSnapshot = null;
+    wireOptions(optionsEl);
+
+    var dc = optionsEl.querySelector('#wm-draw-canvas');
+    if (!dc || !window.pdfjsLib) return;
+
+    file.arrayBuffer().then(function (ab) {
+      return pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise;
+    }).then(function (pdf) {
+      return pdf.getPage(1);
+    }).then(function (page) {
+      var vp = page.getViewport({ scale: 1.0 });
+      var scale = Math.min(500 / vp.width, 400 / vp.height);
+      var rvp = page.getViewport({ scale: scale });
+      dc.width = rvp.width;
+      dc.height = rvp.height;
+      return page.render({ canvasContext: dc.getContext('2d'), viewport: rvp }).promise;
+    }).then(function () {
+      _pageSnapshot = document.createElement('canvas');
+      _pageSnapshot.width = dc.width;
+      _pageSnapshot.height = dc.height;
+      _pageSnapshot.getContext('2d').drawImage(dc, 0, 0);
+    }).catch(function () {});
   }
 
   function getOptions(optionsEl) {
@@ -82,7 +155,7 @@
       wmText: wmText ? wmText.value.trim() : '',
       pagesMode: pages ? pages.value : 'all',
       customPagesStr: customPages ? customPages.value : '',
-      manualRects: window._tgWmRects || [],
+      manualRects: _rects.slice(),
     };
   }
 
@@ -179,6 +252,7 @@
     } else {
       // Manual rectangles
       var rects = options.manualRects || [];
+      if (!rects.length) throw new Error('Please draw at least one rectangle over the watermark area first.');
       for (var i = 0; i < targetIndices.length; i++) {
         onProgress && onProgress(0.2 + i / targetIndices.length * 0.7, 'Applying to page ' + (targetIndices[i] + 1) + '...');
         var pg = allPages[targetIndices[i]];
@@ -198,9 +272,12 @@
     onProgress && onProgress(0.95, 'Saving...');
     var pdfBytes = await pdfDoc.save();
     var blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    return { blob: blob, filename: CONFIG.downloadName };
+    return {
+      blob: blob,
+      filename: file.name.replace(/\.pdf$/i, '') + '-clean.pdf',
+    };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

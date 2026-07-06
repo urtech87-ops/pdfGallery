@@ -19,141 +19,39 @@
 
     if (urlField && urlActionBtn) {
       urlField.addEventListener('input', function () {
-        urlActionBtn.disabled = !urlField.value.match(/^https?:\/\/.+/);
+        urlActionBtn.disabled = urlField.value.trim() === '';
       });
 
       urlActionBtn.addEventListener('click', function () {
         var url = urlField.value.trim();
-        if (!url.match(/^https?:\/\/.+/)) return;
-        urlActionBtn.disabled = true;
-        if (urlProgress) urlProgress.hidden = false;
-
-        var nonceEl = urlBox.querySelector('#tg_nonce');
-        var nonce = nonceEl ? nonceEl.value : '';
-        var ajaxUrl = (typeof tgAiConfig !== 'undefined' && tgAiConfig.ajaxUrl)
-          ? tgAiConfig.ajaxUrl : '/wp-admin/admin-ajax.php';
-
-        var formData = new FormData();
-        formData.append('action', 'tg_url_to_pdf');
-        formData.append('nonce', nonce);
-        formData.append('url', url);
-
-        function urlShowError(msg) {
-            if (urlProgress) urlProgress.hidden = true;
-            if (urlResult)   urlResult.hidden   = false;
-            if (urlSuccess)  urlSuccess.hidden  = true;
-            if (urlError)    urlError.hidden    = false;
-            if (urlErrorMsg) urlErrorMsg.textContent = msg;
-            urlActionBtn.disabled = false;
+        if (!url) {
+          alert('Please enter a URL first.');
+          return;
         }
-
-        function urlFallbackPrint(html, fetchedUrl) {
-            var win = window.open('', '_blank', 'width=900,height=700');
-            if (win) {
-                win.document.write(
-                  '<!DOCTYPE html><html><head><title>Print to PDF</title>' +
-                  '<base href="' + fetchedUrl + '">' +
-                  '<style>body{font-family:sans-serif;padding:20px;}@media print{.no-print{display:none}}</style></head><body>' +
-                  '<div class="no-print" style="background:#fff3cd;border:1px solid #ffe082;padding:15px;margin-bottom:20px;border-radius:8px;">' +
-                    '<strong>Note:</strong> Some pages cannot be captured directly due to browser security. ' +
-                    'To save as PDF: Press Ctrl+P → Select "Save as PDF" → Click Save.' +
-                  '</div>' +
-                  html +
-                  '</body></html>'
-                );
-                win.document.close();
-            }
-            if (urlResult)  urlResult.hidden  = false;
-            if (urlSuccess) urlSuccess.hidden = false;
-            if (urlError)   urlError.hidden   = true;
-            urlActionBtn.disabled = false;
+        if (!url.match(/^https?:\/\//i)) {
+          url = 'https://' + url;
         }
-
-        function updateUrlProgress(msg) {
-            var bar = urlBox.querySelector('.tg-progress-label');
-            if (bar) bar.textContent = msg;
+        var newTab = window.open(url, '_blank');
+        if (!newTab) {
+          alert('Popup blocked. Please allow popups for this site, then try again.');
+          return;
         }
-
-        fetch(ajaxUrl, { method: 'POST', body: formData })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (!data.success) {
-              urlShowError((data.data && data.data.message) ? data.data.message : 'An error occurred');
-              return;
-            }
-
-            var html = data.data.html;
-            var fetchedUrl = data.data.url || url;
-
-            updateUrlProgress('Rendering page...');
-
-            // Render HTML in hidden iframe, capture with html2canvas, produce PDF
-            var iframe = document.createElement('iframe');
-            iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1280px;height:900px;border:none;';
-            document.body.appendChild(iframe);
-
-            iframe.onload = function () {
-                updateUrlProgress('Generating PDF...');
-                if (typeof html2canvas === 'undefined') {
-                    document.body.removeChild(iframe);
-                    urlFallbackPrint(html, fetchedUrl);
-                    return;
-                }
-                html2canvas(iframe.contentDocument.body, {
-                    width: 1280,
-                    scale: 1,
-                    useCORS: true,
-                    allowTaint: true,
-                    logging: false,
-                }).then(function (canvas) {
-                    var imgData = canvas.toDataURL('image/jpeg', 0.85);
-                    return fetch(imgData).then(function (r) { return r.arrayBuffer(); })
-                      .then(function (imgBytes) {
-                        return PDFLib.PDFDocument.create().then(function (pdfDoc) {
-                            return pdfDoc.embedJpg(imgBytes).then(function (jpgImg) {
-                                var page = pdfDoc.addPage([jpgImg.width, jpgImg.height]);
-                                page.drawImage(jpgImg, { x: 0, y: 0, width: jpgImg.width, height: jpgImg.height });
-                                return pdfDoc.save();
-                            });
-                        });
-                      });
-                }).then(function (pdfBytes) {
-                    document.body.removeChild(iframe);
-                    var blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                    if (typeof download === 'function') {
-                        download(blob, 'webpage.pdf', 'application/pdf');
-                    } else {
-                        var a = document.createElement('a');
-                        a.href = URL.createObjectURL(blob);
-                        a.download = 'webpage.pdf';
-                        a.click();
-                    }
-                    if (urlProgress) urlProgress.hidden = true;
-                    if (urlResult)   urlResult.hidden   = false;
-                    if (urlSuccess)  urlSuccess.hidden  = false;
-                    if (urlError)    urlError.hidden    = true;
-                    urlActionBtn.disabled = false;
-                }).catch(function () {
-                    document.body.removeChild(iframe);
-                    urlFallbackPrint(html, fetchedUrl);
-                });
-            };
-
-            try {
-                iframe.contentDocument.open();
-                iframe.contentDocument.write(
-                    '<!DOCTYPE html><html><head><base href="' + fetchedUrl + '"></head><body>' +
-                    html + '</body></html>'
-                );
-                iframe.contentDocument.close();
-            } catch (e) {
-                document.body.removeChild(iframe);
-                urlFallbackPrint(html, fetchedUrl);
-            }
-          })
-          .catch(function () {
-            urlShowError('Network error. Please try again.');
-          });
+        if (urlProgress) urlProgress.hidden = true;
+        if (urlError)    urlError.hidden    = true;
+        if (urlResult)   urlResult.hidden   = false;
+        if (urlSuccess)  urlSuccess.hidden  = false;
+        // Show success instruction
+        var msgEl = urlBox.querySelector('.tg-url-msg, .tg-inline-msg');
+        if (!msgEl && urlResult) {
+          msgEl = document.createElement('p');
+          msgEl.className = 'tg-url-msg';
+          urlResult.insertBefore(msgEl, urlResult.firstChild);
+        }
+        if (msgEl) {
+          msgEl.textContent = 'Page opened! Press Ctrl+P in the new tab, then choose Save as PDF.';
+          msgEl.style.color = '#16a34a';
+          msgEl.hidden = false;
+        }
       });
 
       if (urlReset) {
@@ -743,6 +641,15 @@
 
     if (handler === 'unlock-pdf' || handler === 'protect-pdf' || handler === 'add-watermark' || handler === 'add-page-numbers' || handler === 'word-to-pdf') {
       if (optionsEl) optionsEl.hidden = false;
+    }
+
+    /* Phase 10: TGTools-based tools — show options and let the tool
+       prepare its UI (render previews, wire canvas events) */
+    if (window.TGTools && window.TGTools[handler]) {
+      if (optionsEl) optionsEl.hidden = false;
+      if (typeof window.TGTools[handler].onFileReady === 'function') {
+        try { window.TGTools[handler].onFileReady(file, optionsEl); } catch (e) {}
+      }
     }
   }
 
@@ -1631,6 +1538,13 @@
           if (labelEl && msg) labelEl.textContent = msg;
         }).then(function (result) {
           finishProgress();
+          if (!result) {
+            actionBtn.hidden = false;
+            if (fileSelected && currentFile) fileSelected.hidden = false;
+            if (fileListEl && isMulti && currentFiles.length) fileListEl.hidden = false;
+            showErrorResult('Tool returned no result. Please try again.');
+            return;
+          }
           if (result && result.noDownload) {
             if (resultEl)      resultEl.hidden      = false;
             if (successBanner) successBanner.hidden = false;
@@ -1653,8 +1567,11 @@
             if (errorBanner)   errorBanner.hidden   = true;
             if (downloadBtn)   downloadBtn.hidden   = true;
           } else {
+            if (blobUrl) URL.revokeObjectURL(blobUrl);
             blobUrl = URL.createObjectURL(result.blob);
-            downloadFilename = result.filename || 'output.pdf';
+            downloadFilename = result.filename
+              || (tool3c.CONFIG && tool3c.CONFIG.downloadName)
+              || 'output.pdf';
             showSuccessResult();
           }
         }).catch(function (e) {

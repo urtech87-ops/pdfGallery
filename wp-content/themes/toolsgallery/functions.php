@@ -87,6 +87,41 @@ function tg_enqueue_assets() {
             wp_enqueue_script('tg-pdf-decrypt', get_template_directory_uri() . '/assets/js/pdf-decrypt.js', ['tg-pdf-tools'], $ver, true);
             $tool_runner_deps[] = 'tg-pdf-decrypt';
         }
+        /* =============================================
+           Phase 10 — PDF tool scripts with filemtime
+           cache busting so browsers pick up JS changes
+           ============================================= */
+        $pdf_tool_files = [
+            'url-to-pdf'       => 'url-to-pdf.js',
+            'redact-pdf'       => 'redact-pdf.js',
+            'extract-images'   => 'extract-images.js',
+            'pdf-summarize'    => 'pdf-summarize.js',
+            'pdf-translate'    => 'pdf-translate.js',
+            'remove-watermark' => 'remove-watermark.js',
+            'crop-pdf'         => 'crop-pdf.js',
+            'add-signature'    => 'add-signature.js',
+            'epub-to-pdf'      => 'epub-to-pdf.js',
+            'pdf-to-epub'      => 'pdf-to-epub.js',
+            'ppt-to-pdf'       => 'ppt-to-pdf.js',
+            'pdf-to-ppt'       => 'pdf-to-ppt.js',
+            'pdf-to-word'      => 'pdf-to-word.js',
+            'word-to-pdf'      => 'word-to-pdf.js',
+            'pdf-to-excel'     => 'pdf-to-excel.js',
+            'excel-to-pdf'     => 'excel-to-pdf.js',
+        ];
+
+        if (isset($pdf_tool_files[$tg_handler])) {
+            $tool_file_path = get_template_directory() . '/assets/js/tools/' . $pdf_tool_files[$tg_handler];
+            $handle = 'tg-tool-' . $tg_handler;
+            wp_enqueue_script(
+                $handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $pdf_tool_files[$tg_handler],
+                ['tg-pdf-tools'],
+                file_exists($tool_file_path) ? filemtime($tool_file_path) : $ver,
+                true
+            );
+            $tool_runner_deps[] = $handle;
+        }
 
         /* =============================================
            Phase 8 — Utility Tools
@@ -114,6 +149,41 @@ function tg_enqueue_assets() {
                 true
             );
             $tool_runner_deps[] = $p8_handle;
+        }
+
+        /* =============================================
+           Phase 7 — File converter & data-input tools
+           with filemtime cache busting
+           ============================================= */
+        $file_tool_files = [
+            'excel-to-csv'   => 'excel-to-csv.js',
+            'csv-to-excel'   => 'csv-to-excel.js',
+            'json-to-csv'    => 'json-to-csv.js',
+            'csv-to-json'    => 'csv-to-json.js',
+            'xml-to-json'    => 'xml-to-json.js',
+            'json-to-xml'    => 'json-to-xml.js',
+            'md-to-html'     => 'md-to-html.js',
+            'html-to-md'     => 'html-to-md.js',
+            'txt-to-pdf'     => 'txt-to-pdf.js',
+            'pdf-to-txt'     => 'pdf-to-txt.js',
+            'html-to-pdf'    => 'html-to-pdf.js',
+            'base64-encoder' => 'base64-encoder.js',
+            'base64-decoder' => 'base64-decoder.js',
+            'url-encoder'    => 'url-encoder.js',
+            'hash-generator' => 'hash-generator.js',
+        ];
+
+        if (isset($file_tool_files[$tg_handler])) {
+            $ft_file_path = get_template_directory() . '/assets/js/tools/' . $file_tool_files[$tg_handler];
+            $ft_handle = 'tg-tool-' . $tg_handler;
+            wp_enqueue_script(
+                $ft_handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $file_tool_files[$tg_handler],
+                ['tg-pdf-tools'],
+                file_exists($ft_file_path) ? filemtime($ft_file_path) : $ver,
+                true
+            );
+            $tool_runner_deps[] = $ft_handle;
         }
 
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);

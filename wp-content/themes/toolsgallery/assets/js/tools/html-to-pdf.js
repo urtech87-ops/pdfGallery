@@ -73,9 +73,28 @@
     await convertPastedHtml(html);
   };
 
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
   async function convertPastedHtml(html) {
     if (typeof html2canvas === 'undefined') {
+      try {
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      } catch (e) {}
+    }
+    if (typeof html2canvas === 'undefined') {
       alert('html2canvas library not loaded. Please refresh.');
+      return;
+    }
+    if (typeof PDFLib === 'undefined') {
+      alert('PDF library not loaded. Please refresh.');
       return;
     }
     const iframe = document.getElementById('tg-html-iframe');
@@ -93,7 +112,7 @@
   }
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(20, 'Reading HTML file…');
+    onProgress && onProgress(0.2, 'Reading HTML file…');
     const html = await file.text();
 
     // Inject print CSS and open print window
@@ -104,7 +123,7 @@
     const printCss = `<style>@page{size:${sizeVal} ${orientVal};margin:${marginVal}}@media print{body{-webkit-print-color-adjust:exact}}</style>`;
     const fullHtml = html.includes('<head>') ? html.replace('</head>', printCss + '</head>') : printCss + html;
 
-    onProgress && onProgress(60, 'Opening print dialog…');
+    onProgress && onProgress(0.6, 'Opening print dialog…');
     const win = window.open('', '_blank');
     if (!win) throw new Error('Pop-up blocked. Please allow pop-ups for this site.');
     win.document.write(fullHtml);
@@ -113,9 +132,9 @@
     win.print();
 
     showInstructions();
-    // Return a dummy blob — actual PDF comes from print dialog
-    const blob = new Blob([fullHtml], { type: 'text/html' });
-    return { blob, filename: file.name.replace(/\.html?$/i, '') + '.html', skipDownload: true };
+    // Actual PDF comes from the print dialog — suppress the download button
+    const blob = new Blob([''], { type: 'text/plain' });
+    return { blob, filename: 'converted.pdf', noDownload: true };
   }
 
   function showInstructions() {

@@ -90,7 +90,7 @@
       document.getElementById('b64d-stats').textContent = `Encoded: ${b64Data.length} chars → Decoded: ${bytes.length} bytes`;
 
       // Check if image
-      if (mimeType.startsWith('image/') || dataUrlMatch) {
+      if (mimeType.startsWith('image/')) {
         const imgEl = document.getElementById('b64d-img');
         imgEl.src = dataUrlMatch ? raw : 'data:image/png;base64,' + b64Data;
         document.getElementById('b64d-img-result').style.display = '';
