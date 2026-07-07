@@ -114,16 +114,48 @@
     if (!summary) throw new Error('AI returned an empty summary. Please try again or use a different PDF.');
 
     onProgress && onProgress(0.9, 'Displaying summary...');
+    showResult(summary);
 
+    var blob = new Blob([summary], { type: 'text/plain' });
+    return { blob: blob, filename: CONFIG.downloadName };
+  }
+
+  function showResult(summary) {
     var outputWrap = document.getElementById('sum-output-wrap');
     var outputContent = document.getElementById('sum-output-content');
-    if (outputWrap) outputWrap.hidden = false;
-    if (outputContent) outputContent.textContent = summary;
+
+    if (!outputWrap || !outputContent) {
+      var host = document.querySelector('.tg-tool-box .tg-options') ||
+                 document.querySelector('.tg-tool-box') || document.body;
+      outputWrap = document.createElement('div');
+      outputWrap.id = 'sum-output-wrap';
+      outputWrap.style.cssText = 'margin-top:12px;';
+      outputWrap.innerHTML =
+        '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">' +
+          '<strong style="flex:1 0 100%;margin-bottom:4px;">Summary:</strong>' +
+          '<button type="button" id="sum-copy-btn" class="tg-btn-secondary">Copy Text</button>' +
+          '<button type="button" id="sum-dl-txt" class="tg-btn-secondary">Download .txt</button>' +
+        '</div>' +
+        '<div id="sum-output-content" style="background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:12px;max-height:350px;overflow-y:auto;white-space:pre-wrap;font-family:Georgia,serif;line-height:1.6;font-size:14px;"></div>';
+      host.appendChild(outputWrap);
+      outputContent = document.getElementById('sum-output-content');
+    }
+
+    outputWrap.hidden = false;
+    outputWrap.style.display = 'block';
+    outputContent.textContent = summary;
 
     var copyBtn = document.getElementById('sum-copy-btn');
     if (copyBtn) {
       copyBtn.onclick = function () {
-        navigator.clipboard.writeText(summary).catch(function () {});
+        navigator.clipboard.writeText(summary).catch(function () {
+          var ta = document.createElement('textarea');
+          ta.value = summary;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        });
         copyBtn.textContent = 'Copied!';
         setTimeout(function () { copyBtn.textContent = 'Copy Text'; }, 2000);
       };
@@ -139,8 +171,7 @@
       };
     }
 
-    var blob = new Blob([summary], { type: 'text/plain' });
-    return { blob: blob, filename: CONFIG.downloadName };
+    try { outputWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
   }
 
   window.TGTools = window.TGTools || {};

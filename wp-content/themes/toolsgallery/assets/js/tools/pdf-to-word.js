@@ -92,8 +92,18 @@
 
     var docxLoaded = await waitForDocx(3);
     if (!docxLoaded) {
-      await loadScript('https://unpkg.com/docx@7.8.2/build/index.umd.js');
-      docxLoaded = await waitForDocx(5);
+      /* Load docx dynamically — try several CDNs before giving up */
+      var docxSources = [
+        'https://cdnjs.cloudflare.com/ajax/libs/docx/7.8.2/docx.umd.min.js',
+        'https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.umd.js',
+        'https://unpkg.com/docx@7.8.2/build/index.umd.js',
+      ];
+      for (var si = 0; si < docxSources.length && !docxLoaded; si++) {
+        try {
+          await loadScript(docxSources[si]);
+          docxLoaded = await waitForDocx(5);
+        } catch (e) { /* try next CDN */ }
+      }
       if (!docxLoaded) {
         throw new Error('Document library failed to load. Please check your internet connection and refresh.');
       }
