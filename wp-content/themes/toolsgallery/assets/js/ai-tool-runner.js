@@ -134,6 +134,7 @@
     }
   } // end initAiToolRunner
 
-  // Use setTimeout to allow custom tool JS to register first
-  setTimeout(initAiToolRunner, 0);
+  // Use setTimeout to allow custom tool JS files to register
+  // in window.TGTools before this check runs
+  setTimeout(initAiToolRunner, 100);
 })();

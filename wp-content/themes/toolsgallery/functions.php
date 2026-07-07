@@ -652,6 +652,9 @@ function tg_ai_proxy_handler()
     set_transient($ip_key, $count + 1, HOUR_IN_SECONDS);
 
     $result = tg_call_openrouter($tool, $payload);
+    if (isset($result['error'])) {
+        wp_send_json_error(['message' => $result['error']], 500);
+    }
     wp_send_json_success($result);
 }
 
@@ -681,7 +684,7 @@ function tg_call_openrouter($tool_key, $payload)
     }
 
     $request_body = wp_json_encode([
-        'model' => 'google/gemini-2.5-flash-preview',
+        'model' => $config['model'] ?? 'google/gemini-flash-1.5',
         'messages' => [
             [
                 'role' => 'system',
@@ -749,7 +752,7 @@ function tg_get_tool_prompts()
 {
     return [
         'pdf-summarize' => [
-            'model' => 'google/gemini-3.5-flash',
+            'model' => 'google/gemini-flash-1.5',
             'max_tokens' => 2000,
             'system' => 'You are an expert document analyst. Summarize the provided text clearly and accurately. Be concise but comprehensive.',
             'user_template' => "Summarize the following document text {format} ({length} summary):\n\n{text}",
@@ -928,12 +931,19 @@ function tg_get_tool_prompts()
 function tg_build_user_prompt($config, $payload)
 {
     $template = $config['user_template'] ?? '{text}';
+
+    if (!is_array($payload) || empty($payload)) {
+        return $template;
+    }
+
     foreach ($payload as $key => $value) {
         $clean = sanitize_textarea_field(wp_unslash($value));
         $template = str_replace('{' . $key . '}', $clean, $template);
     }
-    $template = preg_replace('/\{[a-z_]+\}/', '', $template);
-    return $template;
+
+    $template = preg_replace('/\{[a-zA-Z0-9_]+\}/', '', $template);
+
+    return trim($template);
 }
 
 /* =============================================
