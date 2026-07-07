@@ -17,8 +17,20 @@
   var _canvas = null, _ctx = null;
 
   function getOptionsHTML(pageCount) {
-    var pagesOptions = '<option value="last">Last page only</option><option value="all">All pages</option><option value="custom">Custom page(s)</option>';
-    return '<div class="tg-sig-tabs" style="display:flex;gap:4px;margin-bottom:12px;">' +
+    var pagesOptions = '<option value="last">Last page only</option><option value="all">All pages</option><option value="current">Shown page only</option><option value="custom">Custom page(s)</option>';
+    return '<div id="sig-pdf-preview" hidden style="margin-bottom:14px;">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">' +
+        '<button type="button" id="sig-prev-page" class="tg-btn-secondary" style="padding:2px 12px;">← Prev</button>' +
+        '<span id="sig-page-info" style="font-size:13px;">Page 1</span>' +
+        '<button type="button" id="sig-next-page" class="tg-btn-secondary" style="padding:2px 12px;">Next →</button>' +
+      '</div>' +
+      '<div id="sig-preview-canvas-wrap" style="position:relative;display:inline-block;border:1px solid #ccc;">' +
+        '<canvas id="sig-preview-canvas" style="display:block;cursor:crosshair;max-width:100%;"></canvas>' +
+        '<div id="sig-preview-marker" hidden style="position:absolute;pointer-events:none;border:2px dashed #E07B39;background:rgba(224,123,57,0.15);transform:translate(-50%,-50%);"></div>' +
+      '</div>' +
+      '<p style="font-size:12px;color:#666;margin:6px 0 0;">Click on the page to place your signature. Use Prev/Next to choose a page.</p>' +
+    '</div>' +
+    '<div class="tg-sig-tabs" style="display:flex;gap:4px;margin-bottom:12px;">' +
       '<button type="button" class="tg-sig-tab tg-sig-tab--active" data-tab="draw">Draw</button>' +
       '<button type="button" class="tg-sig-tab" data-tab="type">Type</button>' +
       '<button type="button" class="tg-sig-tab" data-tab="upload">Upload</button>' +
@@ -91,6 +103,59 @@
   var _hasDrawn = false;
   var _sigUploadDataUrl = null;
 
+  /* PDF preview / click-to-place state */
+  var _previewPdf = null;
+  var _previewPageIdx = 0;
+  var _previewNumPages = 1;
+  var _placement = null; // { xFrac, yFrac } click position on the page
+
+  function renderSigPreview(optionsEl) {
+    if (!_previewPdf) return;
+    var canvas = optionsEl.querySelector('#sig-preview-canvas');
+    var info = optionsEl.querySelector('#sig-page-info');
+    if (!canvas) return;
+    _previewPdf.getPage(_previewPageIdx + 1).then(function (page) {
+      var vp = page.getViewport({ scale: 1.0 });
+      var scale = Math.min(460 / vp.width, 560 / vp.height, 1.5);
+      var rvp = page.getViewport({ scale: scale });
+      canvas.width = rvp.width;
+      canvas.height = rvp.height;
+      page.render({ canvasContext: canvas.getContext('2d'), viewport: rvp });
+      if (info) info.textContent = 'Page ' + (_previewPageIdx + 1) + ' of ' + _previewNumPages;
+      updatePreviewMarker(optionsEl);
+    }).catch(function () {});
+  }
+
+  function updatePreviewMarker(optionsEl) {
+    var marker = optionsEl.querySelector('#sig-preview-marker');
+    var canvas = optionsEl.querySelector('#sig-preview-canvas');
+    if (!marker || !canvas) return;
+    if (!_placement) { marker.hidden = true; return; }
+    var szSlider = optionsEl.querySelector('#sig-size');
+    var sigW = szSlider ? parseInt(szSlider.value, 10) : 150;
+    var wpx = canvas.offsetWidth || canvas.width;
+    var scaleFactor = wpx / (canvas.width || 1);
+    marker.hidden = false;
+    marker.style.left = (_placement.xFrac * 100) + '%';
+    marker.style.top = (_placement.yFrac * 100) + '%';
+    marker.style.width = Math.max(20, sigW * 0.4 * scaleFactor) + 'px';
+    marker.style.height = Math.max(10, sigW * 0.15 * scaleFactor) + 'px';
+  }
+
+  function initPreview(file, optionsEl) {
+    if (!window.pdfjsLib) return;
+    var wrap = optionsEl.querySelector('#sig-pdf-preview');
+    file.arrayBuffer().then(function (ab) {
+      return pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise;
+    }).then(function (pdf) {
+      _previewPdf = pdf;
+      _previewNumPages = pdf.numPages;
+      _previewPageIdx = 0;
+      if (wrap) wrap.hidden = false;
+      renderSigPreview(optionsEl);
+    }).catch(function () {});
+  }
+
   function wireOptions(optionsEl) {
     var c = optionsEl.querySelector('#sig-canvas');
     if (!c || c.dataset.wired) return;
@@ -99,7 +164,42 @@
     _activeTab = 'draw';
     _hasDrawn = false;
     _sigUploadDataUrl = null;
+    _placement = null;
+    _previewPageIdx = 0;
     _canvas = c;
+
+    /* PDF preview navigation + click-to-place */
+    var prevBtn = optionsEl.querySelector('#sig-prev-page');
+    if (prevBtn) prevBtn.addEventListener('click', function () {
+      if (_previewPageIdx > 0) { _previewPageIdx--; renderSigPreview(optionsEl); }
+    });
+    var nextBtn = optionsEl.querySelector('#sig-next-page');
+    if (nextBtn) nextBtn.addEventListener('click', function () {
+      if (_previewPageIdx < _previewNumPages - 1) { _previewPageIdx++; renderSigPreview(optionsEl); }
+    });
+    var previewCanvas = optionsEl.querySelector('#sig-preview-canvas');
+    if (previewCanvas) previewCanvas.addEventListener('click', function (e) {
+      var r = previewCanvas.getBoundingClientRect();
+      _placement = {
+        xFrac: Math.max(0, Math.min((e.clientX - r.left) / r.width, 1)),
+        yFrac: Math.max(0, Math.min((e.clientY - r.top) / r.height, 1)),
+      };
+      /* Sync the custom-position controls so run() picks it up */
+      var posSel2 = optionsEl.querySelector('#sig-position-sel');
+      if (posSel2) {
+        posSel2.value = 'custom';
+        var cp = optionsEl.querySelector('#sig-custom-pos');
+        if (cp) cp.hidden = false;
+      }
+      var cx = optionsEl.querySelector('#sig-custom-x');
+      var cy = optionsEl.querySelector('#sig-custom-y');
+      if (cx) cx.value = Math.round(_placement.xFrac * 100);
+      if (cy) cy.value = Math.round(_placement.yFrac * 100);
+      /* If a single page is being previewed, default to shown-page only */
+      var pgSel2 = optionsEl.querySelector('#sig-pages-sel');
+      if (pgSel2 && (pgSel2.value === 'last' || pgSel2.value === 'all')) pgSel2.value = 'current';
+      updatePreviewMarker(optionsEl);
+    });
 
     /* Tabs */
     var tabs = optionsEl.querySelectorAll('.tg-sig-tab');
@@ -241,7 +341,9 @@
   }
 
   function onFileReady(file, optionsEl) {
-    if (optionsEl) wireOptions(optionsEl);
+    if (!optionsEl) return;
+    wireOptions(optionsEl);
+    if (file) initPreview(file, optionsEl);
   }
 
   function getOptions(optionsEl) {
@@ -274,6 +376,7 @@
       pagesMode: pages ? pages.value : 'last',
       customPagesStr: customPages ? customPages.value : '',
       sigWidth: sizeSlider ? parseInt(sizeSlider.value, 10) : 150,
+      previewPageIdx: _previewPageIdx,
     };
   }
 
@@ -310,11 +413,15 @@
     var targetPageIndices;
     if (options.pagesMode === 'all') {
       targetPageIndices = pages.map(function (_, i) { return i; });
+    } else if (options.pagesMode === 'current') {
+      var idx = Math.max(0, Math.min(options.previewPageIdx || 0, totalPages - 1));
+      targetPageIndices = [idx];
     } else if (options.pagesMode === 'custom' && options.customPagesStr) {
       targetPageIndices = parsePageRange(options.customPagesStr, totalPages);
     } else {
       targetPageIndices = [totalPages - 1]; // last page
     }
+    if (!targetPageIndices.length) targetPageIndices = [totalPages - 1];
 
     onProgress && onProgress(0.3, 'Embedding signature...');
 

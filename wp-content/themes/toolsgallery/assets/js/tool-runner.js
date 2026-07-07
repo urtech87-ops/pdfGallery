@@ -36,6 +36,19 @@
           alert('Popup blocked. Please allow popups for this site, then try again.');
           return;
         }
+        /* Try to trigger the print dialog automatically once the page loads.
+           Cross-origin pages block scripted print() — the try/catch keeps the
+           flow working and the instructions below cover that case. */
+        try {
+          newTab.addEventListener('load', function () {
+            setTimeout(function () {
+              try { newTab.print(); } catch (e) {}
+            }, 1000);
+          });
+        } catch (e) {}
+        setTimeout(function () {
+          try { newTab.focus(); newTab.print(); } catch (e) {}
+        }, 2500);
         if (urlProgress) urlProgress.hidden = true;
         if (urlError)    urlError.hidden    = true;
         if (urlResult)   urlResult.hidden   = false;
@@ -48,7 +61,7 @@
           urlResult.insertBefore(msgEl, urlResult.firstChild);
         }
         if (msgEl) {
-          msgEl.textContent = 'Page opened! Press Ctrl+P in the new tab, then choose Save as PDF.';
+          msgEl.textContent = 'Page opened! The print dialog should appear automatically — choose "Save as PDF". If it doesn\'t appear, press Ctrl+P in the new tab.';
           msgEl.style.color = '#16a34a';
           msgEl.hidden = false;
         }
@@ -342,9 +355,9 @@
     if (h === 'protect-pdf') {
       container.innerHTML =
         '<label class="tg-opt-label" for="protect-pw">Open Password <span class="tg-opt-hint">(required to open the PDF)</span></label>' +
-        '<input type="password" id="protect-pw" class="tg-text-input" placeholder="Set a password to open this PDF">' +
+        '<input type="password" id="protect-pw" class="tg-text-input" value="Password@123" placeholder="Set a password to open this PDF">' +
         '<label class="tg-opt-label" for="protect-pw2" style="margin-top:10px">Confirm Password</label>' +
-        '<input type="password" id="protect-pw2" class="tg-text-input" placeholder="Repeat the password">' +
+        '<input type="password" id="protect-pw2" class="tg-text-input" value="Password@123" placeholder="Repeat the password">' +
         '<details style="margin-top:12px"><summary class="tg-opt-label" style="cursor:pointer">Advanced permissions</summary>' +
         '<div class="tg-checkbox-group" style="margin-top:8px">' +
           '<label><input type="checkbox" id="perm-print" checked> Allow Printing</label>' +
@@ -579,6 +592,11 @@
       if (t3c.getOptionsHTML) {
         container.innerHTML = t3c.getOptionsHTML(0);
         container.hidden = false;
+      }
+      /* Inline <script> tags in injected HTML never execute — tools wire
+         their option events through this hook instead. */
+      if (typeof t3c.wireOptions === 'function') {
+        try { t3c.wireOptions(container); } catch (e) {}
       }
     }
   }
@@ -977,8 +995,13 @@
         return;
       }
 
+      /* When a dedicated TGTools implementation is loaded for one of these
+         handlers it takes precedence over the legacy inline branch below —
+         the generic dispatcher at the bottom runs it. */
+      var hasTgTool = !!(window.TGTools && window.TGTools[handler]);
+
       /* ── COMPRESS ── */
-      if (handler === 'compress') {
+      if (handler === 'compress' && !hasTgTool) {
         if (!currentFile) return;
         var qualityInput = optionsEl ? optionsEl.querySelector('input[name="compress-quality"]:checked') : null;
         var quality = qualityInput ? qualityInput.value : 'standard';
@@ -1124,7 +1147,7 @@
       }
 
       /* ── PDF TO WORD ── */
-      if (handler === 'pdf-to-word') {
+      if (handler === 'pdf-to-word' && !hasTgTool) {
         if (!currentFile) return;
         startProgress();
         window.TGPdfTools.pdfToWord(currentFile, function (done, total) {
@@ -1202,7 +1225,7 @@
       }
 
       /* ── UNLOCK PDF ── */
-      if (handler === 'unlock-pdf') {
+      if (handler === 'unlock-pdf' && !hasTgTool) {
         if (!currentFile) return;
         var pwInput = optionsEl ? optionsEl.querySelector('#unlock-password') : null;
         var pw = pwInput ? pwInput.value : '';
@@ -1224,7 +1247,7 @@
       }
 
       /* ── PROTECT PDF ── */
-      if (handler === 'protect-pdf') {
+      if (handler === 'protect-pdf' && !hasTgTool) {
         if (!currentFile) return;
         var pw1El = optionsEl ? optionsEl.querySelector('#protect-pw') : null;
         var pw2El = optionsEl ? optionsEl.querySelector('#protect-pw2') : null;
@@ -1342,7 +1365,7 @@
       }
 
       /* ── ADD WATERMARK ── */
-      if (handler === 'add-watermark') {
+      if (handler === 'add-watermark' && !hasTgTool) {
         if (!currentFile) return;
         var activeTab = optionsEl ? optionsEl.querySelector('.tg-tab-btn--active') : null;
         var isImgTab = activeTab && activeTab.dataset.tab === 'wm-image';
@@ -1409,7 +1432,7 @@
       }
 
       /* ── EXTRACT TEXT ── */
-      if (handler === 'extract-text') {
+      if (handler === 'extract-text' && !hasTgTool) {
         if (!currentFile) return;
         var etPageMode = optionsEl ? optionsEl.querySelector('input[name="et-pages"]:checked') : null;
         var etTargetPage = null;
@@ -1538,10 +1561,15 @@
           if (labelEl && msg) labelEl.textContent = msg;
         }).then(function (result) {
           finishProgress();
-          if (!result) {
+          /* Keep the tool usable after a successful run: restore the action
+             button and file row so the user can tweak options (radio buttons,
+             boxes, pages) and process again without re-uploading. */
+          setTimeout(function () {
             actionBtn.hidden = false;
             if (fileSelected && currentFile) fileSelected.hidden = false;
             if (fileListEl && isMulti && currentFiles.length) fileListEl.hidden = false;
+          }, 250);
+          if (!result) {
             showErrorResult('Tool returned no result. Please try again.');
             return;
           }

@@ -94,6 +94,15 @@
       var p = canvasPos(e);
       startX = p.x; startY = p.y;
     });
+    dc.addEventListener('mousemove', function (e) {
+      if (!drawing) return;
+      var p = canvasPos(e);
+      redrawCanvas(dc);
+      var ctx = dc.getContext('2d');
+      ctx.strokeStyle = '#FF0000';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(Math.min(startX, p.x), Math.min(startY, p.y), Math.abs(p.x - startX), Math.abs(p.y - startY));
+    });
     document.addEventListener('mouseup', function (e) {
       if (!drawing) return;
       drawing = false;
@@ -197,36 +206,39 @@
       // Detect watermarks via PDF.js text content
       onProgress && onProgress(0.2, 'Detecting watermarks...');
       var pdf4detect = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-      var textCounts = {};
 
-      for (var p = 0; p < Math.min(totalPages, 5); p++) {
-        var page = await pdf4detect.getPage(p + 1);
-        var tc = await page.getTextContent();
-        tc.items.forEach(function (item) {
-          var s = item.str.trim();
-          if (s) textCounts[s] = (textCounts[s] || 0) + 1;
-        });
-      }
-
-      // Find repeated strings (appear on multiple pages)
+      // Find repeated strings (appear on a distinct number of pages)
       var watermarkTexts = [];
       if (options.wmText) {
         watermarkTexts.push(options.wmText.toLowerCase());
       } else {
-        Object.keys(textCounts).forEach(function (t) {
-          if (textCounts[t] >= Math.min(3, totalPages) && t.length > 2) {
-            watermarkTexts.push(t.toLowerCase());
+        var pageOccurrence = {}; // distinct-page count per string
+        var scanPages = Math.min(totalPages, 10);
+        for (var p = 0; p < scanPages; p++) {
+          var page = await pdf4detect.getPage(p + 1);
+          var tc = await page.getTextContent();
+          var seenOnPage = {};
+          tc.items.forEach(function (item) {
+            var s = item.str.trim();
+            if (!s) return;
+            var key = s.toLowerCase();
+            if (seenOnPage[key]) return;
+            seenOnPage[key] = 1;
+            pageOccurrence[key] = (pageOccurrence[key] || 0) + 1;
+          });
+        }
+        // A watermark is short-ish text that repeats on most scanned pages,
+        // and is not a bare page number.
+        var threshold = Math.max(2, Math.ceil(scanPages * 0.6));
+        Object.keys(pageOccurrence).forEach(function (t) {
+          if (pageOccurrence[t] >= threshold && t.length >= 3 && t.length <= 40 && !/^\d+$/.test(t)) {
+            watermarkTexts.push(t);
           }
         });
       }
 
       if (!watermarkTexts.length) {
-        // Cover center area as fallback
-        for (var i = 0; i < targetIndices.length; i++) {
-          var pg = allPages[targetIndices[i]];
-          var sz = pg.getSize();
-          pg.drawRectangle({ x: sz.width * 0.2, y: sz.height * 0.35, width: sz.width * 0.6, height: sz.height * 0.3, color: PDFLib.rgb(1, 1, 1), opacity: 0.9 });
-        }
+        throw new Error('No repeated watermark text was detected automatically. Enter the watermark text above, or switch to Manual mode and draw a box over the watermark.');
       } else {
         for (var i = 0; i < targetIndices.length; i++) {
           onProgress && onProgress(0.3 + i / targetIndices.length * 0.6, 'Processing page ' + (targetIndices[i] + 1) + '...');

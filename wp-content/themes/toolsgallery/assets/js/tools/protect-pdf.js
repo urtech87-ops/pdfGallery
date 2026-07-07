@@ -10,11 +10,11 @@
   function getOptionsHTML() {
     return '<div class="tg-opt-row" style="flex-direction:column;gap:4px">' +
       '<label class="tg-opt-label" for="pp-password">User Password</label>' +
-      '<input type="password" id="pp-password" class="tg-text-input" placeholder="Min 4 characters" autocomplete="new-password">' +
+      '<input type="text" id="pp-password" class="tg-text-input" value="Password@123" placeholder="Min 4 characters" autocomplete="new-password">' +
     '</div>' +
     '<div class="tg-opt-row" style="flex-direction:column;gap:4px">' +
       '<label class="tg-opt-label" for="pp-confirm">Confirm Password</label>' +
-      '<input type="password" id="pp-confirm" class="tg-text-input" placeholder="Repeat password" autocomplete="new-password">' +
+      '<input type="text" id="pp-confirm" class="tg-text-input" value="Password@123" placeholder="Repeat password" autocomplete="new-password">' +
     '</div>' +
     '<div class="tg-opt-row" style="flex-direction:column;gap:6px">' +
       '<label class="tg-opt-label">Permissions</label>' +
@@ -56,16 +56,26 @@
       throw new Error(msg2);
     }
 
+    onProgress && onProgress(0.2, 'Applying protection...');
+
+    /* Use the real AES-256 encryption engine (pdf-encrypt) when available */
+    if (window.TGPdfTools && typeof window.TGPdfTools.protectPdf === 'function') {
+      var ownerPw = options.password + Math.random().toString(36).slice(2);
+      var protectedBlob = await window.TGPdfTools.protectPdf(file, options.password, ownerPw, {
+        printing: options.allowPrint,
+        copying: options.allowCopy,
+        modifying: options.allowEdit,
+        annotating: options.allowComment,
+      });
+      onProgress && onProgress(1, 'Done!');
+      return { blob: protectedBlob, filename: file.name.replace(/\.pdf$/i, '') + '-protected.pdf' };
+    }
+
     if (!window.PDFLib) throw new Error('pdf-lib not loaded');
     var PDFDocument = window.PDFLib.PDFDocument;
-
-    onProgress && onProgress(0.1, 'Loading PDF...');
+    onProgress && onProgress(0.6, 'Applying protection...');
     var ab = await file.arrayBuffer();
     var pdfDoc = await PDFDocument.load(ab, { ignoreEncryption: true });
-
-    onProgress && onProgress(0.6, 'Applying protection...');
-
-    // pdf-lib 1.x has basic encrypt support via pdfDoc.encrypt()
     if (typeof pdfDoc.encrypt === 'function') {
       var ownerPassword = options.password + Math.random().toString(36).slice(2);
       pdfDoc.encrypt({
@@ -79,7 +89,6 @@
         },
       });
     }
-
     var pdfBytes = await pdfDoc.save();
     var blob = new Blob([pdfBytes], { type: 'application/pdf' });
     onProgress && onProgress(1, 'Done!');

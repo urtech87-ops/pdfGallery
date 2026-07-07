@@ -137,12 +137,38 @@
     if (!translated) throw new Error('Translation returned empty result.');
 
     onProgress && onProgress(0.9, 'Displaying result...');
+    showResult(translated);
 
-    // Show output in the options panel
+    var blob = new Blob([translated], { type: 'text/plain' });
+    return { blob: blob, filename: CONFIG.downloadName };
+  }
+
+  function showResult(translated) {
+    /* Reuse the markup from getOptionsHTML if present; otherwise build it so
+       the result always appears even if the options panel was re-rendered. */
     var outputWrap = document.getElementById('trans-output-wrap');
     var outputContent = document.getElementById('trans-output-content');
-    if (outputWrap) outputWrap.hidden = false;
-    if (outputContent) outputContent.textContent = translated;
+
+    if (!outputWrap || !outputContent) {
+      var host = document.querySelector('.tg-tool-box .tg-options') ||
+                 document.querySelector('.tg-tool-box') || document.body;
+      outputWrap = document.createElement('div');
+      outputWrap.id = 'trans-output-wrap';
+      outputWrap.style.cssText = 'margin-top:12px;';
+      outputWrap.innerHTML =
+        '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">' +
+          '<strong style="flex:1 0 100%;margin-bottom:4px;">Translation Result:</strong>' +
+          '<button type="button" id="trans-copy-btn" class="tg-btn-secondary">Copy Text</button>' +
+          '<button type="button" id="trans-dl-txt" class="tg-btn-secondary">Download .txt</button>' +
+        '</div>' +
+        '<div id="trans-output-content" style="background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:12px;max-height:320px;overflow-y:auto;white-space:pre-wrap;font-family:Georgia,serif;line-height:1.6;font-size:14px;"></div>';
+      host.appendChild(outputWrap);
+      outputContent = document.getElementById('trans-output-content');
+    }
+
+    outputWrap.hidden = false;
+    outputWrap.style.display = 'block';
+    outputContent.textContent = translated;
 
     var copyBtn = document.getElementById('trans-copy-btn');
     if (copyBtn) {
@@ -170,8 +196,7 @@
       };
     }
 
-    var blob = new Blob([translated], { type: 'text/plain' });
-    return { blob: blob, filename: CONFIG.downloadName };
+    try { outputWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
   }
 
   window.TGTools = window.TGTools || {};
