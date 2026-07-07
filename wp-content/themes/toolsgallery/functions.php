@@ -245,6 +245,70 @@ function tg_enqueue_assets()
             $tool_runner_deps[] = $ft_handle;
         }
 
+        /* =============================================
+           Phase 10 — Video tools (FFmpeg.wasm) with
+           filemtime cache busting
+           ============================================= */
+        $vid_tool_files = [
+            'vid-compress'      => 'vid-compress.js',
+            'vid-convert'       => 'vid-convert.js',
+            'vid-to-mp3'        => 'vid-to-mp3.js',
+            'vid-trim'          => 'vid-trim.js',
+            'vid-merge'         => 'vid-merge.js',
+            'vid-to-gif'        => 'vid-to-gif.js',
+            'gif-to-vid'        => 'gif-to-vid.js',
+            'vid-rotate'        => 'vid-rotate.js',
+            'vid-resize'        => 'vid-resize.js',
+            'vid-speed'         => 'vid-speed.js',
+            'vid-watermark'     => 'vid-watermark.js',
+            'vid-remove-audio'  => 'vid-remove-audio.js',
+            'vid-add-audio'     => 'vid-add-audio.js',
+            'vid-screenshot'    => 'vid-screenshot.js',
+            'vid-crop'          => 'vid-crop.js',
+            'vid-subtitles'     => 'vid-subtitles.js',
+            'vid-reverse'       => 'vid-reverse.js',
+            'vid-stabilize'     => 'vid-stabilize.js',
+            'vid-blur'          => 'vid-blur.js',
+            'vid-loop'          => 'vid-loop.js',
+            'vid-thumbnail'     => 'vid-thumbnail.js',
+            'vid-metadata'      => 'vid-metadata.js',
+            'vid-filters'       => 'vid-filters.js',
+            'vid-audio-extract' => 'vid-audio-extract.js',
+            'vid-resolution'    => 'vid-resolution.js',
+        ];
+
+        if (isset($vid_tool_files[$tg_handler])) {
+            // FFmpeg.wasm runtime (0.11 UMD — exposes window.FFmpeg.createFFmpeg)
+            wp_enqueue_script(
+                'tg-ffmpeg',
+                'https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js',
+                [],
+                null,
+                true
+            );
+
+            // Shared FFmpeg singleton + helpers used by every video tool
+            $vid_util_file = get_template_directory() . '/assets/js/tools/vid-ffmpeg-util.js';
+            wp_enqueue_script(
+                'tg-vid-util',
+                get_template_directory_uri() . '/assets/js/tools/vid-ffmpeg-util.js',
+                ['tg-ffmpeg'],
+                file_exists($vid_util_file) ? filemtime($vid_util_file) : $ver,
+                true
+            );
+
+            $vid_file = get_template_directory() . '/assets/js/tools/' . $vid_tool_files[$tg_handler];
+            $vid_handle = 'tg-tool-' . $tg_handler;
+            wp_enqueue_script(
+                $vid_handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $vid_tool_files[$tg_handler],
+                ['tg-ffmpeg', 'tg-vid-util'],
+                file_exists($vid_file) ? filemtime($vid_file) : $ver,
+                true
+            );
+            $tool_runner_deps[] = $vid_handle;
+        }
+
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 
@@ -262,6 +326,52 @@ function tg_enqueue_assets()
     }
 }
 add_action('wp_enqueue_scripts', 'tg_enqueue_assets');
+
+/* =============================================
+   Phase 10 — Cross-origin isolation for video tools
+   FFmpeg.wasm 0.11 needs SharedArrayBuffer, which is only
+   available on pages served with COOP/COEP headers.
+   ============================================= */
+function tg_is_video_tool_page()
+{
+    if (!is_singular('tg_tool')) {
+        return false;
+    }
+    $handler = get_post_meta(get_queried_object_id(), '_tg_handler', true);
+    return $handler && (strpos($handler, 'vid-') === 0 || $handler === 'gif-to-vid');
+}
+
+function tg_video_tool_headers()
+{
+    if (!tg_is_video_tool_page() || headers_sent()) {
+        return;
+    }
+    header('Cross-Origin-Opener-Policy: same-origin');
+    header('Cross-Origin-Embedder-Policy: require-corp');
+}
+add_action('send_headers', 'tg_video_tool_headers');
+
+/* Under COEP: require-corp, cross-origin scripts/styles are blocked
+   unless fetched with CORS. All CDNs used here (unpkg, cdnjs, Google
+   Fonts) send Access-Control-Allow-Origin: *, so mark the tags with
+   crossorigin="anonymous" on video tool pages. */
+function tg_video_tool_crossorigin_script($tag, $handle, $src)
+{
+    if (tg_is_video_tool_page() && strpos($src, home_url()) !== 0 && strpos($tag, ' crossorigin') === false) {
+        $tag = str_replace(' src=', ' crossorigin="anonymous" src=', $tag);
+    }
+    return $tag;
+}
+add_filter('script_loader_tag', 'tg_video_tool_crossorigin_script', 10, 3);
+
+function tg_video_tool_crossorigin_style($tag, $handle, $href)
+{
+    if (tg_is_video_tool_page() && strpos($href, home_url()) !== 0 && strpos($tag, ' crossorigin') === false) {
+        $tag = str_replace(' href=', ' crossorigin="anonymous" href=', $tag);
+    }
+    return $tag;
+}
+add_filter('style_loader_tag', 'tg_video_tool_crossorigin_style', 10, 3);
 
 /* Preconnect for Google Fonts */
 function tg_preconnect_fonts()

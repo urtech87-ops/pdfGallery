@@ -5,13 +5,10 @@
 (function () {
   'use strict';
   var CONFIG = { handler: 'vid-to-gif' };
-  var _ffmpeg = null, _loaded = false;
-
-  var NOTICE = '<div class="tg-video-notice" style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5d4037">' +
-    '&#9889; GIF creation uses a 2-pass palette method for best quality. Keep clips short (&le;10s) for reasonable file sizes.</div>';
 
   function getOptionsHTML() {
-    return NOTICE +
+    var notice = window.TGVideoUtil ? TGVideoUtil.noticeHTML('GIF creation uses a 2-pass palette method for best quality. Keep clips short (&le;10s) for reasonable file sizes.') : '';
+    return notice +
       '<div class="tg-opt-row"><label class="tg-opt-label">Start (MM:SS)</label>' +
         '<input type="text" id="vtg-start" class="tg-text-input" placeholder="0:00" value="0:00" style="width:80px">' +
       '</div>' +
@@ -36,11 +33,13 @@
           '<option value="0">Forever</option><option value="1">Once</option><option value="3">3 times</option>' +
         '</select>' +
       '</div>' +
-      '<div id="vtg-preview" style="margin-top:12px"></div>' +
-      '<script>(function(){' +
-        'var d=document.getElementById("vtg-dur"),v=document.getElementById("vtg-dur-val");' +
-        'if(d&&v)d.addEventListener("input",function(){v.textContent=d.value+"s";});' +
-      '})();<\/script>';
+      '<div id="vtg-preview" style="margin-top:12px"></div>';
+  }
+
+  function wireOptions(container) {
+    var d = container.querySelector('#vtg-dur');
+    var v = container.querySelector('#vtg-dur-val');
+    if (d && v) d.addEventListener('input', function () { v.textContent = d.value + 's'; });
   }
 
   function getOptions(el) {
@@ -59,74 +58,57 @@
     };
   }
 
-  function parseMMSS(s) {
-    var p = s.split(':');
-    return p.length === 2 ? parseInt(p[0]) * 60 + parseInt(p[1]) : parseInt(s) || 0;
-  }
-
-  async function loadFFmpeg(onProgress) {
-    if (_loaded) return;
-    var FFmpeg = window.FFmpegWASM && window.FFmpegWASM.FFmpeg;
-    var toBlobURL = window.FFmpegUtil && window.FFmpegUtil.toBlobURL;
-    if (!FFmpeg || !toBlobURL) throw new Error('FFmpeg.wasm not loaded.');
-    _ffmpeg = new FFmpeg();
-    _ffmpeg.on('log', function (e) { console.log('[FFmpeg]', e.message); });
-    _ffmpeg.on('progress', function (e) {
-      onProgress && onProgress(20 + Math.round(e.progress * 60), 'Creating GIF... ' + Math.round(e.progress * 100) + '%');
-    });
-    onProgress && onProgress(5, 'Loading processor...');
-    var base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await _ffmpeg.load({
-      coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
-      wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm'),
-    });
-    _loaded = true;
-  }
-
   async function run(file, options, onProgress) {
-    var fetchFile = window.FFmpegUtil && window.FFmpegUtil.fetchFile;
-    if (!fetchFile) throw new Error('FFmpeg utilities not loaded.');
+    var U = window.TGVideoUtil;
+    if (!U) throw new Error('FFmpeg not loaded. Please refresh the page.');
 
-    onProgress && onProgress(3, 'Loading processor...');
-    await loadFFmpeg(onProgress);
+    var inName = 'input.' + U.getExt(file.name);
+    var outName = 'output.gif';
+    var ffmpeg = null;
 
-    var ext = file.name.split('.').pop().toLowerCase() || 'mp4';
-    var inName = 'input.' + ext;
-    onProgress && onProgress(15, 'Reading file...');
-    await _ffmpeg.writeFile(inName, await fetchFile(file));
+    try {
+      onProgress && onProgress(0.02, 'Initializing...');
+      ffmpeg = await U.getFFmpeg(onProgress);
 
-    var startSec = parseMMSS(options.start || '0:00');
-    var dur = options.duration || '5';
-    var fps = options.fps || '10';
-    var width = options.width || '480';
-    var loop = options.loop || '0';
+      onProgress && onProgress(0.08, 'Loading video file...');
+      await U.writeFile(ffmpeg, inName, file);
 
-    onProgress && onProgress(20, 'Generating palette...');
-    await _ffmpeg.exec(['-i', inName, '-ss', String(startSec), '-t', dur,
-      '-vf', 'fps=' + fps + ',scale=' + width + ':-1:flags=lanczos,palettegen', 'palette.png']);
+      var startSec = String(U.parseTime(options.start || '0:00'));
+      var dur = options.duration || '5';
+      var fps = options.fps || '10';
+      var width = options.width || '480';
+      var loop = options.loop || '0';
 
-    onProgress && onProgress(55, 'Creating GIF...');
-    await _ffmpeg.exec(['-i', inName, '-i', 'palette.png',
-      '-ss', String(startSec), '-t', dur,
-      '-filter_complex', 'fps=' + fps + ',scale=' + width + ':-1:flags=lanczos[x];[x][1:v]paletteuse',
-      '-loop', loop, 'output.gif']);
+      onProgress && onProgress(0.15, 'Generating palette...');
+      await U.exec(ffmpeg, ['-i', inName, '-ss', startSec, '-t', dur,
+        '-vf', 'fps=' + fps + ',scale=' + width + ':-1:flags=lanczos,palettegen', 'palette.png']);
 
-    onProgress && onProgress(90, 'Preparing download...');
-    var data = await _ffmpeg.readFile('output.gif');
-    var blob = new Blob([data.buffer], { type: 'image/gif' });
+      onProgress && onProgress(0.5, 'Creating GIF...');
+      await U.exec(ffmpeg, ['-i', inName, '-i', 'palette.png',
+        '-ss', startSec, '-t', dur,
+        '-filter_complex', 'fps=' + fps + ',scale=' + width + ':-1:flags=lanczos[x];[x][1:v]paletteuse',
+        '-loop', loop, outName]);
 
-    // Show preview
-    var previewEl = document.getElementById('vtg-preview');
-    if (previewEl) {
-      var url = URL.createObjectURL(blob);
-      var sizeWarn = blob.size > 10485760 ? '<p style="color:#e53935;font-size:12px">&#9888; GIF is ' + (blob.size/1048576).toFixed(1) + 'MB. Consider reducing duration or width.</p>' : '';
-      previewEl.innerHTML = '<img src="' + url + '" style="max-width:100%;border-radius:6px" alt="GIF preview">' + sizeWarn;
+      onProgress && onProgress(0.92, 'Creating output file...');
+      var data = U.readFile(ffmpeg, outName);
+      var blob = U.makeBlob(data, 'image/gif');
+
+      var previewEl = document.getElementById('vtg-preview');
+      if (previewEl) {
+        var url = URL.createObjectURL(blob);
+        var sizeWarn = blob.size > 10485760 ? '<p style="color:#e53935;font-size:12px">&#9888; GIF is ' + (blob.size / 1048576).toFixed(1) + 'MB. Consider reducing duration or width.</p>' : '';
+        previewEl.innerHTML = '<img src="' + url + '" style="max-width:100%;border-radius:6px" alt="GIF preview">' + sizeWarn;
+      }
+
+      onProgress && onProgress(1, 'Done!');
+      return { blob: blob, filename: U.stripExt(file.name) + '.gif' };
+    } catch (e) {
+      throw U.mapError(e);
+    } finally {
+      U.cleanup(ffmpeg, [inName, outName, 'palette.png']);
     }
-
-    onProgress && onProgress(100, 'Done!');
-    return { blob: blob, filename: 'animation.gif' };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

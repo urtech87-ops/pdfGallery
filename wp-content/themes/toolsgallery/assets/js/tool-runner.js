@@ -1544,6 +1544,9 @@
       /* ── Generic TGTools dispatcher for Phase 3C tools ── */
       if (window.TGTools && window.TGTools[handler]) {
         var tool3c = window.TGTools[handler];
+        /* Expose the full selection — multi-file tools (vid-merge,
+           img-to-* batch converters) read box._tgFiles. */
+        box._tgFiles = isMulti ? currentFiles.slice() : (currentFile ? [currentFile] : []);
         var toolFile = isMulti ? currentFiles[0] : currentFile;
         var isDataInputTool = tool3c.CONFIG && tool3c.CONFIG.inputType === 'data';
         if (!toolFile && handler !== 'url-to-pdf' && !isDataInputTool) return;
