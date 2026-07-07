@@ -11,11 +11,22 @@
   };
 
   var _cropFrac = { x: 0.1, y: 0.1, w: 0.8, h: 0.8 }; // as fractions of page
+  var _pagePt = { w: 0, h: 0 }; // page size in PDF points (for dimension display)
+  var MIN_FRAC = 0.05; // minimum crop size as a fraction of the page
+
+  var HANDLES = ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'];
+
+  function handleHTML() {
+    var cursors = { nw: 'nwse-resize', n: 'ns-resize', ne: 'nesw-resize', w: 'ew-resize', e: 'ew-resize', sw: 'nesw-resize', s: 'ns-resize', se: 'nwse-resize' };
+    return HANDLES.map(function (h) {
+      return '<div class="crop-handle" data-handle="' + h + '" style="position:absolute;width:12px;height:12px;background:#fff;border:2px solid #E07B39;border-radius:2px;box-sizing:border-box;cursor:' + cursors[h] + ';z-index:2;"></div>';
+    }).join('');
+  }
 
   function getOptionsHTML(pageCount) {
     return '<div id="crop-preview-wrap" style="position:relative;display:inline-block;margin-bottom:12px;overflow:hidden;">' +
       '<canvas id="crop-preview-canvas" style="border:1px solid #ccc;max-width:100%;display:block;"></canvas>' +
-      '<div id="crop-overlay" style="position:absolute;border:2px solid #E07B39;box-shadow:0 0 0 9999px rgba(0,0,0,0.4);cursor:move;"></div>' +
+      '<div id="crop-overlay" style="position:absolute;border:2px solid #E07B39;box-shadow:0 0 0 9999px rgba(0,0,0,0.4);cursor:move;">' + handleHTML() + '</div>' +
     '</div>' +
     '<p id="crop-dim-label" class="tg-opt-info" style="margin-bottom:8px;">Crop area: drag the box to position it.</p>' +
     '<div class="tg-opt-row">' +
@@ -41,6 +52,21 @@
     '</div>';
   }
 
+  function positionHandles(overlay) {
+    var w = overlay.offsetWidth, h = overlay.offsetHeight;
+    var coords = {
+      nw: [0, 0], n: [w / 2, 0], ne: [w, 0],
+      w: [0, h / 2], e: [w, h / 2],
+      sw: [0, h], s: [w / 2, h], se: [w, h],
+    };
+    overlay.querySelectorAll('.crop-handle').forEach(function (el) {
+      var c = coords[el.dataset.handle];
+      if (!c) return;
+      el.style.left = (c[0] - 6) + 'px';
+      el.style.top = (c[1] - 6) + 'px';
+    });
+  }
+
   function updateOverlay(optionsEl) {
     var canvas = optionsEl.querySelector('#crop-preview-canvas');
     var overlay = optionsEl.querySelector('#crop-overlay');
@@ -51,11 +77,13 @@
     overlay.style.top = (_cropFrac.y * ch) + 'px';
     overlay.style.width = (_cropFrac.w * cw) + 'px';
     overlay.style.height = (_cropFrac.h * ch) + 'px';
+    positionHandles(overlay);
     if (dimLabel) {
-      dimLabel.textContent = 'Crop area: ' + Math.round(_cropFrac.x * 100) + '%, ' +
-        Math.round(_cropFrac.y * 100) + '% — ' +
-        Math.round((_cropFrac.x + _cropFrac.w) * 100) + '%, ' +
-        Math.round((_cropFrac.y + _cropFrac.h) * 100) + '%';
+      var ptW = _pagePt.w ? Math.round(_cropFrac.w * _pagePt.w) : null;
+      var ptH = _pagePt.h ? Math.round(_cropFrac.h * _pagePt.h) : null;
+      var dims = 'Crop area: ' + Math.round(_cropFrac.w * 100) + '% × ' + Math.round(_cropFrac.h * 100) + '% of page';
+      if (ptW && ptH) dims += ' (' + ptW + ' × ' + ptH + ' pt)';
+      dimLabel.textContent = dims;
     }
   }
 
@@ -66,24 +94,61 @@
     overlay.dataset.wired = '1';
 
     var isDragging = false, dragStartX = 0, dragStartY = 0;
+    var isResizing = false, activeHandle = null, startFrac = null, startMouse = null;
 
+    /* Resize handles */
+    overlay.querySelectorAll('.crop-handle').forEach(function (h) {
+      h.addEventListener('mousedown', function (e) {
+        isResizing = true;
+        activeHandle = h.dataset.handle;
+        startFrac = { x: _cropFrac.x, y: _cropFrac.y, w: _cropFrac.w, h: _cropFrac.h };
+        startMouse = { x: e.clientX, y: e.clientY };
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    /* Drag interior to move */
     overlay.addEventListener('mousedown', function (e) {
+      if (e.target && e.target.classList.contains('crop-handle')) return;
       isDragging = true;
       dragStartX = e.clientX - overlay.offsetLeft;
       dragStartY = e.clientY - overlay.offsetTop;
       e.preventDefault();
     });
+
     document.addEventListener('mousemove', function (e) {
-      if (!isDragging) return;
       var cw = canvas.offsetWidth, ch = canvas.offsetHeight;
-      var rect = canvas.getBoundingClientRect();
-      var relX = e.clientX - rect.left - dragStartX;
-      var relY = e.clientY - rect.top - dragStartY;
-      _cropFrac.x = Math.max(0, Math.min(relX / cw, 1 - _cropFrac.w));
-      _cropFrac.y = Math.max(0, Math.min(relY / ch, 1 - _cropFrac.h));
-      updateOverlay(optionsEl);
+      if (!cw || !ch) return;
+
+      if (isResizing && activeHandle) {
+        var dx = (e.clientX - startMouse.x) / cw;
+        var dy = (e.clientY - startMouse.y) / ch;
+        var left = startFrac.x, top = startFrac.y, right = startFrac.x + startFrac.w, bottom = startFrac.y + startFrac.h;
+
+        if (activeHandle.indexOf('w') !== -1) left = Math.min(Math.max(0, startFrac.x + dx), right - MIN_FRAC);
+        if (activeHandle.indexOf('e') !== -1) right = Math.max(Math.min(1, right + dx), left + MIN_FRAC);
+        if (activeHandle.indexOf('n') !== -1) top = Math.min(Math.max(0, startFrac.y + dy), bottom - MIN_FRAC);
+        if (activeHandle.indexOf('s') !== -1) bottom = Math.max(Math.min(1, bottom + dy), top + MIN_FRAC);
+
+        _cropFrac.x = left;
+        _cropFrac.y = top;
+        _cropFrac.w = right - left;
+        _cropFrac.h = bottom - top;
+        updateOverlay(optionsEl);
+        return;
+      }
+
+      if (isDragging) {
+        var rect = canvas.getBoundingClientRect();
+        var relX = e.clientX - rect.left - dragStartX;
+        var relY = e.clientY - rect.top - dragStartY;
+        _cropFrac.x = Math.max(0, Math.min(relX / cw, 1 - _cropFrac.w));
+        _cropFrac.y = Math.max(0, Math.min(relY / ch, 1 - _cropFrac.h));
+        updateOverlay(optionsEl);
+      }
     });
-    document.addEventListener('mouseup', function () { isDragging = false; });
+    document.addEventListener('mouseup', function () { isDragging = false; isResizing = false; activeHandle = null; });
 
     optionsEl.querySelectorAll('.crop-preset').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -121,6 +186,7 @@
       return pdf.getPage(1);
     }).then(function (page) {
       var vp = page.getViewport({ scale: 1.0 });
+      _pagePt = { w: vp.width, h: vp.height };
       var scale = Math.min(400 / vp.width, 300 / vp.height);
       var rvp = page.getViewport({ scale: scale });
       canvas.width = rvp.width;
