@@ -1,15 +1,18 @@
 /**
  * ToolsGallery — Video Metadata Editor
  * Handler: vid-metadata
+ * Reads existing metadata into the form on upload, then writes the edited
+ * values back with a stream copy (no re-encode).
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'vid-metadata' };
-  var _ffmpeg = null, _loaded = false;
+  var _readPromise = null; /* run() waits on this so exec calls never overlap */
 
   function getOptionsHTML() {
-    return '<div class="tg-video-notice" style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5d4037">' +
-      '&#9889; Metadata is updated without re-encoding (stream copy) — this is fast.</div>' +
+    var notice = window.TGVideoUtil ? TGVideoUtil.noticeHTML('Metadata is updated without re-encoding (stream copy) — this is fast.') : '';
+    return notice +
+      '<div id="vme-status" style="font-size:12px;color:#666;margin-bottom:8px">Upload a video to load its existing metadata.</div>' +
       '<div class="tg-opt-row"><label class="tg-opt-label">Title</label>' +
         '<input type="text" id="vme-title" class="tg-text-input" placeholder="Video title">' +
       '</div>' +
@@ -20,7 +23,7 @@
         '<input type="text" id="vme-album" class="tg-text-input" placeholder="Album / Collection">' +
       '</div>' +
       '<div class="tg-opt-row"><label class="tg-opt-label">Year</label>' +
-        '<input type="text" id="vme-year" class="tg-text-input" placeholder="2024" style="width:80px">' +
+        '<input type="text" id="vme-year" class="tg-text-input" placeholder="2026" style="width:80px">' +
       '</div>' +
       '<div class="tg-opt-row"><label class="tg-opt-label">Genre</label>' +
         '<input type="text" id="vme-genre" class="tg-text-input" placeholder="e.g. Documentary">' +
@@ -33,70 +36,116 @@
       '</div>';
   }
 
+  function setField(id, value) {
+    var el = document.getElementById(id);
+    if (el && value) el.value = value;
+  }
+
+  /* Extracts global metadata via FFmpeg's ffmetadata muxer and prefills
+     the form. Failures are non-fatal — the user can still set new values. */
+  async function readMetadata(file) {
+    var U = window.TGVideoUtil;
+    if (!U) return;
+    var statusEl = document.getElementById('vme-status');
+    var inName = 'metain.' + U.getExt(file.name);
+    var ffmpeg = null;
+    try {
+      if (statusEl) statusEl.textContent = 'Reading existing metadata...';
+      ffmpeg = await U.getFFmpeg(null);
+      await U.writeFile(ffmpeg, inName, file);
+      await U.exec(ffmpeg, ['-i', inName, '-f', 'ffmetadata', 'metadata.txt']);
+      var text = new TextDecoder().decode(ffmpeg.FS('readFile', 'metadata.txt'));
+
+      var meta = {};
+      text.split('\n').forEach(function (line) {
+        if (line.charAt(0) === ';' || line.charAt(0) === '#') return;
+        var eq = line.indexOf('=');
+        if (eq > 0) meta[line.slice(0, eq).trim().toLowerCase()] = line.slice(eq + 1).trim();
+      });
+
+      setField('vme-title', meta.title);
+      setField('vme-artist', meta.artist || meta.author);
+      setField('vme-album', meta.album);
+      setField('vme-year', meta.date || meta.year);
+      setField('vme-genre', meta.genre);
+      setField('vme-comment', meta.comment || meta.description);
+
+      var found = ['title', 'artist', 'album', 'date', 'genre', 'comment'].filter(function (k) { return meta[k]; });
+      if (statusEl) {
+        statusEl.textContent = found.length
+          ? 'Existing metadata loaded (' + found.join(', ') + '). Edit the fields and process.'
+          : 'No existing metadata found. Fill in the fields you want to set.';
+      }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Could not read existing metadata — you can still set new values below.';
+    } finally {
+      U.cleanup(ffmpeg, [inName, 'metadata.txt']);
+    }
+  }
+
+  function onFileReady(file) {
+    _readPromise = readMetadata(file);
+  }
+
   function getOptions(el) {
     if (!el) return {};
+    function val(sel) { var f = el.querySelector(sel); return f ? f.value.trim() : ''; }
     return {
-      title: (el.querySelector('#vme-title') || {}).value || '',
-      artist: (el.querySelector('#vme-artist') || {}).value || '',
-      album: (el.querySelector('#vme-album') || {}).value || '',
-      year: (el.querySelector('#vme-year') || {}).value || '',
-      genre: (el.querySelector('#vme-genre') || {}).value || '',
-      comment: (el.querySelector('#vme-comment') || {}).value || '',
+      title: val('#vme-title'),
+      artist: val('#vme-artist'),
+      album: val('#vme-album'),
+      year: val('#vme-year'),
+      genre: val('#vme-genre'),
+      comment: val('#vme-comment'),
       clearAll: !!(el.querySelector('#vme-clear') || {}).checked,
     };
   }
 
-  async function loadFFmpeg(onProgress) {
-    if (_loaded) return;
-    var FFmpeg = window.FFmpegWASM && window.FFmpegWASM.FFmpeg;
-    var toBlobURL = window.FFmpegUtil && window.FFmpegUtil.toBlobURL;
-    if (!FFmpeg || !toBlobURL) throw new Error('FFmpeg.wasm not loaded.');
-    _ffmpeg = new FFmpeg();
-    _ffmpeg.on('log', function (e) { console.log('[FFmpeg]', e.message); });
-    _ffmpeg.on('progress', function (e) {
-      onProgress && onProgress(20 + Math.round(e.progress * 65), 'Updating metadata... ' + Math.round(e.progress * 100) + '%');
-    });
-    onProgress && onProgress(5, 'Loading processor...');
-    var base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await _ffmpeg.load({
-      coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
-      wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm'),
-    });
-    _loaded = true;
-  }
-
   async function run(file, options, onProgress) {
-    var fetchFile = window.FFmpegUtil && window.FFmpegUtil.fetchFile;
-    if (!fetchFile) throw new Error('FFmpeg utilities not loaded.');
+    var U = window.TGVideoUtil;
+    if (!U) throw new Error('FFmpeg not loaded. Please refresh the page.');
 
-    onProgress && onProgress(3, 'Loading processor...');
-    await loadFFmpeg(onProgress);
+    /* let a pending metadata read finish before starting our own exec */
+    if (_readPromise) { try { await _readPromise; } catch (e) {} }
 
-    var ext = file.name.split('.').pop().toLowerCase() || 'mp4';
-    var inName = 'input.' + ext;
-    onProgress && onProgress(15, 'Reading file...');
-    await _ffmpeg.writeFile(inName, await fetchFile(file));
+    var inName = 'input.' + U.getExt(file.name);
+    var outName = 'output.mp4';
+    var ffmpeg = null;
 
-    var args = ['-i', inName];
-    if (options.clearAll) args = args.concat(['-map_metadata', '-1']);
+    try {
+      onProgress && onProgress(0.02, 'Initializing...');
+      ffmpeg = await U.getFFmpeg(onProgress);
 
-    var fields = { title: options.title, artist: options.artist, album: options.album, date: options.year, genre: options.genre, comment: options.comment };
-    Object.keys(fields).forEach(function (key) {
-      if (fields[key]) args = args.concat(['-metadata', key + '=' + fields[key]]);
-    });
+      onProgress && onProgress(0.08, 'Loading video file...');
+      await U.writeFile(ffmpeg, inName, file);
 
-    args = args.concat(['-codec', 'copy', 'output.mp4']);
+      var args = ['-i', inName];
+      if (options.clearAll) args = args.concat(['-map_metadata', '-1']);
 
-    onProgress && onProgress(20, 'Updating metadata...');
-    await _ffmpeg.exec(args);
+      var fields = {
+        title: options.title, artist: options.artist, album: options.album,
+        date: options.year, genre: options.genre, comment: options.comment,
+      };
+      Object.keys(fields).forEach(function (key) {
+        if (fields[key]) args = args.concat(['-metadata', key + '=' + fields[key]]);
+      });
+      args = args.concat(['-c', 'copy', outName]);
 
-    onProgress && onProgress(90, 'Preparing download...');
-    var data = await _ffmpeg.readFile('output.mp4');
-    var blob = new Blob([data.buffer], { type: 'video/mp4' });
-    onProgress && onProgress(100, 'Done!');
-    return { blob: blob, filename: 'updated.mp4' };
+      onProgress && onProgress(0.15, 'Updating metadata...');
+      await U.exec(ffmpeg, args);
+
+      onProgress && onProgress(0.92, 'Creating output file...');
+      var data = U.readFile(ffmpeg, outName);
+      var blob = U.makeBlob(data, 'video/mp4');
+      onProgress && onProgress(1, 'Done!');
+      return { blob: blob, filename: U.stripExt(file.name) + '-metadata.mp4' };
+    } catch (e) {
+      throw U.mapError(e);
+    } finally {
+      U.cleanup(ffmpeg, [inName, outName]);
+    }
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();
