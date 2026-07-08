@@ -5,13 +5,10 @@
 (function () {
   'use strict';
   var CONFIG = { handler: 'vid-resize' };
-  var _ffmpeg = null, _loaded = false;
-
-  var NOTICE = '<div class="tg-video-notice" style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5d4037">' +
-    '&#9889; Resize runs in your browser. Re-encoding may take a few minutes for large files.</div>';
 
   function getOptionsHTML() {
-    return NOTICE +
+    var notice = window.TGVideoUtil ? TGVideoUtil.noticeHTML() : '';
+    return notice +
       '<div id="vrs-info" style="font-size:12px;color:#666;margin-bottom:8px">Upload a video to see current resolution.</div>' +
       '<div class="tg-opt-row"><label class="tg-opt-label">Resize Mode</label>' +
         '<select id="vrs-mode" class="tg-select">' +
@@ -23,11 +20,11 @@
       '<div id="vrs-preset-wrap">' +
         '<div class="tg-opt-row"><label class="tg-opt-label">Resolution</label>' +
           '<select id="vrs-preset" class="tg-select">' +
-            '<option value="3840:2160">4K (3840×2160)</option>' +
-            '<option value="1920:1080" selected>1080p (1920×1080)</option>' +
-            '<option value="1280:720">720p (1280×720)</option>' +
-            '<option value="854:480">480p (854×480)</option>' +
-            '<option value="640:360">360p (640×360)</option>' +
+            '<option value="3840:2160">4K (3840&times;2160)</option>' +
+            '<option value="1920:1080" selected>1080p (1920&times;1080)</option>' +
+            '<option value="1280:720">720p (1280&times;720)</option>' +
+            '<option value="854:480">480p (854&times;480)</option>' +
+            '<option value="640:360">360p (640&times;360)</option>' +
           '</select>' +
         '</div>' +
       '</div>' +
@@ -49,21 +46,36 @@
         '<div class="tg-opt-row"><label class="tg-opt-label">Height (px)</label>' +
           '<input type="number" id="vrs-ch" class="tg-text-input" min="2" max="4320" value="720">' +
         '</div>' +
-      '</div>' +
-      '<script>(function(){' +
-        'var mode=document.getElementById("vrs-mode");' +
-        'var pw=document.getElementById("vrs-preset-wrap");' +
-        'var pc=document.getElementById("vrs-percent-wrap");' +
-        'var cw=document.getElementById("vrs-custom-wrap");' +
-        'if(mode)mode.addEventListener("change",function(){' +
-          'pw.hidden=mode.value!=="preset";' +
-          'pc.hidden=mode.value!=="percent";' +
-          'cw.hidden=mode.value!=="custom";' +
-        '});' +
-        'var pct=document.getElementById("vrs-pct");' +
-        'var pctCust=document.getElementById("vrs-pct-custom-wrap");' +
-        'if(pct&&pctCust)pct.addEventListener("change",function(){pctCust.hidden=pct.value!=="custom";});' +
-      '})();<\/script>';
+      '</div>';
+  }
+
+  function wireOptions(container) {
+    var mode = container.querySelector('#vrs-mode');
+    var pw = container.querySelector('#vrs-preset-wrap');
+    var pc = container.querySelector('#vrs-percent-wrap');
+    var cw = container.querySelector('#vrs-custom-wrap');
+    if (mode) {
+      mode.addEventListener('change', function () {
+        if (pw) pw.hidden = mode.value !== 'preset';
+        if (pc) pc.hidden = mode.value !== 'percent';
+        if (cw) cw.hidden = mode.value !== 'custom';
+      });
+    }
+    var pct = container.querySelector('#vrs-pct');
+    var pctCust = container.querySelector('#vrs-pct-custom-wrap');
+    if (pct && pctCust) pct.addEventListener('change', function () { pctCust.hidden = pct.value !== 'custom'; });
+  }
+
+  function onFileReady(file) {
+    var infoEl = document.getElementById('vrs-info');
+    if (!infoEl) return;
+    var vid = document.createElement('video');
+    vid.preload = 'metadata';
+    vid.src = URL.createObjectURL(file);
+    vid.onloadedmetadata = function () {
+      infoEl.textContent = 'Current resolution: ' + vid.videoWidth + ' × ' + vid.videoHeight + ' px';
+      URL.revokeObjectURL(vid.src);
+    };
   }
 
   function getOptions(el) {
@@ -83,61 +95,51 @@
     };
   }
 
-  async function loadFFmpeg(onProgress) {
-    if (_loaded) return;
-    var FFmpeg = window.FFmpegWASM && window.FFmpegWASM.FFmpeg;
-    var toBlobURL = window.FFmpegUtil && window.FFmpegUtil.toBlobURL;
-    if (!FFmpeg || !toBlobURL) throw new Error('FFmpeg.wasm not loaded.');
-    _ffmpeg = new FFmpeg();
-    _ffmpeg.on('log', function (e) { console.log('[FFmpeg]', e.message); });
-    _ffmpeg.on('progress', function (e) {
-      onProgress && onProgress(20 + Math.round(e.progress * 65), 'Resizing... ' + Math.round(e.progress * 100) + '%');
-    });
-    onProgress && onProgress(5, 'Loading processor...');
-    var base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await _ffmpeg.load({
-      coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
-      wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm'),
-    });
-    _loaded = true;
-  }
-
   async function run(file, options, onProgress) {
-    var fetchFile = window.FFmpegUtil && window.FFmpegUtil.fetchFile;
-    if (!fetchFile) throw new Error('FFmpeg utilities not loaded.');
+    var U = window.TGVideoUtil;
+    if (!U) throw new Error('FFmpeg not loaded. Please refresh the page.');
 
-    onProgress && onProgress(3, 'Loading processor...');
-    await loadFFmpeg(onProgress);
+    var inName = 'input.' + U.getExt(file.name);
+    var outName = 'output.mp4';
+    var ffmpeg = null;
 
-    var ext = file.name.split('.').pop().toLowerCase() || 'mp4';
-    var inName = 'input.' + ext;
-    onProgress && onProgress(15, 'Reading file...');
-    await _ffmpeg.writeFile(inName, await fetchFile(file));
+    try {
+      onProgress && onProgress(0.02, 'Initializing...');
+      ffmpeg = await U.getFFmpeg(onProgress);
 
-    var vf;
-    if (options.mode === 'preset') {
-      var parts = (options.preset || '1920:1080').split(':');
-      var w = parts[0], h = parts[1];
-      vf = 'scale=' + w + ':' + h + ':force_original_aspect_ratio=decrease,pad=' + w + ':' + h + ':(ow-iw)/2:(oh-ih)/2';
-    } else if (options.mode === 'percent') {
-      var p = options.percent || 0.5;
-      vf = 'scale=trunc(iw*' + p + '/2)*2:trunc(ih*' + p + '/2)*2';
-    } else {
-      var cw = options.customW || 1280;
-      var ch = options.customH || 720;
-      vf = 'scale=' + cw + ':' + ch;
+      onProgress && onProgress(0.08, 'Loading video file...');
+      await U.writeFile(ffmpeg, inName, file);
+
+      var vf;
+      if (options.mode === 'preset') {
+        var parts = (options.preset || '1920:1080').split(':');
+        var w = parts[0], h = parts[1];
+        vf = 'scale=' + w + ':' + h + ':force_original_aspect_ratio=decrease:force_divisible_by=2,pad=' + w + ':' + h + ':(ow-iw)/2:(oh-ih)/2';
+      } else if (options.mode === 'percent') {
+        var p = options.percent || 0.5;
+        vf = 'scale=trunc(iw*' + p + '/2)*2:trunc(ih*' + p + '/2)*2';
+      } else {
+        /* libx264 needs even dimensions */
+        var cw = Math.max(2, (options.customW || 1280) - ((options.customW || 1280) % 2));
+        var ch = Math.max(2, (options.customH || 720) - ((options.customH || 720) % 2));
+        vf = 'scale=' + cw + ':' + ch;
+      }
+
+      onProgress && onProgress(0.15, 'Resizing video...');
+      await U.exec(ffmpeg, ['-i', inName, '-vf', vf, '-c:a', 'copy', outName]);
+
+      onProgress && onProgress(0.92, 'Creating output file...');
+      var data = U.readFile(ffmpeg, outName);
+      var blob = U.makeBlob(data, 'video/mp4');
+      onProgress && onProgress(1, 'Done!');
+      return { blob: blob, filename: U.stripExt(file.name) + '-resized.mp4' };
+    } catch (e) {
+      throw U.mapError(e);
+    } finally {
+      U.cleanup(ffmpeg, [inName, outName]);
     }
-
-    onProgress && onProgress(20, 'Resizing video...');
-    await _ffmpeg.exec(['-i', inName, '-vf', vf, '-c:a', 'copy', 'output.mp4']);
-
-    onProgress && onProgress(90, 'Preparing download...');
-    var data = await _ffmpeg.readFile('output.mp4');
-    var blob = new Blob([data.buffer], { type: 'video/mp4' });
-    onProgress && onProgress(100, 'Done!');
-    return { blob: blob, filename: 'resized.mp4' };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

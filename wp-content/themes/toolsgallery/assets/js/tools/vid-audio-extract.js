@@ -1,33 +1,46 @@
 /**
  * ToolsGallery — Audio Extractor (Advanced)
  * Handler: vid-audio-extract
+ * Extracts the audio track as MP3 / WAV / AAC / FLAC / OGG with optional
+ * bitrate choice, loudness normalization and trimming.
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'vid-audio-extract' };
-  var _ffmpeg = null, _loaded = false;
 
-  var NOTICE = '<div class="tg-video-notice" style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5d4037">' +
-    '&#9889; Audio extraction runs in your browser. WAV and FLAC files may be large.</div>';
+  var MIMES = { mp3: 'audio/mpeg', wav: 'audio/wav', aac: 'audio/aac', flac: 'audio/flac', ogg: 'audio/ogg' };
 
   function getOptionsHTML() {
-    return NOTICE +
+    var notice = window.TGVideoUtil ? TGVideoUtil.noticeHTML('WAV and FLAC files may be large.') : '';
+    return notice +
       '<div class="tg-opt-row"><label class="tg-opt-label">Output Format</label>' +
         '<select id="vae-fmt" class="tg-select">' +
-          '<option value="mp3">MP3</option><option value="wav">WAV (lossless)</option>' +
-          '<option value="aac">AAC</option><option value="flac">FLAC (lossless)</option>' +
+          '<option value="mp3" selected>MP3</option>' +
+          '<option value="wav">WAV (lossless)</option>' +
+          '<option value="aac">AAC</option>' +
+          '<option value="flac">FLAC (lossless)</option>' +
           '<option value="ogg">OGG Vorbis</option>' +
         '</select>' +
       '</div>' +
-      '<div class="tg-opt-row"><label class="tg-opt-label">Normalize Audio</label>' +
-        '<select id="vae-norm" class="tg-select">' +
-          '<option value="no">No (keep original levels)</option>' +
-          '<option value="yes">Yes (loudnorm filter)</option>' +
+      '<div class="tg-opt-row" id="vae-bitrate-wrap"><label class="tg-opt-label">Bitrate</label>' +
+        '<select id="vae-bitrate" class="tg-select">' +
+          '<option value="128k">128 kbps</option>' +
+          '<option value="192k" selected>192 kbps</option>' +
+          '<option value="256k">256 kbps</option>' +
+          '<option value="320k">320 kbps</option>' +
         '</select>' +
       '</div>' +
+      '<div class="tg-opt-row" id="vae-depth-wrap" hidden><label class="tg-opt-label">Bit Depth</label>' +
+        '<select id="vae-depth" class="tg-select">' +
+          '<option value="pcm_s16le" selected>16-bit</option>' +
+          '<option value="pcm_s24le">24-bit</option>' +
+          '<option value="pcm_s32le">32-bit</option>' +
+        '</select>' +
+      '</div>' +
+      '<div class="tg-opt-row"><label><input type="checkbox" id="vae-norm"> Normalize audio (loudnorm)</label></div>' +
       '<div class="tg-opt-row"><label class="tg-opt-label">Trim</label>' +
         '<select id="vae-trim" class="tg-select">' +
-          '<option value="full">Full audio</option>' +
+          '<option value="full" selected>Full audio</option>' +
           '<option value="custom">Custom range</option>' +
         '</select>' +
       '</div>' +
@@ -38,92 +51,90 @@
         '<div class="tg-opt-row"><label class="tg-opt-label">End (MM:SS)</label>' +
           '<input type="text" id="vae-end" class="tg-text-input" placeholder="1:00" value="1:00" style="width:80px">' +
         '</div>' +
-      '</div>' +
-      '<script>(function(){' +
-        'var t=document.getElementById("vae-trim"),r=document.getElementById("vae-range");' +
-        'if(t&&r)t.addEventListener("change",function(){r.hidden=t.value!=="custom";});' +
-      '})();<\/script>';
+      '</div>';
+  }
+
+  function wireOptions(container) {
+    var fmt = container.querySelector('#vae-fmt');
+    var bitrateWrap = container.querySelector('#vae-bitrate-wrap');
+    var depthWrap = container.querySelector('#vae-depth-wrap');
+    if (fmt) {
+      fmt.addEventListener('change', function () {
+        if (bitrateWrap) bitrateWrap.hidden = fmt.value !== 'mp3' && fmt.value !== 'aac';
+        if (depthWrap)   depthWrap.hidden   = fmt.value !== 'wav';
+      });
+    }
+    var trim = container.querySelector('#vae-trim');
+    var range = container.querySelector('#vae-range');
+    if (trim && range) trim.addEventListener('change', function () { range.hidden = trim.value !== 'custom'; });
   }
 
   function getOptions(el) {
     if (!el) return {};
     return {
       format: (el.querySelector('#vae-fmt') || {}).value || 'mp3',
-      normalize: (el.querySelector('#vae-norm') || {}).value || 'no',
+      bitrate: (el.querySelector('#vae-bitrate') || {}).value || '192k',
+      depth: (el.querySelector('#vae-depth') || {}).value || 'pcm_s16le',
+      normalize: !!(el.querySelector('#vae-norm') || {}).checked,
       trim: (el.querySelector('#vae-trim') || {}).value || 'full',
       start: (el.querySelector('#vae-start') || {}).value || '0:00',
       end: (el.querySelector('#vae-end') || {}).value || '',
     };
   }
 
-  function parseMMSS(s) {
-    var p = s.split(':');
-    return p.length === 2 ? parseInt(p[0]) * 60 + parseInt(p[1]) : parseInt(s) || 0;
-  }
-
-  async function loadFFmpeg(onProgress) {
-    if (_loaded) return;
-    var FFmpeg = window.FFmpegWASM && window.FFmpegWASM.FFmpeg;
-    var toBlobURL = window.FFmpegUtil && window.FFmpegUtil.toBlobURL;
-    if (!FFmpeg || !toBlobURL) throw new Error('FFmpeg.wasm not loaded.');
-    _ffmpeg = new FFmpeg();
-    _ffmpeg.on('log', function (e) { console.log('[FFmpeg]', e.message); });
-    _ffmpeg.on('progress', function (e) {
-      onProgress && onProgress(20 + Math.round(e.progress * 65), 'Extracting... ' + Math.round(e.progress * 100) + '%');
-    });
-    onProgress && onProgress(5, 'Loading processor...');
-    var base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await _ffmpeg.load({
-      coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
-      wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm'),
-    });
-    _loaded = true;
-  }
-
   async function run(file, options, onProgress) {
-    var fetchFile = window.FFmpegUtil && window.FFmpegUtil.fetchFile;
-    if (!fetchFile) throw new Error('FFmpeg utilities not loaded.');
+    var U = window.TGVideoUtil;
+    if (!U) throw new Error('FFmpeg not loaded. Please refresh the page.');
 
-    onProgress && onProgress(3, 'Loading processor...');
-    await loadFFmpeg(onProgress);
+    var fmt = MIMES[options.format] ? options.format : 'mp3';
+    var inName = 'input.' + U.getExt(file.name);
+    var outName = 'output.' + fmt;
+    var ffmpeg = null;
 
-    var ext = file.name.split('.').pop().toLowerCase() || 'mp4';
-    var inName = 'input.' + ext;
-    onProgress && onProgress(15, 'Reading file...');
-    await _ffmpeg.writeFile(inName, await fetchFile(file));
+    try {
+      onProgress && onProgress(0.02, 'Initializing...');
+      ffmpeg = await U.getFFmpeg(onProgress);
 
-    var fmt = options.format || 'mp3';
-    var outName = 'extracted-audio.' + fmt;
-    var args = ['-i', inName];
+      onProgress && onProgress(0.08, 'Loading video file...');
+      await U.writeFile(ffmpeg, inName, file);
 
-    if (options.trim === 'custom') {
-      args = args.concat(['-ss', String(parseMMSS(options.start)), '-to', String(parseMMSS(options.end))]);
+      var args = ['-i', inName];
+
+      if (options.trim === 'custom') {
+        var start = U.parseTime(options.start);
+        var end = U.parseTime(options.end);
+        if (end <= start) throw new Error('Please enter an end time after the start time.');
+        args = args.concat(['-ss', String(start), '-to', String(end)]);
+      }
+
+      args.push('-vn');
+      if (options.normalize) args = args.concat(['-af', 'loudnorm']);
+
+      var codecMap = {
+        mp3: ['-acodec', 'libmp3lame', '-b:a', options.bitrate || '192k', '-ar', '44100'],
+        wav: ['-acodec', options.depth || 'pcm_s16le', '-ar', '44100'],
+        aac: ['-acodec', 'aac', '-b:a', options.bitrate || '192k'],
+        flac: ['-acodec', 'flac'],
+        ogg: ['-acodec', 'libvorbis', '-q:a', '5'],
+      };
+      args = args.concat(codecMap[fmt]);
+      args.push(outName);
+
+      onProgress && onProgress(0.15, 'Extracting audio...');
+      await U.exec(ffmpeg, args);
+
+      onProgress && onProgress(0.92, 'Creating output file...');
+      var data = U.readFile(ffmpeg, outName);
+      var blob = U.makeBlob(data, MIMES[fmt]);
+      onProgress && onProgress(1, 'Done!');
+      return { blob: blob, filename: U.stripExt(file.name) + '.' + fmt };
+    } catch (e) {
+      throw U.mapError(e);
+    } finally {
+      U.cleanup(ffmpeg, [inName, outName]);
     }
-
-    args = args.concat(['-vn']);
-
-    var audioFilter = options.normalize === 'yes' ? ['-af', 'loudnorm'] : [];
-    var codecMap = {
-      mp3: ['-acodec', 'libmp3lame', '-q:a', '2'],
-      wav: ['-acodec', 'pcm_s16le'],
-      aac: ['-acodec', 'aac', '-b:a', '192k'],
-      flac: ['-acodec', 'flac'],
-      ogg: ['-acodec', 'libvorbis', '-q:a', '5'],
-    };
-    args = args.concat(audioFilter).concat(codecMap[fmt] || ['-acodec', 'libmp3lame']);
-    args.push(outName);
-
-    onProgress && onProgress(20, 'Extracting audio...');
-    await _ffmpeg.exec(args);
-
-    onProgress && onProgress(90, 'Preparing download...');
-    var mimes = { mp3: 'audio/mpeg', wav: 'audio/wav', aac: 'audio/aac', flac: 'audio/flac', ogg: 'audio/ogg' };
-    var data = await _ffmpeg.readFile(outName);
-    var blob = new Blob([data.buffer], { type: mimes[fmt] || 'audio/mpeg' });
-    onProgress && onProgress(100, 'Done!');
-    return { blob: blob, filename: outName };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

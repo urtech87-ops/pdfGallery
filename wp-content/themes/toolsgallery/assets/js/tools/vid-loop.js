@@ -5,13 +5,10 @@
 (function () {
   'use strict';
   var CONFIG = { handler: 'vid-loop' };
-  var _ffmpeg = null, _loaded = false;
-
-  var NOTICE = '<div class="tg-video-notice" style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5d4037">' +
-    '&#9889; Boomerang mode generates a reversed copy before concatenating, which takes extra time.</div>';
 
   function getOptionsHTML() {
-    return NOTICE +
+    var notice = window.TGVideoUtil ? TGVideoUtil.noticeHTML('Boomerang mode generates a reversed copy before concatenating, which takes extra time.') : '';
+    return notice +
       '<div class="tg-opt-row"><label class="tg-opt-label">Number of Loops</label>' +
         '<select id="vlo-count" class="tg-select">' +
           '<option value="2">2 times</option><option value="3" selected>3 times</option>' +
@@ -44,70 +41,64 @@
     };
   }
 
-  async function loadFFmpeg(onProgress) {
-    if (_loaded) return;
-    var FFmpeg = window.FFmpegWASM && window.FFmpegWASM.FFmpeg;
-    var toBlobURL = window.FFmpegUtil && window.FFmpegUtil.toBlobURL;
-    if (!FFmpeg || !toBlobURL) throw new Error('FFmpeg.wasm not loaded.');
-    _ffmpeg = new FFmpeg();
-    _ffmpeg.on('log', function (e) { console.log('[FFmpeg]', e.message); });
-    _ffmpeg.on('progress', function (e) {
-      onProgress && onProgress(20 + Math.round(e.progress * 65), 'Creating loop... ' + Math.round(e.progress * 100) + '%');
-    });
-    onProgress && onProgress(5, 'Loading processor...');
-    var base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await _ffmpeg.load({
-      coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
-      wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm'),
-    });
-    _loaded = true;
-  }
-
   async function run(file, options, onProgress) {
-    var fetchFile = window.FFmpegUtil && window.FFmpegUtil.fetchFile;
-    if (!fetchFile) throw new Error('FFmpeg utilities not loaded.');
+    var U = window.TGVideoUtil;
+    if (!U) throw new Error('FFmpeg not loaded. Please refresh the page.');
 
-    onProgress && onProgress(3, 'Loading processor...');
-    await loadFFmpeg(onProgress);
+    var inName = 'input.' + U.getExt(file.name);
+    var outName = 'output.mp4';
+    var ffmpeg = null;
 
-    var ext = file.name.split('.').pop().toLowerCase() || 'mp4';
-    var inName = 'input.' + ext;
-    onProgress && onProgress(15, 'Reading file...');
-    await _ffmpeg.writeFile(inName, await fetchFile(file));
+    try {
+      onProgress && onProgress(0.02, 'Initializing...');
+      ffmpeg = await U.getFFmpeg(onProgress);
 
-    // Normalize to MP4 first
-    onProgress && onProgress(20, 'Preparing video...');
-    await _ffmpeg.exec(['-i', inName, '-vcodec', 'libx264', '-acodec', 'aac', '-crf', '23', 'norm.mp4']);
+      onProgress && onProgress(0.08, 'Loading video file...');
+      await U.writeFile(ffmpeg, inName, file);
 
-    var count = Math.min(options.count || 3, 10);
-    var concatList = '';
-    var enc = new TextEncoder();
+      /* Normalize to MP4 so concat with stream copy works */
+      onProgress && onProgress(0.12, 'Preparing video...');
+      await U.exec(ffmpeg, ['-i', inName, '-vcodec', 'libx264', '-acodec', 'aac', '-crf', '23', 'norm.mp4']);
 
-    if (options.type === 'boomerang') {
-      onProgress && onProgress(40, 'Creating reversed copy...');
-      await _ffmpeg.exec(['-i', 'norm.mp4', '-vf', 'reverse', '-af', 'areverse', 'rev.mp4']);
-      for (var i = 0; i < count; i++) {
-        concatList += 'file norm.mp4\nfile rev.mp4\n';
+      var count = Math.min(options.count || 3, 10);
+      var concatList = '';
+
+      if (options.type === 'boomerang') {
+        onProgress && onProgress(0.4, 'Creating reversed copy...');
+        await U.exec(ffmpeg, ['-i', 'norm.mp4', '-vf', 'reverse', '-af', 'areverse', 'rev.mp4']);
+        /* Silent clips make areverse fail — retry video-only */
+        try {
+          U.readFile(ffmpeg, 'rev.mp4');
+        } catch (e) {
+          await U.exec(ffmpeg, ['-i', 'norm.mp4', '-vf', 'reverse', '-an', 'rev.mp4']);
+        }
+        for (var i = 0; i < count; i++) {
+          concatList += 'file norm.mp4\nfile rev.mp4\n';
+        }
+      } else {
+        for (var j = 0; j < count; j++) {
+          concatList += 'file norm.mp4\n';
+        }
       }
-    } else {
-      for (var j = 0; j < count; j++) {
-        concatList += 'file norm.mp4\n';
-      }
+
+      onProgress && onProgress(0.7, 'Concatenating loops...');
+      U.writeText(ffmpeg, 'concat.txt', concatList);
+
+      var concatArgs = ['-f', 'concat', '-safe', '0', '-i', 'concat.txt', '-c', 'copy'];
+      if (options.limit) concatArgs = concatArgs.concat(['-t', options.limit]);
+      concatArgs.push(outName);
+      await U.exec(ffmpeg, concatArgs);
+
+      onProgress && onProgress(0.92, 'Creating output file...');
+      var data = U.readFile(ffmpeg, outName);
+      var blob = U.makeBlob(data, 'video/mp4');
+      onProgress && onProgress(1, 'Done!');
+      return { blob: blob, filename: U.stripExt(file.name) + '-looped.mp4' };
+    } catch (e) {
+      throw U.mapError(e);
+    } finally {
+      U.cleanup(ffmpeg, [inName, outName, 'norm.mp4', 'rev.mp4', 'concat.txt']);
     }
-
-    onProgress && onProgress(60, 'Concatenating loops...');
-    await _ffmpeg.writeFile('list.txt', enc.encode(concatList));
-
-    var concatArgs = ['-f', 'concat', '-safe', '0', '-i', 'list.txt', '-c', 'copy'];
-    if (options.limit) concatArgs = concatArgs.concat(['-t', options.limit]);
-    concatArgs.push('output.mp4');
-    await _ffmpeg.exec(concatArgs);
-
-    onProgress && onProgress(90, 'Preparing download...');
-    var data = await _ffmpeg.readFile('output.mp4');
-    var blob = new Blob([data.buffer], { type: 'video/mp4' });
-    onProgress && onProgress(100, 'Done!');
-    return { blob: blob, filename: 'looped.mp4' };
   }
 
   window.TGTools = window.TGTools || {};

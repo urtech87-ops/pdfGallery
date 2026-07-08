@@ -5,11 +5,14 @@
 (function () {
   'use strict';
   var CONFIG = { handler: 'vid-stabilize' };
-  var _ffmpeg = null, _loaded = false;
+
+  var UNAVAILABLE_MSG = 'Video stabilization requires the vidstab FFmpeg filter, ' +
+    'which is not included in the browser build of FFmpeg. ' +
+    'For video stabilization, try HandBrake (free desktop app at handbrake.fr) or a video editor.';
 
   function getOptionsHTML() {
-    return '<div class="tg-video-notice" style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5d4037">' +
-      '&#9889; Video stabilization requires the vidstab FFmpeg filter. If unavailable in this build, a helpful message will be shown with alternative tools.</div>' +
+    var notice = window.TGVideoUtil ? TGVideoUtil.noticeHTML('Stabilization runs two passes (analyze + transform), so it takes roughly twice as long as other tools. If the vidstab filter is unavailable in this browser build, a helpful message will be shown.') : '';
+    return notice +
       '<div class="tg-opt-row"><label class="tg-opt-label">Smoothing Level</label>' +
         '<select id="vstab-smooth" class="tg-select">' +
           '<option value="5">Low</option><option value="10" selected>Medium</option><option value="20">High</option>' +
@@ -30,55 +33,52 @@
     return { smoothing: s ? s.value : '10', crop: c ? c.value : 'crop' };
   }
 
-  async function loadFFmpeg(onProgress) {
-    if (_loaded) return;
-    var FFmpeg = window.FFmpegWASM && window.FFmpegWASM.FFmpeg;
-    var toBlobURL = window.FFmpegUtil && window.FFmpegUtil.toBlobURL;
-    if (!FFmpeg || !toBlobURL) throw new Error('FFmpeg.wasm not loaded.');
-    _ffmpeg = new FFmpeg();
-    _ffmpeg.on('log', function (e) { console.log('[FFmpeg]', e.message); });
-    _ffmpeg.on('progress', function (e) {
-      onProgress && onProgress(20 + Math.round(e.progress * 60), 'Stabilizing... ' + Math.round(e.progress * 100) + '%');
-    });
-    onProgress && onProgress(5, 'Loading processor...');
-    var base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await _ffmpeg.load({
-      coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
-      wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm'),
-    });
-    _loaded = true;
-  }
-
   async function run(file, options, onProgress) {
-    var fetchFile = window.FFmpegUtil && window.FFmpegUtil.fetchFile;
-    if (!fetchFile) throw new Error('FFmpeg utilities not loaded.');
+    var U = window.TGVideoUtil;
+    if (!U) throw new Error('FFmpeg not loaded. Please refresh the page.');
 
-    onProgress && onProgress(3, 'Loading processor...');
-    await loadFFmpeg(onProgress);
+    var inName = 'input.' + U.getExt(file.name);
+    var outName = 'output.mp4';
+    var ffmpeg = null;
 
-    var ext = file.name.split('.').pop().toLowerCase() || 'mp4';
-    var inName = 'input.' + ext;
-    onProgress && onProgress(15, 'Reading file...');
-    await _ffmpeg.writeFile(inName, await fetchFile(file));
-
-    onProgress && onProgress(20, 'Step 1/2: Detecting motion...');
     try {
-      await _ffmpeg.exec(['-i', inName, '-vf', 'vidstabdetect=stepsize=6:shakiness=8:accuracy=9:result=transforms.trf', '-f', 'null', '-']);
+      onProgress && onProgress(0.02, 'Initializing...');
+      ffmpeg = await U.getFFmpeg(onProgress);
+
+      onProgress && onProgress(0.08, 'Loading video file...');
+      await U.writeFile(ffmpeg, inName, file);
+
+      onProgress && onProgress(0.15, 'Step 1/2: Detecting motion...');
+      try {
+        await U.exec(ffmpeg, ['-i', inName, '-vf', 'vidstabdetect=stepsize=6:shakiness=8:accuracy=9:result=transforms.trf', '-f', 'null', '-']);
+      } catch (e) {
+        throw new Error(UNAVAILABLE_MSG);
+      }
+
+      /* ffmpeg.wasm 0.11 run() can resolve even when the filter is
+         missing — confirm the analysis file actually exists. */
+      try {
+        ffmpeg.FS('readFile', 'transforms.trf');
+      } catch (e) {
+        throw new Error(UNAVAILABLE_MSG);
+      }
+
+      var cropOpt = options.crop === 'crop' ? ':crop=black' : '';
+      var transformFilter = 'vidstabtransform=smoothing=' + (options.smoothing || '10') + ':input=transforms.trf' + cropOpt + ',unsharp=5:5:0.8:3:3:0.4';
+      onProgress && onProgress(0.55, 'Step 2/2: Applying stabilization...');
+      await U.exec(ffmpeg, ['-i', inName, '-vf', transformFilter, '-c:a', 'copy', outName]);
+
+      onProgress && onProgress(0.92, 'Creating output file...');
+      var data = U.readFile(ffmpeg, outName);
+      var blob = U.makeBlob(data, 'video/mp4');
+      onProgress && onProgress(1, 'Done!');
+      return { blob: blob, filename: U.stripExt(file.name) + '-stabilized.mp4' };
     } catch (e) {
-      throw new Error('Video stabilization (vidstab) is not available in this browser build of FFmpeg. ' +
-        'For video stabilization, try HandBrake (free desktop app at handbrake.fr) or Adobe Premiere.');
+      if (e && e.message === UNAVAILABLE_MSG) throw e;
+      throw U.mapError(e);
+    } finally {
+      U.cleanup(ffmpeg, [inName, outName, 'transforms.trf']);
     }
-
-    var cropOpt = options.crop === 'crop' ? ':crop=black' : '';
-    var transformFilter = 'vidstabtransform=smoothing=' + (options.smoothing || '10') + ':input=transforms.trf' + cropOpt;
-    onProgress && onProgress(60, 'Step 2/2: Applying stabilization...');
-    await _ffmpeg.exec(['-i', inName, '-vf', transformFilter, '-c:a', 'copy', 'output.mp4']);
-
-    onProgress && onProgress(90, 'Preparing download...');
-    var data = await _ffmpeg.readFile('output.mp4');
-    var blob = new Blob([data.buffer], { type: 'video/mp4' });
-    onProgress && onProgress(100, 'Done!');
-    return { blob: blob, filename: 'stabilized.mp4' };
   }
 
   window.TGTools = window.TGTools || {};

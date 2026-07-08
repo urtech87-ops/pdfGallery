@@ -1,109 +1,172 @@
 /**
  * ToolsGallery — Video Filters
  * Handler: vid-filters
+ * Live CSS preview of each preset on the uploaded video; the intensity
+ * slider scales filters that support it. FFmpeg re-encodes on apply.
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'vid-filters' };
-  var _ffmpeg = null, _loaded = false;
+  var _selectedId = '';
 
+  /* i = intensity 0.1–1. Filters without a "scale" flag ignore the slider. */
   var FILTERS = [
-    { id: 'grayscale', label: 'Grayscale', css: 'grayscale(100%)', ffmpeg: 'hue=s=0' },
-    { id: 'sepia', label: 'Sepia', css: 'sepia(100%)', ffmpeg: 'colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131' },
-    { id: 'bright', label: 'Brightness +20%', css: 'brightness(120%)', ffmpeg: 'eq=brightness=0.2' },
-    { id: 'saturate', label: 'Saturate 2x', css: 'saturate(200%)', ffmpeg: 'eq=saturation=2' },
-    { id: 'sharpen', label: 'Sharpen', css: 'contrast(110%)', ffmpeg: 'unsharp=5:5:1.5:5:5:0.0' },
-    { id: 'vignette', label: 'Vignette', css: 'brightness(85%)', ffmpeg: 'vignette=PI/4' },
-    { id: 'vintage', label: 'Vintage', css: 'sepia(50%) brightness(90%)', ffmpeg: 'colorbalance=rs=0.1:gs=0.1:bs=-0.1,eq=brightness=-0.05:contrast=1.1' },
-    { id: 'cool', label: 'Cool Tone', css: 'hue-rotate(180deg) saturate(130%)', ffmpeg: 'colorbalance=bs=0.3' },
-    { id: 'warm', label: 'Warm Tone', css: 'sepia(30%) saturate(120%)', ffmpeg: 'colorbalance=rs=0.3' },
-    { id: 'negative', label: 'Negative', css: 'invert(100%)', ffmpeg: 'negate' },
+    { id: 'grayscale', label: 'Grayscale', scale: true,
+      css: function (i) { return 'grayscale(' + Math.round(i * 100) + '%)'; },
+      ff: function (i) { return 'hue=s=' + (1 - i).toFixed(2); } },
+    { id: 'sepia', label: 'Sepia',
+      css: function () { return 'sepia(100%)'; },
+      ff: function () { return 'colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131'; } },
+    { id: 'vintage', label: 'Vintage',
+      css: function () { return 'sepia(50%) brightness(90%) contrast(110%)'; },
+      ff: function () { return 'curves=vintage'; } },
+    { id: 'sharpen', label: 'Sharpen', scale: true,
+      css: function () { return 'contrast(110%)'; },
+      ff: function (i) { return 'unsharp=5:5:' + (1.5 * i).toFixed(2) + ':5:5:0.0'; } },
+    { id: 'blur', label: 'Blur', scale: true,
+      css: function (i) { return 'blur(' + (4 * i).toFixed(1) + 'px)'; },
+      ff: function (i) { return 'boxblur=' + Math.max(1, Math.round(8 * i)) + ':1'; } },
+    { id: 'brighten', label: 'Brighten', scale: true,
+      css: function (i) { return 'brightness(' + Math.round(100 + 40 * i) + '%)'; },
+      ff: function (i) { return 'eq=brightness=' + (0.4 * i).toFixed(2); } },
+    { id: 'darken', label: 'Darken', scale: true,
+      css: function (i) { return 'brightness(' + Math.round(100 - 40 * i) + '%)'; },
+      ff: function (i) { return 'eq=brightness=-' + (0.4 * i).toFixed(2); } },
+    { id: 'contrast', label: 'Contrast', scale: true,
+      css: function (i) { return 'contrast(' + Math.round(100 + 60 * i) + '%)'; },
+      ff: function (i) { return 'eq=contrast=' + (1 + 0.6 * i).toFixed(2); } },
+    { id: 'saturate', label: 'Saturate', scale: true,
+      css: function (i) { return 'saturate(' + Math.round(100 + 150 * i) + '%)'; },
+      ff: function (i) { return 'eq=saturation=' + (1 + 1.5 * i).toFixed(2); } },
+    { id: 'vignette', label: 'Vignette',
+      css: function () { return 'brightness(85%)'; },
+      ff: function () { return 'vignette=PI/4'; } },
+    { id: 'mirror', label: 'Mirror (flip)',
+      css: function () { return ''; },
+      ff: function () { return 'hflip'; } },
+    { id: 'cool', label: 'Cool Tone',
+      css: function () { return 'saturate(120%) hue-rotate(15deg)'; },
+      ff: function () { return 'colorbalance=bs=0.3'; } },
+    { id: 'warm', label: 'Warm Tone',
+      css: function () { return 'sepia(30%) saturate(120%)'; },
+      ff: function () { return 'colorbalance=rs=0.3'; } },
+    { id: 'negative', label: 'Negative',
+      css: function () { return 'invert(100%)'; },
+      ff: function () { return 'negate'; } },
   ];
 
-  var NOTICE = '<div class="tg-video-notice" style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5d4037">' +
-    '&#9889; Live CSS preview shows how the filter will look. Applying re-encodes the video.</div>';
+  function findFilter(id) {
+    for (var i = 0; i < FILTERS.length; i++) if (FILTERS[i].id === id) return FILTERS[i];
+    return null;
+  }
 
   function getOptionsHTML() {
-    var preview = '<div id="vflt-preview-wrap" style="margin-bottom:12px">' +
-      '<video id="vflt-preview" style="max-width:100%;max-height:180px;border-radius:6px;background:#000" controls muted loop></video>' +
-    '</div>';
+    _selectedId = '';
+    var notice = window.TGVideoUtil ? TGVideoUtil.noticeHTML('The preview shows a live approximation; applying re-encodes the video.') : '';
     var cards = FILTERS.map(function (f) {
-      return '<button type="button" class="vflt-btn" data-flt-id="' + f.id + '" data-flt-css="' + f.css + '" data-flt-ff="' + f.ffmpeg + '"' +
+      return '<button type="button" class="vflt-btn" data-flt-id="' + f.id + '"' +
         ' style="padding:8px 12px;border:2px solid #ddd;background:#fff;border-radius:6px;cursor:pointer;font-size:12px;text-align:center">' +
         f.label + '</button>';
     }).join('');
-    return NOTICE + preview +
+    return notice +
+      '<div id="vflt-preview-wrap" hidden style="margin-bottom:12px">' +
+        '<video id="vflt-preview" style="max-width:100%;max-height:180px;border-radius:6px;background:#000" controls muted loop></video>' +
+      '</div>' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-bottom:8px">' + cards + '</div>' +
-      '<div id="vflt-selected" style="font-size:12px;color:#666">No filter selected</div>' +
-      '<input type="hidden" id="vflt-ff-val" value="">' +
-      '<script>(function(){' +
-        'var preview=document.getElementById("vflt-preview");' +
-        'document.querySelectorAll(".vflt-btn").forEach(function(btn){' +
-          'btn.addEventListener("click",function(){' +
-            'document.querySelectorAll(".vflt-btn").forEach(function(b){b.style.borderColor="#ddd";b.style.background="#fff";});' +
-            'btn.style.borderColor="#4a90e2";btn.style.background="#e8f0fe";' +
-            'if(preview)preview.style.filter=btn.dataset.fltCss;' +
-            'document.getElementById("vflt-ff-val").value=btn.dataset.fltFf;' +
-            'document.getElementById("vflt-selected").textContent="Filter: "+btn.textContent;' +
-          '});' +
-        '});' +
-        'window._vfltInitPreview=function(file){' +
-          'if(preview)preview.src=URL.createObjectURL(file);' +
-        '};' +
-      '})();<\/script>';
+      '<div class="tg-opt-row" id="vflt-intensity-row" hidden>' +
+        '<label class="tg-opt-label">Intensity</label>' +
+        '<input type="range" id="vflt-intensity" min="10" max="100" value="100" style="flex:1">' +
+        ' <span id="vflt-intensity-val">100%</span>' +
+      '</div>' +
+      '<div id="vflt-selected" style="font-size:12px;color:#666">No filter selected</div>';
+  }
+
+  function intensityValue(container) {
+    var sl = container.querySelector('#vflt-intensity');
+    return sl ? (parseInt(sl.value, 10) || 100) / 100 : 1;
+  }
+
+  function updatePreview(container) {
+    var preview = container.querySelector('#vflt-preview');
+    var f = findFilter(_selectedId);
+    if (preview && f) preview.style.filter = f.css(intensityValue(container));
+  }
+
+  function wireOptions(container) {
+    var slider = container.querySelector('#vflt-intensity');
+    var sliderVal = container.querySelector('#vflt-intensity-val');
+    var sliderRow = container.querySelector('#vflt-intensity-row');
+    var selectedEl = container.querySelector('#vflt-selected');
+
+    container.querySelectorAll('.vflt-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        container.querySelectorAll('.vflt-btn').forEach(function (b) {
+          b.style.borderColor = '#ddd'; b.style.background = '#fff';
+        });
+        btn.style.borderColor = '#4a90e2'; btn.style.background = '#e8f0fe';
+        _selectedId = btn.dataset.fltId;
+        var f = findFilter(_selectedId);
+        if (sliderRow) sliderRow.hidden = !(f && f.scale);
+        if (selectedEl) selectedEl.textContent = 'Filter: ' + btn.textContent;
+        updatePreview(container);
+      });
+    });
+
+    if (slider) {
+      slider.addEventListener('input', function () {
+        if (sliderVal) sliderVal.textContent = slider.value + '%';
+        updatePreview(container);
+      });
+    }
+  }
+
+  function onFileReady(file) {
+    var preview = document.getElementById('vflt-preview');
+    var wrap = document.getElementById('vflt-preview-wrap');
+    if (preview) preview.src = URL.createObjectURL(file);
+    if (wrap) wrap.hidden = false;
   }
 
   function getOptions(el) {
     if (!el) return {};
-    var f = el.querySelector('#vflt-ff-val');
-    return { filter: f ? f.value : '' };
-  }
-
-  async function loadFFmpeg(onProgress) {
-    if (_loaded) return;
-    var FFmpeg = window.FFmpegWASM && window.FFmpegWASM.FFmpeg;
-    var toBlobURL = window.FFmpegUtil && window.FFmpegUtil.toBlobURL;
-    if (!FFmpeg || !toBlobURL) throw new Error('FFmpeg.wasm not loaded.');
-    _ffmpeg = new FFmpeg();
-    _ffmpeg.on('log', function (e) { console.log('[FFmpeg]', e.message); });
-    _ffmpeg.on('progress', function (e) {
-      onProgress && onProgress(20 + Math.round(e.progress * 65), 'Applying filter... ' + Math.round(e.progress * 100) + '%');
-    });
-    onProgress && onProgress(5, 'Loading processor...');
-    var base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await _ffmpeg.load({
-      coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
-      wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm'),
-    });
-    _loaded = true;
+    var f = findFilter(_selectedId);
+    return {
+      filter: f ? f.ff(intensityValue(el)) : '',
+      label: f ? f.id : '',
+    };
   }
 
   async function run(file, options, onProgress) {
+    var U = window.TGVideoUtil;
+    if (!U) throw new Error('FFmpeg not loaded. Please refresh the page.');
     if (!options.filter) throw new Error('Please select a filter to apply.');
 
-    if (window._vfltInitPreview) window._vfltInitPreview(file);
+    var inName = 'input.' + U.getExt(file.name);
+    var outName = 'output.mp4';
+    var ffmpeg = null;
 
-    var fetchFile = window.FFmpegUtil && window.FFmpegUtil.fetchFile;
-    if (!fetchFile) throw new Error('FFmpeg utilities not loaded.');
+    try {
+      onProgress && onProgress(0.02, 'Initializing...');
+      ffmpeg = await U.getFFmpeg(onProgress);
 
-    onProgress && onProgress(3, 'Loading processor...');
-    await loadFFmpeg(onProgress);
+      onProgress && onProgress(0.08, 'Loading video file...');
+      await U.writeFile(ffmpeg, inName, file);
 
-    var ext = file.name.split('.').pop().toLowerCase() || 'mp4';
-    var inName = 'input.' + ext;
-    onProgress && onProgress(15, 'Reading file...');
-    await _ffmpeg.writeFile(inName, await fetchFile(file));
+      onProgress && onProgress(0.15, 'Applying filter...');
+      await U.exec(ffmpeg, ['-i', inName, '-vf', options.filter, '-c:a', 'copy', outName]);
 
-    onProgress && onProgress(20, 'Applying filter...');
-    await _ffmpeg.exec(['-i', inName, '-vf', options.filter, '-c:a', 'copy', 'output.mp4']);
-
-    onProgress && onProgress(90, 'Preparing download...');
-    var data = await _ffmpeg.readFile('output.mp4');
-    var blob = new Blob([data.buffer], { type: 'video/mp4' });
-    onProgress && onProgress(100, 'Done!');
-    return { blob: blob, filename: 'filtered.mp4' };
+      onProgress && onProgress(0.92, 'Creating output file...');
+      var data = U.readFile(ffmpeg, outName);
+      var blob = U.makeBlob(data, 'video/mp4');
+      onProgress && onProgress(1, 'Done!');
+      return { blob: blob, filename: U.stripExt(file.name) + '-' + (options.label || 'filtered') + '.mp4' };
+    } catch (e) {
+      throw U.mapError(e);
+    } finally {
+      U.cleanup(ffmpeg, [inName, outName]);
+    }
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

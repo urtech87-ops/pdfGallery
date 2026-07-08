@@ -1,108 +1,179 @@
 /**
  * ToolsGallery — Video Resolution Changer
  * Handler: vid-resolution
+ * Preset or custom target resolutions with letterbox / crop / stretch
+ * aspect-ratio handling; warns before upscaling.
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'vid-resolution' };
-  var _ffmpeg = null, _loaded = false;
+  var _srcW = 0, _srcH = 0;
 
   var RESOLUTIONS = [
-    { label: '8K (7680×4320)', w: 7680, h: 4320 },
     { label: '4K (3840×2160)', w: 3840, h: 2160 },
     { label: '2K (2560×1440)', w: 2560, h: 1440 },
-    { label: 'Full HD (1920×1080)', w: 1920, h: 1080 },
-    { label: 'HD (1280×720)', w: 1280, h: 720 },
-    { label: 'SD (854×480)', w: 854, h: 480 },
+    { label: '1080p (1920×1080)', w: 1920, h: 1080 },
+    { label: '720p (1280×720)', w: 1280, h: 720 },
+    { label: '480p (854×480)', w: 854, h: 480 },
     { label: '360p (640×360)', w: 640, h: 360 },
     { label: '240p (426×240)', w: 426, h: 240 },
   ];
 
-  var NOTICE = '<div class="tg-video-notice" style="background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5d4037">' +
-    '&#9889; Resolution change re-encodes the video. Upscaling cannot add detail beyond what was originally captured.</div>';
-
   function getOptionsHTML() {
+    var notice = window.TGVideoUtil ? TGVideoUtil.noticeHTML('Resolution change re-encodes the video.') : '';
     var opts = RESOLUTIONS.map(function (r) {
-      return '<option value="' + r.w + ':' + r.h + '"' + (r.w === 1920 ? ' selected' : '') + '>' + r.label + '</option>';
-    }).join('');
-    return NOTICE +
-      '<div id="vres-info" style="font-size:12px;color:#666;margin-bottom:8px">Upload a video to see current resolution.</div>' +
+      return '<option value="' + r.w + 'x' + r.h + '"' + (r.h === 720 ? ' selected' : '') + '>' + r.label + '</option>';
+    }).join('') + '<option value="custom">Custom...</option>';
+    return notice +
+      '<div id="vres-info" style="font-size:12px;color:#666;margin-bottom:8px">Upload a video to see its current resolution.</div>' +
       '<div class="tg-opt-row"><label class="tg-opt-label">Target Resolution</label>' +
         '<select id="vres-target" class="tg-select">' + opts + '</select>' +
       '</div>' +
-      '<div class="tg-opt-row"><label class="tg-opt-label">Aspect Ratio Handling</label>' +
+      '<div id="vres-custom-wrap" hidden>' +
+        '<div class="tg-opt-row"><label class="tg-opt-label">Width (px)</label>' +
+          '<input type="number" id="vres-cw" class="tg-text-input" min="2" max="7680" value="1280" style="width:100px">' +
+        '</div>' +
+        '<div class="tg-opt-row"><label class="tg-opt-label">Height (px)</label>' +
+          '<input type="number" id="vres-ch" class="tg-text-input" min="2" max="4320" value="720" style="width:100px">' +
+        '</div>' +
+        '<div class="tg-opt-row"><label><input type="checkbox" id="vres-keep-ar" checked> Maintain aspect ratio (height follows width)</label></div>' +
+      '</div>' +
+      '<div class="tg-opt-row" id="vres-ar-row"><label class="tg-opt-label">Aspect Ratio Handling</label>' +
         '<select id="vres-ar" class="tg-select">' +
           '<option value="letterbox" selected>Letterbox (add black bars)</option>' +
           '<option value="crop">Crop to fill</option>' +
           '<option value="stretch">Stretch (may distort)</option>' +
         '</select>' +
+      '</div>' +
+      '<div id="vres-warning" hidden style="font-size:12px;color:#b45309;background:#fff8e1;border:1px solid #ffe082;border-radius:6px;padding:8px 12px;margin-top:8px">' +
+        '&#9888;&#65039; The target is larger than the source — upscaling cannot add detail beyond what was originally captured.' +
       '</div>';
   }
+
+  function targetDims(container) {
+    var target = container.querySelector('#vres-target');
+    if (target && target.value === 'custom') {
+      var cw = container.querySelector('#vres-cw');
+      return { w: cw ? parseInt(cw.value, 10) || 1280 : 1280, h: 0 };
+    }
+    var parts = (target ? target.value : '1280x720').split('x');
+    return { w: parseInt(parts[0], 10) || 1280, h: parseInt(parts[1], 10) || 720 };
+  }
+
+  function refreshInfo(container) {
+    var warning = container.querySelector('#vres-warning');
+    var infoEl = container.querySelector('#vres-info');
+    var dims = targetDims(container);
+    if (infoEl && _srcW) {
+      infoEl.textContent = 'Current: ' + _srcW + ' × ' + _srcH + ' px → Target: ' +
+        dims.w + (dims.h ? ' × ' + dims.h : ' px wide (height auto)') + (dims.h ? ' px' : '');
+    }
+    if (warning) warning.hidden = !(_srcW && dims.w > _srcW);
+  }
+
+  function wireOptions(container) {
+    var target = container.querySelector('#vres-target');
+    var customWrap = container.querySelector('#vres-custom-wrap');
+    var arRow = container.querySelector('#vres-ar-row');
+    var keepAr = container.querySelector('#vres-keep-ar');
+    var ch = container.querySelector('#vres-ch');
+
+    function syncCustom() {
+      var isCustom = target && target.value === 'custom';
+      if (customWrap) customWrap.hidden = !isCustom;
+      /* letterbox/crop/stretch only applies to fixed W×H targets */
+      if (arRow) arRow.hidden = isCustom && keepAr && keepAr.checked;
+      if (ch && keepAr) ch.disabled = keepAr.checked;
+      refreshInfo(container);
+    }
+    if (target) target.addEventListener('change', syncCustom);
+    if (keepAr) keepAr.addEventListener('change', syncCustom);
+    ['#vres-cw', '#vres-ch'].forEach(function (sel) {
+      var el = container.querySelector(sel);
+      if (el) el.addEventListener('input', function () { refreshInfo(container); });
+    });
+    syncCustom();
+  }
+
+  function onFileReady(file, optionsEl) {
+    _srcW = 0; _srcH = 0;
+    var vid = document.createElement('video');
+    vid.preload = 'metadata';
+    vid.src = URL.createObjectURL(file);
+    vid.onloadedmetadata = function () {
+      _srcW = vid.videoWidth; _srcH = vid.videoHeight;
+      if (optionsEl) refreshInfo(optionsEl);
+      URL.revokeObjectURL(vid.src);
+    };
+  }
+
+  function even(n) { return Math.max(2, n - (n % 2)); }
 
   function getOptions(el) {
     if (!el) return {};
     var target = el.querySelector('#vres-target');
-    var ar = el.querySelector('#vres-ar');
     return {
-      target: target ? target.value : '1920:1080',
-      ar: ar ? ar.value : 'letterbox',
+      target: target ? target.value : '1280x720',
+      customW: parseInt((el.querySelector('#vres-cw') || {}).value, 10) || 1280,
+      customH: parseInt((el.querySelector('#vres-ch') || {}).value, 10) || 720,
+      keepAr: !!(el.querySelector('#vres-keep-ar') || {}).checked,
+      ar: (el.querySelector('#vres-ar') || {}).value || 'letterbox',
     };
   }
 
-  async function loadFFmpeg(onProgress) {
-    if (_loaded) return;
-    var FFmpeg = window.FFmpegWASM && window.FFmpegWASM.FFmpeg;
-    var toBlobURL = window.FFmpegUtil && window.FFmpegUtil.toBlobURL;
-    if (!FFmpeg || !toBlobURL) throw new Error('FFmpeg.wasm not loaded.');
-    _ffmpeg = new FFmpeg();
-    _ffmpeg.on('log', function (e) { console.log('[FFmpeg]', e.message); });
-    _ffmpeg.on('progress', function (e) {
-      onProgress && onProgress(20 + Math.round(e.progress * 65), 'Changing resolution... ' + Math.round(e.progress * 100) + '%');
-    });
-    onProgress && onProgress(5, 'Loading processor...');
-    var base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await _ffmpeg.load({
-      coreURL: await toBlobURL(base + '/ffmpeg-core.js', 'text/javascript'),
-      wasmURL: await toBlobURL(base + '/ffmpeg-core.wasm', 'application/wasm'),
-    });
-    _loaded = true;
-  }
-
   async function run(file, options, onProgress) {
-    var fetchFile = window.FFmpegUtil && window.FFmpegUtil.fetchFile;
-    if (!fetchFile) throw new Error('FFmpeg utilities not loaded.');
+    var U = window.TGVideoUtil;
+    if (!U) throw new Error('FFmpeg not loaded. Please refresh the page.');
 
-    onProgress && onProgress(3, 'Loading processor...');
-    await loadFFmpeg(onProgress);
+    var inName = 'input.' + U.getExt(file.name);
+    var outName = 'output.mp4';
+    var ffmpeg = null;
 
-    var ext = file.name.split('.').pop().toLowerCase() || 'mp4';
-    var inName = 'input.' + ext;
-    onProgress && onProgress(15, 'Reading file...');
-    await _ffmpeg.writeFile(inName, await fetchFile(file));
-
-    var parts = (options.target || '1920:1080').split(':');
-    var w = parts[0] || '1920';
-    var h = parts[1] || '1080';
-    var vf;
-
-    if (options.ar === 'letterbox') {
-      vf = 'scale=' + w + ':' + h + ':force_original_aspect_ratio=decrease,pad=' + w + ':' + h + ':(ow-iw)/2:(oh-ih)/2:black';
-    } else if (options.ar === 'crop') {
-      vf = 'scale=' + w + ':' + h + ':force_original_aspect_ratio=increase,crop=' + w + ':' + h;
+    var vf, suffix;
+    if (options.target === 'custom' && options.keepAr) {
+      var cw = even(options.customW);
+      vf = 'scale=' + cw + ':-2';
+      suffix = cw + 'w';
     } else {
-      vf = 'scale=' + w + ':' + h;
+      var w, h;
+      if (options.target === 'custom') {
+        w = even(options.customW); h = even(options.customH);
+      } else {
+        var parts = options.target.split('x');
+        w = parseInt(parts[0], 10) || 1280; h = parseInt(parts[1], 10) || 720;
+      }
+      if (options.ar === 'letterbox') {
+        vf = 'scale=' + w + ':' + h + ':force_original_aspect_ratio=decrease:force_divisible_by=2,pad=' + w + ':' + h + ':(ow-iw)/2:(oh-ih)/2:black';
+      } else if (options.ar === 'crop') {
+        vf = 'scale=' + w + ':' + h + ':force_original_aspect_ratio=increase:force_divisible_by=2,crop=' + w + ':' + h;
+      } else {
+        vf = 'scale=' + w + ':' + h;
+      }
+      suffix = h + 'p';
     }
 
-    onProgress && onProgress(20, 'Changing resolution...');
-    await _ffmpeg.exec(['-i', inName, '-vf', vf, '-c:a', 'copy', 'output.mp4']);
+    try {
+      onProgress && onProgress(0.02, 'Initializing...');
+      ffmpeg = await U.getFFmpeg(onProgress);
 
-    onProgress && onProgress(90, 'Preparing download...');
-    var data = await _ffmpeg.readFile('output.mp4');
-    var blob = new Blob([data.buffer], { type: 'video/mp4' });
-    onProgress && onProgress(100, 'Done!');
-    return { blob: blob, filename: 'resized.mp4' };
+      onProgress && onProgress(0.08, 'Loading video file...');
+      await U.writeFile(ffmpeg, inName, file);
+
+      onProgress && onProgress(0.15, 'Changing resolution...');
+      await U.exec(ffmpeg, ['-i', inName, '-vf', vf, '-crf', '23', '-preset', 'fast', '-c:a', 'copy', outName]);
+
+      onProgress && onProgress(0.92, 'Creating output file...');
+      var data = U.readFile(ffmpeg, outName);
+      var blob = U.makeBlob(data, 'video/mp4');
+      onProgress && onProgress(1, 'Done!');
+      return { blob: blob, filename: U.stripExt(file.name) + '-' + suffix + '.mp4' };
+    } catch (e) {
+      throw U.mapError(e);
+    } finally {
+      U.cleanup(ffmpeg, [inName, outName]);
+    }
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();
