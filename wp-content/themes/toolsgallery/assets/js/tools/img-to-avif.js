@@ -30,17 +30,19 @@
     '<div id="i2av-results" style="margin-top:8px"></div>' +
     '<div id="i2av-dl-all-wrap" hidden style="margin-top:8px">' +
       '<button type="button" id="i2av-dl-all" class="tg-btn-secondary">Download All as ZIP</button>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var q=document.getElementById("i2av-quality"),v=document.getElementById("i2av-quality-val");' +
-      'if(q&&v)q.addEventListener("input",function(){v.textContent=q.value;});' +
-      'var canvas=document.createElement("canvas");canvas.width=1;canvas.height=1;' +
-      'canvas.toBlob(function(blob){' +
-        'var msg=document.getElementById("i2av-support-msg");if(!msg)return;' +
-        'if(blob&&blob.type==="image/avif"){msg.textContent="✓ AVIF format supported by your browser.";}' +
-        'else{msg.innerHTML="⚠ AVIF not supported — will fall back to <strong>WebP</strong>.";}' +
-      '},"image/avif");' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var q = container.querySelector('#i2av-quality');
+    var v = container.querySelector('#i2av-quality-val');
+    if (q && v) q.addEventListener('input', function () { v.textContent = q.value; });
+    checkAvifSupport().then(function (supported) {
+      var msg = container.querySelector('#i2av-support-msg');
+      if (!msg) return;
+      if (supported) msg.textContent = '✓ AVIF format supported by your browser.';
+      else msg.innerHTML = '⚠ AVIF not supported — will fall back to <strong>WebP</strong>.';
+    });
   }
 
   function getOptions(optionsEl) {
@@ -124,5 +126,5 @@
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();
