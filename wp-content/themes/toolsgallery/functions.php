@@ -309,6 +309,86 @@ function tg_enqueue_assets()
             $tool_runner_deps[] = $vid_handle;
         }
 
+        /* =============================================
+           Image Tools Phase 1 — Canvas-based image
+           tools with filemtime cache busting
+           ============================================= */
+        $img_tool_files = [
+            'img-compress'         => 'img-compress.js',
+            'img-resize'           => 'img-resize.js',
+            'img-crop'             => 'img-crop.js',
+            'img-flip'             => 'img-flip.js',
+            'img-rotate'           => 'img-rotate.js',
+            'img-add-text'         => 'img-add-text.js',
+            'img-add-border'       => 'img-add-border.js',
+            'img-convert'          => 'img-convert.js',
+            'img-grayscale'        => 'img-grayscale.js',
+            'img-sharpen'          => 'img-sharpen.js',
+            'img-remove-bg'        => 'img-remove-bg.js',
+            'img-colorize'         => 'img-colorize.js',
+            'img-restore'          => 'img-restore.js',
+            'img-upscale'          => 'img-upscale.js',
+            'img-blur-bg'          => 'img-blur-bg.js',
+            'img-remove-watermark' => 'img-remove-watermark.js',
+            'img-remove-objects'   => 'img-remove-objects.js',
+            'img-ocr'              => 'img-ocr.js',
+            'img-translate-text'   => 'img-translate-text.js',
+            'img-change-bg'        => 'img-change-bg.js',
+        ];
+
+        if (isset($img_tool_files[$tg_handler])) {
+            // Shared Canvas helpers used by every image tool
+            $img_util_file = get_template_directory() . '/assets/js/tools/img-util.js';
+            wp_enqueue_script(
+                'tg-img-util',
+                get_template_directory_uri() . '/assets/js/tools/img-util.js',
+                [],
+                file_exists($img_util_file) ? filemtime($img_util_file) : $ver,
+                true
+            );
+
+            $img_tool_deps = ['tg-img-util'];
+
+            if ($tg_handler === 'img-crop') {
+                wp_enqueue_style(
+                    'cropperjs',
+                    'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css',
+                    [],
+                    null
+                );
+                wp_enqueue_script(
+                    'cropperjs',
+                    'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js',
+                    [],
+                    null,
+                    true
+                );
+                $img_tool_deps[] = 'cropperjs';
+            }
+
+            if ($tg_handler === 'img-add-text') {
+                wp_enqueue_script(
+                    'fabricjs',
+                    'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js',
+                    [],
+                    null,
+                    true
+                );
+                $img_tool_deps[] = 'fabricjs';
+            }
+
+            $img_file = get_template_directory() . '/assets/js/tools/' . $img_tool_files[$tg_handler];
+            $img_handle = 'tg-tool-' . $tg_handler;
+            wp_enqueue_script(
+                $img_handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $img_tool_files[$tg_handler],
+                $img_tool_deps,
+                file_exists($img_file) ? filemtime($img_file) : $ver,
+                true
+            );
+            $tool_runner_deps[] = $img_handle;
+        }
+
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 
@@ -317,6 +397,7 @@ function tg_enqueue_assets()
             'nonce' => wp_create_nonce('tg_tool_nonce'),
             'toolKey' => $tg_handler,
             'actionLabel' => get_post_meta(get_the_ID(), '_tg_action_label', true) ?: __('Run Tool', 'toolsgallery'),
+            'removebgConfigured' => (defined('REMOVEBG_API_KEY') && REMOVEBG_API_KEY) ? 1 : 0,
         ]);
     }
 
@@ -720,6 +801,66 @@ add_action('wp_ajax_nopriv_tg_ai_proxy', 'tg_ai_proxy_handler');
 
 add_action('wp_ajax_tg_url_to_pdf', 'tg_handle_url_to_pdf');
 add_action('wp_ajax_nopriv_tg_url_to_pdf', 'tg_handle_url_to_pdf');
+
+add_action('wp_ajax_tg_removebg', 'tg_handle_removebg');
+add_action('wp_ajax_nopriv_tg_removebg', 'tg_handle_removebg');
+
+/**
+ * Proxy an uploaded image to the remove.bg API and return the
+ * transparent-PNG result as base64. Requires REMOVEBG_API_KEY in
+ * wp-config.php; the client falls back to Canvas removal when the
+ * key is absent (tgAiConfig.removebgConfigured is 0).
+ */
+function tg_handle_removebg()
+{
+    check_ajax_referer('tg_tool_nonce', 'nonce');
+
+    if (!defined('REMOVEBG_API_KEY') || !REMOVEBG_API_KEY) {
+        wp_send_json_error(['message' => 'Remove.bg API key not configured.'], 500);
+    }
+
+    if (empty($_FILES['image_file']) || !is_uploaded_file($_FILES['image_file']['tmp_name'])) {
+        wp_send_json_error(['message' => 'No image uploaded.'], 400);
+    }
+
+    $file = $_FILES['image_file'];
+    if ($file['size'] > 12 * 1024 * 1024) {
+        wp_send_json_error(['message' => 'Image too large (max 12 MB).'], 400);
+    }
+
+    $type = wp_check_filetype($file['name']);
+    $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+    if (!in_array(strtolower((string) $type['ext']), $allowed, true)) {
+        wp_send_json_error(['message' => 'Unsupported image type.'], 400);
+    }
+
+    $response = wp_remote_post('https://api.remove.bg/v1.0/removebg', [
+        'timeout' => 60,
+        'headers' => [
+            'X-Api-Key' => REMOVEBG_API_KEY,
+            'Content-Type' => 'application/json',
+        ],
+        'body' => wp_json_encode([
+            'image_file_b64' => base64_encode(file_get_contents($file['tmp_name'])),
+            'size' => 'auto',
+        ]),
+    ]);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error(['message' => 'Remove.bg request failed: ' . $response->get_error_message()], 500);
+    }
+
+    $code = wp_remote_retrieve_response_code($response);
+    $body = wp_remote_retrieve_body($response);
+
+    if ($code !== 200) {
+        $data = json_decode($body, true);
+        $msg = $data['errors'][0]['title'] ?? ('Remove.bg returned HTTP ' . $code);
+        wp_send_json_error(['message' => $msg], 500);
+    }
+
+    wp_send_json_success(['image' => base64_encode($body)]);
+}
 
 function tg_handle_url_to_pdf()
 {

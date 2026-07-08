@@ -7,6 +7,9 @@
   'use strict';
   var CONFIG = { handler: 'img-add-text' };
   var _fabricCanvas = null;
+  var _scale = 1;
+  var _history = [];
+  var _future = [];
 
   function getOptionsHTML() {
     return '<div class="tg-opt-row">' +
@@ -58,25 +61,8 @@
     '<div id="iat-canvas-wrap" style="margin-top:8px;display:none;border:1px solid #ddd;border-radius:4px;overflow:hidden">' +
       '<canvas id="iat-canvas"></canvas>' +
     '</div>' +
-    '<p class="tg-opt-info" id="iat-hint" style="margin-top:6px">Load an image first, then add text. Click text objects to select/move them.</p>' +
-    '<script>(function(){' +
-      'var sz=document.getElementById("iat-size"),szv=document.getElementById("iat-size-val");' +
-      'if(sz&&szv)sz.addEventListener("input",function(){szv.textContent=sz.value;});' +
-      'var op=document.getElementById("iat-opacity"),opv=document.getElementById("iat-opacity-val");' +
-      'if(op&&opv)op.addEventListener("input",function(){opv.textContent=op.value;});' +
-      'document.getElementById("iat-add-btn") && document.getElementById("iat-add-btn").addEventListener("click",function(){if(window._iatAddText)window._iatAddText();});' +
-      'document.getElementById("iat-del-btn") && document.getElementById("iat-del-btn").addEventListener("click",function(){if(window._iatDelSelected)window._iatDelSelected();});' +
-      'document.getElementById("iat-undo-btn") && document.getElementById("iat-undo-btn").addEventListener("click",function(){if(window._iatUndo)window._iatUndo();});' +
-      'document.getElementById("iat-redo-btn") && document.getElementById("iat-redo-btn").addEventListener("click",function(){if(window._iatRedo)window._iatRedo();});' +
-    '})();<\/script>';
+    '<p class="tg-opt-info" id="iat-hint" style="margin-top:6px">Load an image first, then add text. Click text objects to select/move them. When ready, click the action button to save.</p>';
   }
-
-  function getOptions(optionsEl) {
-    if (!optionsEl) return {};
-    return {};
-  }
-
-  var _history = [], _future = [];
 
   function saveState() {
     if (!_fabricCanvas) return;
@@ -84,125 +70,117 @@
     _future = [];
   }
 
-  async function run(file, options, onProgress) {
-    onProgress && onProgress(0.1, 'Loading image...');
+  function addText(container) {
+    if (!_fabricCanvas) return;
+    var get = function (id) { return container.querySelector('#' + id) || document.getElementById(id); };
+    var textEl = get('iat-text');
+    var fontEl = get('iat-font');
+    var sizeEl = get('iat-size');
+    var colorEl = get('iat-color');
+    var boldEl = get('iat-bold');
+    var italicEl = get('iat-italic');
+    var underEl = get('iat-underline');
+    var alignEl = get('iat-align');
+    var opEl = get('iat-opacity');
 
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        URL.revokeObjectURL(url);
-        if (!window.fabric) { reject(new Error('Fabric.js not loaded')); return; }
+    var text = new fabric.IText(textEl && textEl.value ? textEl.value : 'Text', {
+      left: _fabricCanvas.getWidth() / 2,
+      top: _fabricCanvas.getHeight() / 2,
+      originX: 'center', originY: 'center',
+      fontFamily: fontEl ? fontEl.value : 'Arial',
+      fontSize: sizeEl ? parseInt(sizeEl.value) : 36,
+      fill: colorEl ? colorEl.value : '#ffffff',
+      fontWeight: boldEl && boldEl.checked ? 'bold' : 'normal',
+      fontStyle: italicEl && italicEl.checked ? 'italic' : 'normal',
+      underline: underEl ? underEl.checked : false,
+      textAlign: alignEl ? alignEl.value : 'center',
+      opacity: opEl ? parseInt(opEl.value) / 100 : 1,
+    });
+    saveState();
+    _fabricCanvas.add(text);
+    _fabricCanvas.setActiveObject(text);
+    _fabricCanvas.renderAll();
+  }
 
-        var canvasEl = document.getElementById('iat-canvas');
-        var canvasWrap = document.getElementById('iat-canvas-wrap');
-        if (!canvasEl || !canvasWrap) { reject(new Error('Canvas not ready')); return; }
+  function wireOptions(container) {
+    var sz = container.querySelector('#iat-size');
+    var szv = container.querySelector('#iat-size-val');
+    if (sz && szv) sz.addEventListener('input', function () { szv.textContent = sz.value; });
+    var op = container.querySelector('#iat-opacity');
+    var opv = container.querySelector('#iat-opacity-val');
+    if (op && opv) op.addEventListener('input', function () { opv.textContent = op.value; });
 
-        canvasWrap.style.display = 'block';
+    var addBtn = container.querySelector('#iat-add-btn');
+    if (addBtn) addBtn.addEventListener('click', function () { addText(container); });
 
-        // Scale to fit viewport
-        var maxW = Math.min(800, window.innerWidth - 40);
-        var scale = Math.min(1, maxW / img.width);
-        var cw = Math.round(img.width * scale);
-        var ch = Math.round(img.height * scale);
+    var delBtn = container.querySelector('#iat-del-btn');
+    if (delBtn) delBtn.addEventListener('click', function () {
+      if (!_fabricCanvas) return;
+      var obj = _fabricCanvas.getActiveObject();
+      if (obj) { saveState(); _fabricCanvas.remove(obj); _fabricCanvas.renderAll(); }
+    });
 
-        if (_fabricCanvas) { _fabricCanvas.dispose(); _fabricCanvas = null; }
-        _fabricCanvas = new fabric.Canvas('iat-canvas', { width: cw, height: ch });
+    var undoBtn = container.querySelector('#iat-undo-btn');
+    if (undoBtn) undoBtn.addEventListener('click', function () {
+      if (!_fabricCanvas || _history.length === 0) return;
+      _future.push(JSON.stringify(_fabricCanvas.toJSON()));
+      var state = _history.pop();
+      _fabricCanvas.loadFromJSON(state, function () { _fabricCanvas.renderAll(); });
+    });
 
-        // Set background image
-        fabric.Image.fromURL(img.src, function (fImg) {
-          fImg.set({ scaleX: cw / img.width, scaleY: ch / img.height, selectable: false, evented: false });
-          _fabricCanvas.setBackgroundImage(fImg, _fabricCanvas.renderAll.bind(_fabricCanvas));
-        });
-
-        _history = []; _future = [];
-
-        window._iatAddText = function () {
-          var textEl = document.getElementById('iat-text');
-          var fontEl = document.getElementById('iat-font');
-          var sizeEl = document.getElementById('iat-size');
-          var colorEl = document.getElementById('iat-color');
-          var boldEl = document.getElementById('iat-bold');
-          var italicEl = document.getElementById('iat-italic');
-          var underEl = document.getElementById('iat-underline');
-          var alignEl = document.getElementById('iat-align');
-          var opEl = document.getElementById('iat-opacity');
-
-          var text = new fabric.IText(textEl ? textEl.value || 'Text' : 'Text', {
-            left: cw / 2, top: ch / 2,
-            originX: 'center', originY: 'center',
-            fontFamily: fontEl ? fontEl.value : 'Arial',
-            fontSize: sizeEl ? parseInt(sizeEl.value) : 36,
-            fill: colorEl ? colorEl.value : '#ffffff',
-            fontWeight: boldEl && boldEl.checked ? 'bold' : 'normal',
-            fontStyle: italicEl && italicEl.checked ? 'italic' : 'normal',
-            underline: underEl ? underEl.checked : false,
-            textAlign: alignEl ? alignEl.value : 'center',
-            opacity: opEl ? parseInt(opEl.value) / 100 : 1,
-          });
-          saveState();
-          _fabricCanvas.add(text);
-          _fabricCanvas.setActiveObject(text);
-          _fabricCanvas.renderAll();
-        };
-
-        window._iatDelSelected = function () {
-          var obj = _fabricCanvas.getActiveObject();
-          if (obj) { saveState(); _fabricCanvas.remove(obj); _fabricCanvas.renderAll(); }
-        };
-
-        window._iatUndo = function () {
-          if (_history.length === 0) return;
-          _future.push(JSON.stringify(_fabricCanvas.toJSON()));
-          var state = _history.pop();
-          _fabricCanvas.loadFromJSON(state, function () { _fabricCanvas.renderAll(); });
-        };
-
-        window._iatRedo = function () {
-          if (_future.length === 0) return;
-          _history.push(JSON.stringify(_fabricCanvas.toJSON()));
-          var state = _future.pop();
-          _fabricCanvas.loadFromJSON(state, function () { _fabricCanvas.renderAll(); });
-        };
-
-        onProgress && onProgress(0.5, 'Image loaded. Add text, then click Save Image.');
-
-        // On second call (run again), export
-        if (window._iatReady) {
-          exportImage(file, resolve, reject, onProgress, scale);
-          return;
-        }
-        window._iatReady = true;
-        // Return a proxy that re-runs export
-        resolve({ _waitForExport: true, file: file, scale: scale });
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
-      img.src = url;
-    }).then(function (result) {
-      if (result && result._waitForExport) {
-        return new Promise(function (res, rej) {
-          exportImage(result.file, res, rej, function(){}, result.scale);
-        });
-      }
-      return result;
+    var redoBtn = container.querySelector('#iat-redo-btn');
+    if (redoBtn) redoBtn.addEventListener('click', function () {
+      if (!_fabricCanvas || _future.length === 0) return;
+      _history.push(JSON.stringify(_fabricCanvas.toJSON()));
+      var state = _future.pop();
+      _fabricCanvas.loadFromJSON(state, function () { _fabricCanvas.renderAll(); });
     });
   }
 
-  function exportImage(file, resolve, reject, onProgress, scale) {
-    if (!_fabricCanvas) { reject(new Error('No canvas')); return; }
-    onProgress && onProgress(0.8, 'Saving...');
+  function onFileReady(file) {
+    if (!file || !window.fabric || !window.TGImageUtil) return;
 
-    // Export at original resolution
-    var multiplier = scale ? 1 / scale : 1;
-    var dataUrl = _fabricCanvas.toDataURL({ format: 'jpeg', quality: 0.92, multiplier: multiplier });
-    fetch(dataUrl).then(function (r) { return r.blob(); }).then(function (blob) {
-      var base = file.name.replace(/\.[^.]+$/, '');
-      window._iatReady = false;
-      onProgress && onProgress(1, 'Done!');
-      resolve({ blob: blob, filename: base + '-text.jpg' });
-    }).catch(function (e) { reject(e); });
+    TGImageUtil.loadImage(file).then(function (img) {
+      var canvasEl = document.getElementById('iat-canvas');
+      var canvasWrap = document.getElementById('iat-canvas-wrap');
+      if (!canvasEl || !canvasWrap) return;
+
+      canvasWrap.style.display = 'block';
+
+      var maxW = Math.min(800, window.innerWidth - 40);
+      _scale = Math.min(1, maxW / img.naturalWidth);
+      var cw = Math.round(img.naturalWidth * _scale);
+      var ch = Math.round(img.naturalHeight * _scale);
+
+      if (_fabricCanvas) { _fabricCanvas.dispose(); _fabricCanvas = null; }
+      _fabricCanvas = new fabric.Canvas('iat-canvas', { width: cw, height: ch });
+      _history = []; _future = [];
+
+      fabric.Image.fromURL(img.src, function (fImg) {
+        fImg.set({ scaleX: cw / img.naturalWidth, scaleY: ch / img.naturalHeight, selectable: false, evented: false });
+        _fabricCanvas.setBackgroundImage(fImg, _fabricCanvas.renderAll.bind(_fabricCanvas));
+      });
+    }).catch(function () {});
   }
 
+  async function run(file, options, onProgress) {
+    if (!window.fabric) throw new Error('Fabric.js failed to load. Please refresh the page.');
+    if (!_fabricCanvas) throw new Error('Editor not ready yet — wait for the image preview, add your text, then try again.');
+
+    onProgress && onProgress(0.6, 'Saving image...');
+    _fabricCanvas.discardActiveObject();
+    _fabricCanvas.renderAll();
+
+    // Export at original resolution
+    var multiplier = _scale ? 1 / _scale : 1;
+    var dataUrl = _fabricCanvas.toDataURL({ format: 'jpeg', quality: 0.92, multiplier: multiplier });
+    var blob = await fetch(dataUrl).then(function (r) { return r.blob(); });
+    onProgress && onProgress(1, 'Done!');
+    return { blob: blob, filename: TGImageUtil.stripExt(file.name) + '-text.jpg' };
+  }
+
+  function getOptions() { return {}; }
+
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

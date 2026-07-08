@@ -34,16 +34,28 @@
         '<div><p style="margin:0 0 4px;font-size:12px;font-weight:600">After</p><canvas id="irt-after" style="max-width:200px;border:1px solid #ddd"></canvas></div>' +
       '</div>' +
     '</div>' +
-    '<script>(function(){' +
-      'function link(id,vid){var s=document.getElementById(id),v=document.getElementById(vid);if(s&&v)s.addEventListener("input",function(){v.textContent=s.value;});}' +
-      'link("irt-contrast","irt-contrast-val");link("irt-brightness","irt-brightness-val");' +
-      'link("irt-sharpness","irt-sharpness-val");link("irt-saturation","irt-saturation-val");' +
-      'var autoBtn=document.getElementById("irt-auto-btn");' +
-      'if(autoBtn)autoBtn.addEventListener("click",function(){' +
-        'var fields={"irt-contrast":"20","irt-brightness":"10","irt-sharpness":"3","irt-saturation":"20"};' +
-        'Object.keys(fields).forEach(function(id){var el=document.getElementById(id);var vel=document.getElementById(id+"-val");if(el){el.value=fields[id];if(vel)vel.textContent=fields[id];}});' +
-      '});' +
-    '})();<\/script>';
+    '';
+  }
+
+  function wireOptions(container) {
+    function link(id, vid) {
+      var s = container.querySelector('#' + id);
+      var v = container.querySelector('#' + vid);
+      if (s && v) s.addEventListener('input', function () { v.textContent = s.value; });
+    }
+    link('irt-contrast', 'irt-contrast-val');
+    link('irt-brightness', 'irt-brightness-val');
+    link('irt-sharpness', 'irt-sharpness-val');
+    link('irt-saturation', 'irt-saturation-val');
+    var autoBtn = container.querySelector('#irt-auto-btn');
+    if (autoBtn) autoBtn.addEventListener('click', function () {
+      var fields = { 'irt-contrast': '20', 'irt-brightness': '10', 'irt-sharpness': '3', 'irt-saturation': '20' };
+      Object.keys(fields).forEach(function (id) {
+        var el = container.querySelector('#' + id);
+        var vel = container.querySelector('#' + id + '-val');
+        if (el) { el.value = fields[id]; if (vel) vel.textContent = fields[id]; }
+      });
+    });
   }
 
   function getOptions(optionsEl) {
@@ -167,5 +179,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

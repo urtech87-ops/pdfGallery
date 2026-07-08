@@ -29,11 +29,17 @@
         '<div><p style="margin:0 0 4px;font-size:12px;font-weight:600">Before</p><canvas id="ig-before" style="max-width:200px;border:1px solid #ddd"></canvas></div>' +
         '<div><p style="margin:0 0 4px;font-size:12px;font-weight:600">After</p><canvas id="ig-after" style="max-width:200px;border:1px solid #ddd"></canvas></div>' +
       '</div>' +
-    '</div>' +
-    '<script>(function(){' +
-      'function link(id,vid){var s=document.getElementById(id),v=document.getElementById(vid);if(s&&v)s.addEventListener("input",function(){v.textContent=s.value;});}' +
-      'link("ig-intensity","ig-intensity-val");link("ig-contrast","ig-contrast-val");' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    function link(id, vid) {
+      var s = container.querySelector('#' + id);
+      var v = container.querySelector('#' + vid);
+      if (s && v) s.addEventListener('input', function () { v.textContent = s.value; });
+    }
+    link('ig-intensity', 'ig-intensity-val');
+    link('ig-contrast', 'ig-contrast-val');
   }
 
   function getOptions(optionsEl) {
@@ -128,5 +134,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

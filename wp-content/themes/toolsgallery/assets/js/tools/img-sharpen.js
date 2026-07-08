@@ -7,12 +7,6 @@
   'use strict';
   var CONFIG = { handler: 'img-sharpen' };
 
-  var KERNELS = {
-    standard: [0,-1,0,-1,5,-1,0,-1,0],
-    strong:   [-1,-1,-1,-1,9,-1,-1,-1,-1],
-    edge:     [0,-1,0,-1,4,-1,0,-1,0],
-  };
-
   function getOptionsHTML() {
     return '<div class="tg-opt-row">' +
       '<label class="tg-opt-label" for="is-intensity">Intensity: <span id="is-intensity-val">3</span></label>' +
@@ -38,10 +32,13 @@
         '</div>' +
       '</div>' +
     '</div>' +
-    '<script>(function(){' +
-      'var sl=document.getElementById("is-intensity"),vl=document.getElementById("is-intensity-val");' +
-      'if(sl&&vl)sl.addEventListener("input",function(){vl.textContent=sl.value;});' +
-    '})();<\/script>';
+    '';
+  }
+
+  function wireOptions(container) {
+    var sl = container.querySelector('#is-intensity');
+    var vl = container.querySelector('#is-intensity-val');
+    if (sl && vl) sl.addEventListener('input', function () { vl.textContent = sl.value; });
   }
 
   function getOptions(optionsEl) {
@@ -81,15 +78,16 @@
   }
 
   function buildKernel(method, intensity) {
-    var base = KERNELS[method] || KERNELS.standard;
-    // Scale the center value by intensity
-    var center = base[4] * intensity;
-    var edges = base[1];
-    return [
-      base[0],edges,base[2],
-      edges,center,edges,
-      base[6],edges,base[8]
-    ];
+    /* Kernel must sum to 1 to preserve brightness: center = 1 + n*a,
+       neighbors = -a, where n is the neighbor count. */
+    var a = intensity * 0.3;
+    if (method === 'strong') {
+      return [-a, -a, -a, -a, 1 + 8 * a, -a, -a, -a, -a];
+    }
+    if (method === 'edge') {
+      a = intensity * 0.5;
+    }
+    return [0, -a, 0, -a, 1 + 4 * a, -a, 0, -a, 0];
   }
 
   async function run(file, options, onProgress) {
@@ -173,5 +171,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

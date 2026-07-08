@@ -21,13 +21,18 @@
     '</div>' +
     '<div style="margin-top:8px">' +
       '<button type="button" class="tg-btn-secondary" id="irw-clear-btn">Clear Selections</button>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var sl=document.getElementById("irw-feather"),sv=document.getElementById("irw-feather-val");' +
-      'if(sl&&sv)sl.addEventListener("input",function(){sv.textContent=sl.value;});' +
-      'var clr=document.getElementById("irw-clear-btn");' +
-      'if(clr)clr.addEventListener("click",function(){if(window._irwClear)window._irwClear();});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var sl = container.querySelector('#irw-feather');
+    var sv = container.querySelector('#irw-feather-val');
+    if (sl && sv) sl.addEventListener('input', function () { sv.textContent = sl.value; });
+    var clr = container.querySelector('#irw-clear-btn');
+    if (clr) clr.addEventListener('click', function () {
+      _selections = [];
+      if (window._irwRedraw) window._irwRedraw();
+    });
   }
 
   function getOptions(optionsEl) {
@@ -36,112 +41,89 @@
     return { feather: feather ? parseInt(feather.value) : 3 };
   }
 
-  async function run(file, options, onProgress) {
-    onProgress && onProgress(0.1, 'Loading image...');
+  function onFileReady(file) {
+    _origImg = null;
+    _selections = [];
+    if (!file) return;
 
-    return new Promise(function (resolve, reject) {
-      if (_origImg && window._irwFile === file && _selections.length > 0) {
-        applyRemoval(_origImg, _selections, options, file, resolve, reject, onProgress);
-        return;
+    TGImageUtil.loadImage(file).then(function (img) {
+      _origImg = img;
+
+      var wrap = document.getElementById('irw-canvas-wrap');
+      var canvas = document.getElementById('irw-canvas');
+      var overlay = document.getElementById('irw-overlay');
+      if (!wrap || !canvas || !overlay) return;
+
+      var maxW = Math.min(700, window.innerWidth - 40);
+      var sc = Math.min(1, maxW / img.naturalWidth);
+      var dw = Math.round(img.naturalWidth * sc), dh = Math.round(img.naturalHeight * sc);
+
+      canvas.width = dw; canvas.height = dh;
+      canvas.getContext('2d').drawImage(img, 0, 0, dw, dh);
+      overlay.width = dw; overlay.height = dh;
+      overlay.style.width = dw + 'px'; overlay.style.height = dh + 'px';
+      wrap.style.display = 'block';
+      wrap.style.width = dw + 'px'; wrap.style.height = dh + 'px';
+
+      function redrawOverlay() {
+        var octx = overlay.getContext('2d');
+        octx.clearRect(0, 0, dw, dh);
+        octx.strokeStyle = '#E07B39';
+        octx.fillStyle = 'rgba(224,123,57,0.3)';
+        octx.lineWidth = 2;
+        _selections.forEach(function (sel) {
+          octx.fillRect(sel.x * sc, sel.y * sc, sel.w * sc, sel.h * sc);
+          octx.strokeRect(sel.x * sc, sel.y * sc, sel.w * sc, sel.h * sc);
+        });
       }
+      window._irwRedraw = redrawOverlay;
 
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        URL.revokeObjectURL(url);
-        _origImg = img;
-        window._irwFile = file;
-        _selections = [];
-
-        var wrap = document.getElementById('irw-canvas-wrap');
-        var canvas = document.getElementById('irw-canvas');
-        var overlay = document.getElementById('irw-overlay');
-
-        if (!wrap || !canvas || !overlay) {
-          reject(new Error('UI not ready')); return;
-        }
-
-        var maxW = Math.min(700, window.innerWidth - 40);
-        var sc = Math.min(1, maxW / img.width);
-        var dw = Math.round(img.width * sc), dh = Math.round(img.height * sc);
-
-        canvas.width = dw; canvas.height = dh;
-        canvas.getContext('2d').drawImage(img, 0, 0, dw, dh);
-        overlay.width = dw; overlay.height = dh;
-        overlay.style.width = dw + 'px'; overlay.style.height = dh + 'px';
-        wrap.style.display = 'block';
-        wrap.style.width = dw + 'px'; wrap.style.height = dh + 'px';
-
-        function redrawOverlay() {
-          var octx = overlay.getContext('2d');
-          octx.clearRect(0, 0, dw, dh);
-          octx.strokeStyle = '#E07B39';
-          octx.fillStyle = 'rgba(224,123,57,0.3)';
-          octx.lineWidth = 2;
-          _selections.forEach(function (sel) {
-            octx.fillRect(sel.x * sc, sel.y * sc, sel.w * sc, sel.h * sc);
-            octx.strokeRect(sel.x * sc, sel.y * sc, sel.w * sc, sel.h * sc);
-          });
-        }
-
-        var drawing = false, sx = 0, sy = 0;
-        canvas.addEventListener('mousedown', function (e) {
-          var r = canvas.getBoundingClientRect();
-          sx = e.clientX - r.left; sy = e.clientY - r.top;
-          drawing = true;
-        });
-        canvas.addEventListener('mouseup', function (e) {
-          drawing = false;
-          var r = canvas.getBoundingClientRect();
-          var ex = e.clientX - r.left, ey = e.clientY - r.top;
-          if (Math.abs(ex - sx) > 5 && Math.abs(ey - sy) > 5) {
-            _selections.push({
-              x: Math.round(Math.min(sx, ex) / sc),
-              y: Math.round(Math.min(sy, ey) / sc),
-              w: Math.round(Math.abs(ex - sx) / sc),
-              h: Math.round(Math.abs(ey - sy) / sc),
-            });
-            redrawOverlay();
-          }
-        });
-
-        window._irwClear = function () { _selections = []; redrawOverlay(); };
-
-        onProgress && onProgress(0.5, 'Draw rectangle(s) over watermarks, then click the button.');
-        resolve({ _waitForSel: true, file: file, options: options });
+      var drawing = false, sx = 0, sy = 0;
+      canvas.onmousedown = function (e) {
+        var r = canvas.getBoundingClientRect();
+        sx = e.clientX - r.left; sy = e.clientY - r.top;
+        drawing = true;
       };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
-      img.src = url;
-    }).then(function (r) {
-      if (r && r._waitForSel) {
-        if (_selections.length === 0) throw new Error('Please draw a rectangle over the watermark first.');
-        return new Promise(function (res, rej) {
-          applyRemoval(_origImg, _selections, r.options, r.file, res, rej, function(){});
-        });
-      }
-      return r;
-    });
+      canvas.onmouseup = function (e) {
+        drawing = false;
+        var r = canvas.getBoundingClientRect();
+        var ex = e.clientX - r.left, ey = e.clientY - r.top;
+        if (Math.abs(ex - sx) > 5 && Math.abs(ey - sy) > 5) {
+          _selections.push({
+            x: Math.round(Math.min(sx, ex) / sc),
+            y: Math.round(Math.min(sy, ey) / sc),
+            w: Math.round(Math.abs(ex - sx) / sc),
+            h: Math.round(Math.abs(ey - sy) / sc),
+          });
+          redrawOverlay();
+        }
+      };
+    }).catch(function () {});
   }
 
-  function applyRemoval(img, selections, options, file, resolve, reject, onProgress) {
-    onProgress && onProgress(0.7, 'Removing watermark...');
+  async function run(file, options, onProgress) {
+    onProgress && onProgress(0.1, 'Loading image...');
+    var img = _origImg || await TGImageUtil.loadImage(file);
+    if (_selections.length === 0) {
+      throw new Error('Please draw a rectangle over the watermark first, then click the button again.');
+    }
+
+    onProgress && onProgress(0.6, 'Removing watermark...');
     var canvas = document.createElement('canvas');
-    canvas.width = img.width; canvas.height = img.height;
+    canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
     var ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0);
     var id = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-    selections.forEach(function (sel) {
-      inpaintRegion(id, sel, img.width, img.height, options.feather || 3);
+    _selections.forEach(function (sel) {
+      inpaintRegion(id, sel, canvas.width, canvas.height, options.feather || 3);
     });
 
     ctx.putImageData(id, 0, 0);
-    var base = file.name.replace(/\.[^.]+$/, '');
-    canvas.toBlob(function (blob) {
-      if (!blob) { reject(new Error('Failed')); return; }
-      onProgress && onProgress(1, 'Done!');
-      resolve({ blob: blob, filename: base + '-no-watermark.jpg' });
-    }, 'image/jpeg', 0.95);
+    onProgress && onProgress(0.9, 'Saving...');
+    var blob = await TGImageUtil.canvasToBlob(canvas, 'image/jpeg', 0.95);
+    onProgress && onProgress(1, 'Done!');
+    return { blob: blob, filename: TGImageUtil.stripExt(file.name) + '-no-watermark.jpg' };
   }
 
   function inpaintRegion(id, rect, w, h, feather) {
@@ -156,21 +138,21 @@
         // Sample surrounding pixels
         var r = 0, g = 0, b = 0, cnt = 0;
         var positions = [
-          [x, Math.max(0, y1 - sample)], [x, Math.min(h-1, y2 + sample)],
-          [Math.max(0, x1 - sample), y], [Math.min(w-1, x2 + sample), y],
+          [x, Math.max(0, y1 - sample)], [x, Math.min(h - 1, y2 + sample)],
+          [Math.max(0, x1 - sample), y], [Math.min(w - 1, x2 + sample), y],
         ];
         positions.forEach(function (pos) {
           var idx = (pos[1] * w + pos[0]) * 4;
-          r += d[idx]; g += d[idx+1]; b += d[idx+2]; cnt++;
+          r += d[idx]; g += d[idx + 1]; b += d[idx + 2]; cnt++;
         });
-        var idx = (y * w + x) * 4;
-        d[idx] = Math.round(r / cnt);
-        d[idx+1] = Math.round(g / cnt);
-        d[idx+2] = Math.round(b / cnt);
+        var i = (y * w + x) * 4;
+        d[i] = Math.round(r / cnt);
+        d[i + 1] = Math.round(g / cnt);
+        d[i + 2] = Math.round(b / cnt);
       }
     }
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();
