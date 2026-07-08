@@ -2296,6 +2296,11 @@
       if (diTool.getOptionsHTML && diOptionsEl) {
         diOptionsEl.innerHTML = diTool.getOptionsHTML();
         diOptionsEl.hidden = false;
+        /* Inline <script> tags in injected HTML never execute — tools wire
+           their option events through this hook instead. */
+        if (typeof diTool.wireOptions === 'function') {
+          try { diTool.wireOptions(diOptionsEl); } catch (e) {}
+        }
       }
     }
 

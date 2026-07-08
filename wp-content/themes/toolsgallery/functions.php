@@ -389,6 +389,132 @@ function tg_enqueue_assets()
             $tool_runner_deps[] = $img_handle;
         }
 
+        /* =============================================
+           Image Tools Phase 2 — split/combine/collage,
+           generators (round, profile, pixelate, watermark,
+           meme, chart, QR) and format converters with
+           filemtime cache busting
+           ============================================= */
+        $img2_tool_files = [
+            'img-split'     => 'img-split.js',
+            'img-combine'   => 'img-combine.js',
+            'img-collage'   => 'img-collage.js',
+            'img-round'     => 'img-round.js',
+            'img-profile'   => 'img-profile.js',
+            'img-pixelate'  => 'img-pixelate.js',
+            'img-watermark' => 'img-watermark.js',
+            'img-meme'      => 'img-meme.js',
+            'img-chart'     => 'img-chart.js',
+            'img-qr'        => 'img-qr.js',
+            'img-to-jpg'    => 'img-to-jpg.js',
+            'img-to-png'    => 'img-to-png.js',
+            'img-to-webp'   => 'img-to-webp.js',
+            'img-to-gif'    => 'img-to-gif.js',
+            'img-to-svg'    => 'img-to-svg.js',
+            'img-to-ico'    => 'img-to-ico.js',
+            'img-to-bmp'    => 'img-to-bmp.js',
+            'img-to-tiff'   => 'img-to-tiff.js',
+            'img-to-avif'   => 'img-to-avif.js',
+            'img-to-heic'   => 'img-to-heic.js',
+        ];
+
+        if (isset($img2_tool_files[$tg_handler])) {
+            // Shared Canvas helpers (same handle as Phase 1 — WP dedupes)
+            $img_util_file2 = get_template_directory() . '/assets/js/tools/img-util.js';
+            wp_enqueue_script(
+                'tg-img-util',
+                get_template_directory_uri() . '/assets/js/tools/img-util.js',
+                [],
+                file_exists($img_util_file2) ? filemtime($img_util_file2) : $ver,
+                true
+            );
+
+            $img2_deps = ['tg-img-util'];
+
+            if ($tg_handler === 'img-profile') {
+                wp_enqueue_style(
+                    'cropperjs',
+                    'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css',
+                    [],
+                    null
+                );
+                wp_enqueue_script(
+                    'cropperjs',
+                    'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js',
+                    [],
+                    null,
+                    true
+                );
+                $img2_deps[] = 'cropperjs';
+            }
+
+            if ($tg_handler === 'img-chart') {
+                wp_enqueue_script(
+                    'chartjs',
+                    'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
+                    [],
+                    null,
+                    true
+                );
+                $img2_deps[] = 'chartjs';
+            }
+
+            if ($tg_handler === 'img-qr') {
+                wp_enqueue_script(
+                    'qrcodejs',
+                    'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+                    [],
+                    null,
+                    true
+                );
+                $img2_deps[] = 'qrcodejs';
+            }
+
+            if ($tg_handler === 'img-to-heic') {
+                wp_enqueue_script(
+                    'heic2any',
+                    'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js',
+                    [],
+                    null,
+                    true
+                );
+                $img2_deps[] = 'heic2any';
+            }
+
+            if ($tg_handler === 'img-to-tiff') {
+                wp_enqueue_script(
+                    'utif',
+                    'https://cdnjs.cloudflare.com/ajax/libs/utif/3.1.0/UTIF.min.js',
+                    [],
+                    null,
+                    true
+                );
+                $img2_deps[] = 'utif';
+            }
+
+            if ($tg_handler === 'img-to-gif') {
+                wp_enqueue_script(
+                    'gifjs',
+                    'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js',
+                    [],
+                    null,
+                    true
+                );
+                $img2_deps[] = 'gifjs';
+            }
+
+            $img2_file = get_template_directory() . '/assets/js/tools/' . $img2_tool_files[$tg_handler];
+            $img2_handle = 'tg-tool-' . $tg_handler;
+            wp_enqueue_script(
+                $img2_handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $img2_tool_files[$tg_handler],
+                $img2_deps,
+                file_exists($img2_file) ? filemtime($img2_file) : $ver,
+                true
+            );
+            $tool_runner_deps[] = $img2_handle;
+        }
+
         wp_enqueue_script('tg-tool-runner', get_template_directory_uri() . '/assets/js/tool-runner.js', $tool_runner_deps, $ver, true);
         wp_enqueue_script('tg-ai-tool-runner', get_template_directory_uri() . '/assets/js/ai-tool-runner.js', ['tg-tool-runner'], $ver, true);
 

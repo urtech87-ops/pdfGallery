@@ -15,11 +15,13 @@
     '<div id="i2j-results"></div>' +
     '<div id="i2j-dl-all-wrap" hidden style="margin-top:8px">' +
       '<button type="button" id="i2j-dl-all" class="tg-btn-secondary">Download All as ZIP</button>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var q=document.getElementById("i2j-quality"),v=document.getElementById("i2j-quality-val");' +
-      'if(q&&v)q.addEventListener("input",function(){v.textContent=q.value;});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var q = container.querySelector('#i2j-quality');
+    var v = container.querySelector('#i2j-quality-val');
+    if (q && v) q.addEventListener('input', function () { v.textContent = q.value; });
   }
 
   function getOptions(optionsEl) {
@@ -103,5 +105,5 @@
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

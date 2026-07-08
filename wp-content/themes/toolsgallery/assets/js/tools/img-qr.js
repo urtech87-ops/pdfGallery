@@ -47,11 +47,17 @@
     '</div>' +
     '<div id="iqr-preview-wrap" style="margin-top:12px;display:none;text-align:center">' +
       '<div id="iqr-preview-inner" style="display:inline-block;border:1px solid #ddd;border-radius:4px;padding:8px;background:#fff"></div>' +
-    '</div>' +
-    '<script>(function(){' +
-      'function link(id,vid){var s=document.getElementById(id),v=document.getElementById(vid);if(s&&v)s.addEventListener("input",function(){v.textContent=s.value;});}' +
-      'link("iqr-size","iqr-size-val");link("iqr-margin","iqr-margin-val");' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    function link(id, vid) {
+      var s = container.querySelector('#' + id);
+      var v = container.querySelector('#' + vid);
+      if (s && v) s.addEventListener('input', function () { v.textContent = s.value; });
+    }
+    link('iqr-size', 'iqr-size-val');
+    link('iqr-margin', 'iqr-margin-val');
   }
 
   function getOptions(optionsEl) {
@@ -148,5 +154,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

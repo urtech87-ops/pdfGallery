@@ -20,6 +20,40 @@
   function getOptions(optionsEl) { return {}; }
 
   var _results = [];
+  var _workerUrlPromise = null;
+
+  /* gif.js runs its encoder in a Web Worker. Workers can't be constructed
+     from a cross-origin CDN URL, so fetch the worker source and serve it
+     from a same-origin blob URL. */
+  function getGifWorkerUrl() {
+    if (_workerUrlPromise) return _workerUrlPromise;
+    _workerUrlPromise = fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js')
+      .then(function (r) {
+        if (!r.ok) throw new Error('worker fetch failed');
+        return r.text();
+      })
+      .then(function (src) {
+        return URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+      })
+      .catch(function (e) { _workerUrlPromise = null; throw e; });
+    return _workerUrlPromise;
+  }
+
+  function encodeGif(canvas, workerUrl) {
+    return new Promise(function (resolve, reject) {
+      var gif = new GIF({
+        workers: 2,
+        quality: 10,
+        width: canvas.width,
+        height: canvas.height,
+        workerScript: workerUrl,
+      });
+      gif.addFrame(canvas, { delay: 0 });
+      gif.on('finished', function (blob) { resolve(blob); });
+      gif.on('abort', function () { reject(new Error('GIF encoding aborted')); });
+      try { gif.render(); } catch (e) { reject(e); }
+    });
+  }
 
   async function run(file, options, onProgress) {
     var box = document.querySelector('.tg-tool-box');
@@ -69,31 +103,29 @@
     return { blob: _results[0].blob, filename: _results[0].filename };
   }
 
-  function convertOne(file) {
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        URL.revokeObjectURL(url);
-        var canvas = document.createElement('canvas');
-        canvas.width = img.width; canvas.height = img.height;
-        canvas.getContext('2d').drawImage(img, 0, 0);
-        // Try GIF, fall back to PNG
-        canvas.toBlob(function (blob) {
-          if (blob && blob.type === 'image/gif') {
-            resolve({ blob: blob, filename: file.name.replace(/\.[^.]+$/, '') + '.gif', fallback: false });
-          } else {
-            // GIF not supported — fallback to PNG
-            canvas.toBlob(function (pngBlob) {
-              if (!pngBlob) { reject(new Error('Conversion failed')); return; }
-              resolve({ blob: pngBlob, filename: file.name.replace(/\.[^.]+$/, '') + '.png', fallback: true });
-            }, 'image/png');
-          }
-        }, 'image/gif');
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
-      img.src = url;
-    });
+  async function convertOne(file) {
+    var img = await TGImageUtil.loadImage(file);
+    var canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+    var ctx = canvas.getContext('2d');
+    // GIF has no alpha gradient — flatten transparency onto white
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+
+    // Encode a real single-frame GIF with gif.js; fall back to PNG
+    if (window.GIF) {
+      try {
+        var workerUrl = await getGifWorkerUrl();
+        var gifBlob = await encodeGif(canvas, workerUrl);
+        return { blob: gifBlob, filename: TGImageUtil.stripExt(file.name) + '.gif', fallback: false };
+      } catch (e) {
+        // fall through to PNG fallback
+      }
+    }
+
+    var pngBlob = await TGImageUtil.canvasToBlob(canvas, 'image/png', 1.0);
+    return { blob: pngBlob, filename: TGImageUtil.stripExt(file.name) + '.png', fallback: true };
   }
 
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
