@@ -16,39 +16,77 @@
     var urlErrorMsg   = urlBox.querySelector('.tg-error-msg');
     var urlSuccess    = urlBox.querySelector('.tg-success-banner');
     var urlReset      = urlBox.querySelector('.tg-reset');
+    var urlHandler    = urlBox.dataset.handler || '';
+    var urlOptionsEl  = urlBox.querySelector('.tg-options');
+    var urlTool       = (window.TGTools && window.TGTools[urlHandler]) ? window.TGTools[urlHandler] : null;
+
+    /* Inject the tool's options panel (e.g. page size / orientation) */
+    if (urlTool && urlTool.getOptionsHTML && urlOptionsEl) {
+      urlOptionsEl.innerHTML = urlTool.getOptionsHTML();
+      urlOptionsEl.hidden = false;
+      if (typeof urlTool.wireOptions === 'function') {
+        try { urlTool.wireOptions(urlOptionsEl); } catch (e) {}
+      }
+    }
 
     if (urlField && urlActionBtn) {
+      urlActionBtn.disabled = urlField.value.trim() === '';
       urlField.addEventListener('input', function () {
         urlActionBtn.disabled = urlField.value.trim() === '';
       });
 
+      var showUrlError = function (msg) {
+        if (urlError) {
+          if (urlErrorMsg) urlErrorMsg.textContent = msg;
+          urlError.hidden = false;
+          if (urlResult) urlResult.hidden = false;
+          if (urlSuccess) urlSuccess.hidden = true;
+        } else {
+          alert(msg);
+        }
+      };
+
       urlActionBtn.addEventListener('click', function () {
         var url = urlField.value.trim();
         if (!url) {
-          alert('Please enter a URL first.');
+          showUrlError('Please enter a URL first.');
           return;
         }
         if (!url.match(/^https?:\/\//i)) {
           url = 'https://' + url;
+          urlField.value = url;
         }
-        var newTab = window.open(url, '_blank');
-        if (!newTab) {
-          alert('Popup blocked. Please allow popups for this site, then try again.');
+        try {
+          new URL(url);
+        } catch (e) {
+          showUrlError('Please enter a valid URL (e.g. https://example.com)');
           return;
         }
-        /* Try to trigger the print dialog automatically once the page loads.
-           Cross-origin pages block scripted print() — the try/catch keeps the
-           flow working and the instructions below cover that case. */
-        try {
-          newTab.addEventListener('load', function () {
+
+        var opened;
+        if (urlTool && typeof urlTool.convertUrl === 'function') {
+          /* Delegate to the tool: opens a print-ready wrapper window
+             with a "Save as PDF" toolbar (see url-to-pdf.js). */
+          var urlOpts = urlTool.getOptions ? urlTool.getOptions(urlOptionsEl) : {};
+          opened = urlTool.convertUrl(url, urlOpts);
+        } else {
+          /* Fallback: open the raw URL and try to print it. Cross-origin
+             pages block scripted print() — the try/catch keeps the flow
+             working and the instructions below cover that case. */
+          var newTab = window.open(url, '_blank');
+          opened = !!newTab;
+          if (opened) {
             setTimeout(function () {
-              try { newTab.print(); } catch (e) {}
-            }, 1000);
-          });
-        } catch (e) {}
-        setTimeout(function () {
-          try { newTab.focus(); newTab.print(); } catch (e) {}
-        }, 2500);
+              try { newTab.focus(); newTab.print(); } catch (e) {}
+            }, 2500);
+          }
+        }
+
+        if (!opened) {
+          showUrlError('Popup was blocked. Please allow popups for this site (look for the popup icon in the address bar) and try again.');
+          return;
+        }
+
         if (urlProgress) urlProgress.hidden = true;
         if (urlError)    urlError.hidden    = true;
         if (urlResult)   urlResult.hidden   = false;
@@ -61,7 +99,7 @@
           urlResult.insertBefore(msgEl, urlResult.firstChild);
         }
         if (msgEl) {
-          msgEl.textContent = 'Page opened! The print dialog should appear automatically — choose "Save as PDF". If it doesn\'t appear, press Ctrl+P in the new tab.';
+          msgEl.textContent = 'Page opened in a new window! Click the "Save as PDF" button in its orange toolbar (or press Ctrl+P) and choose "Save as PDF" as the destination.';
           msgEl.style.color = '#16a34a';
           msgEl.hidden = false;
         }
