@@ -32,13 +32,16 @@
     '<div id="ic-results-wrap" style="margin-top:12px"></div>' +
     '<div id="ic-dl-all-wrap" hidden style="margin-top:10px">' +
       '<button type="button" id="ic-dl-all" class="tg-btn-secondary">Download All as ZIP</button>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var q=document.getElementById("ic-quality"),v=document.getElementById("ic-quality-val");' +
-      'if(q&&v)q.addEventListener("input",function(){v.textContent=q.value;});' +
-      'var s=document.getElementById("ic-maxw"),w=document.getElementById("ic-custom-w-wrap");' +
-      'if(s&&w)s.addEventListener("change",function(){w.hidden=s.value!=="custom";});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var q = container.querySelector('#ic-quality');
+    var v = container.querySelector('#ic-quality-val');
+    if (q && v) q.addEventListener('input', function () { v.textContent = q.value; });
+    var s = container.querySelector('#ic-maxw');
+    var w = container.querySelector('#ic-custom-w-wrap');
+    if (s && w) s.addEventListener('change', function () { w.hidden = s.value !== 'custom'; });
   }
 
   function getOptions(optionsEl) {
@@ -201,5 +204,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

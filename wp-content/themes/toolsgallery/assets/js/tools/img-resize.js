@@ -55,28 +55,46 @@
         '<label class="tg-opt-label" for="ir-preset">Preset</label>' +
         '<select id="ir-preset" class="tg-select">' + presetOpts + '</select>' +
       '</div>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var radios=document.querySelectorAll("input[name=\'ir-mode\']");' +
-      'var dims=document.getElementById("ir-dims-wrap");' +
-      'var pct=document.getElementById("ir-pct-wrap");' +
-      'var pre=document.getElementById("ir-preset-wrap");' +
-      'radios.forEach(function(r){r.addEventListener("change",function(){' +
-        'if(dims)dims.hidden=r.value!=="dimensions";' +
-        'if(pct)pct.hidden=r.value!=="percentage";' +
-        'if(pre)pre.hidden=r.value!=="preset";' +
-      '});});' +
-      'var ps=document.getElementById("ir-pct"),pv=document.getElementById("ir-pct-val");' +
-      'if(ps&&pv)ps.addEventListener("input",function(){pv.textContent=ps.value;});' +
-      'var wInp=document.getElementById("ir-width"),hInp=document.getElementById("ir-height");' +
-      'var lock=document.getElementById("ir-lock");' +
-      'var ratio=0;' +
-      'if(wInp&&hInp&&lock){' +
-        'wInp.addEventListener("input",function(){if(lock.checked&&ratio&&wInp.value){hInp.value=Math.round(wInp.value/ratio);}});' +
-        'hInp.addEventListener("input",function(){if(lock.checked&&ratio&&hInp.value){wInp.value=Math.round(hInp.value*ratio);}});' +
-      '}' +
-      'window._irSetDims=function(w,h){ratio=w/h;if(wInp)wInp.value=w;if(hInp)hInp.value=h;var el=document.getElementById("ir-orig-dims");if(el)el.textContent="Current: "+w+"×"+h+"px";};' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var radios = container.querySelectorAll('input[name="ir-mode"]');
+    var dims = container.querySelector('#ir-dims-wrap');
+    var pct = container.querySelector('#ir-pct-wrap');
+    var pre = container.querySelector('#ir-preset-wrap');
+    radios.forEach(function (r) {
+      r.addEventListener('change', function () {
+        if (dims) dims.hidden = r.value !== 'dimensions';
+        if (pct) pct.hidden = r.value !== 'percentage';
+        if (pre) pre.hidden = r.value !== 'preset';
+      });
+    });
+    var ps = container.querySelector('#ir-pct');
+    var pv = container.querySelector('#ir-pct-val');
+    if (ps && pv) ps.addEventListener('input', function () { pv.textContent = ps.value; });
+    var wInp = container.querySelector('#ir-width');
+    var hInp = container.querySelector('#ir-height');
+    var lock = container.querySelector('#ir-lock');
+    var ratio = 0;
+    if (wInp && hInp && lock) {
+      wInp.addEventListener('input', function () { if (lock.checked && ratio && wInp.value) { hInp.value = Math.round(wInp.value / ratio); } });
+      hInp.addEventListener('input', function () { if (lock.checked && ratio && hInp.value) { wInp.value = Math.round(hInp.value * ratio); } });
+    }
+    window._irSetDims = function (w, h) {
+      ratio = w / h;
+      if (wInp) wInp.value = w;
+      if (hInp) hInp.value = h;
+      var el = container.querySelector('#ir-orig-dims');
+      if (el) el.textContent = 'Current: ' + w + '×' + h + 'px';
+    };
+  }
+
+  function onFileReady(file) {
+    if (!file || !window.TGImageUtil) return;
+    TGImageUtil.loadImage(file).then(function (img) {
+      if (window._irSetDims) window._irSetDims(img.naturalWidth, img.naturalHeight);
+    }).catch(function () {});
   }
 
   function getOptions(optionsEl) {
@@ -154,5 +172,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();
