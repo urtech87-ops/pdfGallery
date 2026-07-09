@@ -60,11 +60,17 @@
     '</div>' +
     '<div id="ict-preview-wrap" style="margin-top:12px;display:none">' +
       '<canvas id="ict-preview" style="max-width:100%;border:1px solid #ddd;border-radius:4px"></canvas>' +
-    '</div>' +
-    '<script>(function(){' +
-      'function link(id,vid){var s=document.getElementById(id),v=document.getElementById(vid);if(s&&v)s.addEventListener("input",function(){v.textContent=s.value;});}' +
-      'link("ict-w","ict-w-val");link("ict-h","ict-h-val");' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    function link(id, vid) {
+      var s = container.querySelector('#' + id);
+      var v = container.querySelector('#' + vid);
+      if (s && v) s.addEventListener('input', function () { v.textContent = s.value; });
+    }
+    link('ict-w', 'ict-w-val');
+    link('ict-h', 'ict-h-val');
   }
 
   function getOptions(optionsEl) {
@@ -121,10 +127,6 @@
     offscreen.height = options.height;
     var ctx = offscreen.getContext('2d');
 
-    // Fill background
-    ctx.fillStyle = options.background;
-    ctx.fillRect(0, 0, options.width, options.height);
-
     var isCircle = options.chartType === 'pie' || options.chartType === 'doughnut' || options.chartType === 'polarArea';
 
     var dataset = {
@@ -145,6 +147,7 @@
       options: {
         responsive: false,
         animation: false,
+        devicePixelRatio: 1,
         plugins: {
           legend: { display: options.showLegend },
           title: { display: !!(options.title), text: options.title, font: { size: 18 } },
@@ -159,23 +162,33 @@
     // Give Chart.js a tick to render
     await new Promise(function (res) { setTimeout(res, 100); });
 
+    /* Chart.js clears its canvas on render, so composite the chart on top
+       of the background color on a separate canvas. */
+    var finalCanvas = document.createElement('canvas');
+    finalCanvas.width = options.width;
+    finalCanvas.height = options.height;
+    var fctx = finalCanvas.getContext('2d');
+    fctx.fillStyle = options.background;
+    fctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+    fctx.drawImage(offscreen, 0, 0);
+
     // Preview
     var previewEl = document.getElementById('ict-preview');
     var previewWrap = document.getElementById('ict-preview-wrap');
     if (previewEl && previewWrap) {
-      var maxW = 600; var sc = Math.min(1, maxW / offscreen.width);
-      previewEl.width = Math.round(offscreen.width * sc);
-      previewEl.height = Math.round(offscreen.height * sc);
-      previewEl.getContext('2d').drawImage(offscreen, 0, 0, previewEl.width, previewEl.height);
+      var maxW = 600; var sc = Math.min(1, maxW / finalCanvas.width);
+      previewEl.width = Math.round(finalCanvas.width * sc);
+      previewEl.height = Math.round(finalCanvas.height * sc);
+      previewEl.getContext('2d').drawImage(finalCanvas, 0, 0, previewEl.width, previewEl.height);
       previewWrap.style.display = 'block';
     }
 
-    var blob = await new Promise(function (res) { offscreen.toBlob(function (b) { res(b); }, 'image/png'); });
+    var blob = await new Promise(function (res) { finalCanvas.toBlob(function (b) { res(b); }, 'image/png'); });
     onProgress && onProgress(1, 'Done!');
     var safeName = (options.title || 'chart').replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
     return { blob: blob, filename: safeName + '.png' };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

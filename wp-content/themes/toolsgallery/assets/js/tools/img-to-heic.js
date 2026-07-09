@@ -1,16 +1,20 @@
 /**
- * ToolsGallery — HEIC to JPG
+ * ToolsGallery — HEIC Converter
  * Handler: img-to-heic
  * URL: /tool/img-to-heic/
+ *
+ * Browsers cannot encode HEIC. This tool:
+ *  - decodes HEIC/HEIF input (iPhone/Mac photos) to high-quality JPEG
+ *  - converts any other image to high-quality JPEG with a note
  */
 (function () {
   'use strict';
-  // This tool converts FROM heic TO jpg (reverse of what the name implies).
   var CONFIG = { handler: 'img-to-heic', multiFile: true };
 
   function getOptionsHTML() {
     return '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px;font-size:13px;margin-bottom:8px">' +
-      'Upload HEIC/HEIF files (from iPhone/Mac) to convert them to JPEG.' +
+      'Upload HEIC/HEIF files (from iPhone/Mac) to convert them to JPEG. ' +
+      'Note: web browsers cannot create HEIC files — other images are saved as high-quality JPEG.' +
     '</div>' +
     '<div class="tg-opt-row">' +
       '<label class="tg-opt-label" for="h2j-quality">Output Quality: <span id="h2j-quality-val">90</span>%</label>' +
@@ -19,17 +23,24 @@
     '<div id="h2j-results" style="margin-top:8px"></div>' +
     '<div id="h2j-dl-all-wrap" hidden style="margin-top:8px">' +
       '<button type="button" id="h2j-dl-all" class="tg-btn-secondary">Download All as ZIP</button>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var q=document.getElementById("h2j-quality"),v=document.getElementById("h2j-quality-val");' +
-      'if(q&&v)q.addEventListener("input",function(){v.textContent=q.value;});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var q = container.querySelector('#h2j-quality');
+    var v = container.querySelector('#h2j-quality-val');
+    if (q && v) q.addEventListener('input', function () { v.textContent = q.value; });
   }
 
   function getOptions(optionsEl) {
     if (!optionsEl) return { quality: 0.90 };
     var q = optionsEl.querySelector('#h2j-quality');
     return { quality: q ? parseInt(q.value) / 100 : 0.90 };
+  }
+
+  function isHeic(file) {
+    return /\.hei[cf]$/i.test(file.name) ||
+      file.type === 'image/heic' || file.type === 'image/heif';
   }
 
   var _results = [];
@@ -41,10 +52,6 @@
     var resultsEl = document.getElementById('h2j-results');
     if (resultsEl) resultsEl.innerHTML = '';
 
-    if (!window.heic2any) {
-      throw new Error('HEIC conversion requires the heic2any library. Please check that it is loaded.');
-    }
-
     for (var i = 0; i < files.length; i++) {
       onProgress && onProgress((i / files.length) * 0.9, 'Converting ' + files[i].name + '...');
       var result = await convertOne(files[i], options);
@@ -53,7 +60,7 @@
         var idx = _results.length - 1;
         resultsEl.insertAdjacentHTML('beforeend',
           '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:13px">' +
-          '<span>' + escHtml(result.filename) + '</span>' +
+          '<span>' + escHtml(result.filename) + (result.note ? ' <em style="color:#92400e">(' + result.note + ')</em>' : '') + '</span>' +
           '<button type="button" class="tg-btn-secondary" style="font-size:11px;padding:2px 8px" data-idx="' + idx + '">Download</button>' +
           '</div>');
       }
@@ -87,18 +94,37 @@
   }
 
   async function convertOne(file, options) {
-    var resultBlob = await heic2any({
-      blob: file,
-      toType: 'image/jpeg',
-      quality: options.quality || 0.90,
-    });
-    // heic2any can return array or blob
-    var blob = Array.isArray(resultBlob) ? resultBlob[0] : resultBlob;
-    return { blob: blob, filename: file.name.replace(/\.heic?$/i, '') + '.jpg' };
+    if (isHeic(file)) {
+      if (!window.heic2any) {
+        throw new Error('HEIC conversion library did not load. Please refresh the page and try again.');
+      }
+      var resultBlob = await heic2any({
+        blob: file,
+        toType: 'image/jpeg',
+        quality: options.quality || 0.90,
+      });
+      // heic2any can return array or blob
+      var blob = Array.isArray(resultBlob) ? resultBlob[0] : resultBlob;
+      return { blob: blob, filename: file.name.replace(/\.hei[cf]$/i, '') + '.jpg' };
+    }
+
+    // Non-HEIC input: browsers cannot encode HEIC — save as high-quality JPEG
+    var img = await TGImageUtil.loadImage(file);
+    var canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    var jpgBlob = await TGImageUtil.canvasToBlob(canvas, 'image/jpeg', Math.max(options.quality || 0.90, 0.9));
+    return {
+      blob: jpgBlob,
+      filename: TGImageUtil.stripExt(file.name) + '.jpg',
+      note: 'HEIC encoding unsupported in browsers — saved as JPEG',
+    };
   }
 
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

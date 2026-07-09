@@ -6,6 +6,7 @@
 (function () {
   'use strict';
   var CONFIG = { handler: 'img-flip' };
+  var _img = null;
 
   function getOptionsHTML() {
     return '<div class="tg-opt-row" style="flex-direction:column;gap:10px">' +
@@ -18,15 +19,18 @@
     '</div>' +
     '<div id="if-preview-wrap" style="margin-top:12px;display:none">' +
       '<canvas id="if-preview" style="max-width:100%;border:1px solid #ddd;border-radius:4px"></canvas>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var btns=document.querySelectorAll(".tg-flip-btn");' +
-      'btns.forEach(function(b){b.addEventListener("click",function(){' +
-        'btns.forEach(function(x){x.classList.remove("tg-flip-btn--active");});' +
-        'b.classList.add("tg-flip-btn--active");' +
-        'if(window._ifUpdatePreview)window._ifUpdatePreview(b.dataset.flip);' +
-      '});});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var btns = container.querySelectorAll('.tg-flip-btn');
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        btns.forEach(function (x) { x.classList.remove('tg-flip-btn--active'); });
+        b.classList.add('tg-flip-btn--active');
+        updatePreview(b.dataset.flip);
+      });
+    });
   }
 
   function getOptions(optionsEl) {
@@ -35,71 +39,52 @@
     return { flip: active ? active.dataset.flip : 'h' };
   }
 
+  function flipToCanvas(img, flip) {
+    var canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    var ctx = canvas.getContext('2d');
+    var flipH = flip === 'h' || flip === 'both';
+    var flipV = flip === 'v' || flip === 'both';
+    ctx.translate(flipH ? canvas.width : 0, flipV ? canvas.height : 0);
+    ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+    ctx.drawImage(img, 0, 0);
+    return canvas;
+  }
+
+  function updatePreview(flip) {
+    if (!_img) return;
+    var preview = document.getElementById('if-preview');
+    var wrap = document.getElementById('if-preview-wrap');
+    if (!preview || !wrap) return;
+    TGImageUtil.drawPreview(flipToCanvas(_img, flip), preview, 400);
+    wrap.style.display = 'block';
+  }
+
+  function onFileReady(file, optionsEl) {
+    _img = null;
+    if (!file) return;
+    TGImageUtil.loadImage(file).then(function (img) {
+      _img = img;
+      var active = optionsEl ? optionsEl.querySelector('.tg-flip-btn--active') : null;
+      updatePreview(active ? active.dataset.flip : 'h');
+    }).catch(function () {});
+  }
+
   async function run(file, options, onProgress) {
     onProgress && onProgress(0.1, 'Loading image...');
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        URL.revokeObjectURL(url);
-        var canvas = document.createElement('canvas');
-        canvas.width = img.width; canvas.height = img.height;
-        var ctx = canvas.getContext('2d');
+    var img = _img || await TGImageUtil.loadImage(file);
+    onProgress && onProgress(0.5, 'Flipping...');
+    var canvas = flipToCanvas(img, options.flip);
 
-        var flipH = options.flip === 'h' || options.flip === 'both';
-        var flipV = options.flip === 'v' || options.flip === 'both';
-
-        ctx.save();
-        ctx.translate(flipH ? img.width : 0, flipV ? img.height : 0);
-        ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-        ctx.drawImage(img, 0, 0);
-        ctx.restore();
-
-        // Update preview
-        var preview = document.getElementById('if-preview');
-        var previewWrap = document.getElementById('if-preview-wrap');
-        if (preview && previewWrap) {
-          var maxW = 400;
-          var scale = Math.min(1, maxW / img.width);
-          preview.width = Math.round(img.width * scale);
-          preview.height = Math.round(img.height * scale);
-          var pCtx = preview.getContext('2d');
-          pCtx.drawImage(canvas, 0, 0, preview.width, preview.height);
-          previewWrap.style.display = 'block';
-        }
-
-        window._ifUpdatePreview = function (flipDir) {
-          var c2 = document.createElement('canvas');
-          c2.width = img.width; c2.height = img.height;
-          var c2x = c2.getContext('2d');
-          var fH = flipDir === 'h' || flipDir === 'both';
-          var fV = flipDir === 'v' || flipDir === 'both';
-          c2x.save();
-          c2x.translate(fH ? img.width : 0, fV ? img.height : 0);
-          c2x.scale(fH ? -1 : 1, fV ? -1 : 1);
-          c2x.drawImage(img, 0, 0);
-          c2x.restore();
-          if (preview) {
-            var pC = preview.getContext('2d');
-            pC.drawImage(c2, 0, 0, preview.width, preview.height);
-          }
-        };
-
-        var ext = file.name.match(/\.[^.]+$/) ? file.name.match(/\.[^.]+$/)[0] : '.jpg';
-        var mime = ext === '.png' ? 'image/png' : 'image/jpeg';
-        var base = file.name.replace(/\.[^.]+$/, '');
-
-        canvas.toBlob(function (blob) {
-          if (!blob) { reject(new Error('Failed to create image')); return; }
-          onProgress && onProgress(1, 'Done!');
-          resolve({ blob: blob, filename: base + '-flipped' + ext });
-        }, mime, 0.92);
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
-      img.src = url;
-    });
+    var isPng = file.type === 'image/png';
+    var mime = isPng ? 'image/png' : 'image/jpeg';
+    var ext = isPng ? '.png' : '.jpg';
+    var blob = await TGImageUtil.canvasToBlob(canvas, mime, 0.92);
+    onProgress && onProgress(1, 'Done!');
+    return { blob: blob, filename: TGImageUtil.stripExt(file.name) + '-flipped' + ext };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

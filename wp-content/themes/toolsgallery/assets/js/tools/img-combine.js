@@ -26,11 +26,13 @@
     '</div>' +
     '<div id="icm-preview-wrap" style="margin-top:12px;display:none">' +
       '<canvas id="icm-preview" style="max-width:100%;border:1px solid #ddd;border-radius:4px"></canvas>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var sl=document.getElementById("icm-gap"),sv=document.getElementById("icm-gap-val");' +
-      'if(sl&&sv)sl.addEventListener("input",function(){sv.textContent=sl.value;});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var sl = container.querySelector('#icm-gap');
+    var sv = container.querySelector('#icm-gap-val');
+    if (sl && sv) sl.addEventListener('input', function () { sv.textContent = sl.value; });
   }
 
   function getOptions(optionsEl) {
@@ -127,5 +129,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

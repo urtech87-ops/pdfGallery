@@ -22,6 +22,11 @@ while (have_posts()):
     $steps_raw = get_post_meta($post_id, '_tg_steps', true);
     $related_raw = get_post_meta($post_id, '_tg_related', true);
     $multi_file = get_post_meta($post_id, '_tg_multi_file', true) === 'true';
+    /* These tools cannot work with a single image — force multi upload
+       regardless of stored meta. */
+    if (in_array($handler, ['img-combine', 'img-collage'], true)) {
+        $multi_file = true;
+    }
     $input_format = get_post_meta($post_id, '_tg_input_format', true) ?: '';
     $output_format = get_post_meta($post_id, '_tg_output_format', true) ?: '';
 

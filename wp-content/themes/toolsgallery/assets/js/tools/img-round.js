@@ -32,13 +32,25 @@
     '</div>' +
     '<div id="ird-preview-wrap" style="margin-top:12px;display:none;text-align:center">' +
       '<canvas id="ird-preview" style="max-width:300px;border-radius:50%"></canvas>' +
-    '</div>' +
-    '<script>(function(){' +
-      'document.querySelectorAll("input[name=\'ird-shape\']").forEach(function(r){r.addEventListener("change",function(){var w=document.getElementById("ird-radius-wrap");if(w)w.hidden=r.value!=="rounded";});});' +
-      'document.querySelectorAll("input[name=\'ird-bg\']").forEach(function(r){r.addEventListener("change",function(){var w=document.getElementById("ird-bg-custom-wrap");if(w)w.hidden=r.value!=="custom";});});' +
-      'var sl=document.getElementById("ird-radius"),sv=document.getElementById("ird-radius-val");' +
-      'if(sl&&sv)sl.addEventListener("input",function(){sv.textContent=sl.value;});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    container.querySelectorAll('input[name="ird-shape"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var w = container.querySelector('#ird-radius-wrap');
+        if (w) w.hidden = r.value !== 'rounded';
+      });
+    });
+    container.querySelectorAll('input[name="ird-bg"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var w = container.querySelector('#ird-bg-custom-wrap');
+        if (w) w.hidden = r.value !== 'custom';
+      });
+    });
+    var sl = container.querySelector('#ird-radius');
+    var sv = container.querySelector('#ird-radius-val');
+    if (sl && sv) sl.addEventListener('input', function () { sv.textContent = sl.value; });
   }
 
   function getOptions(optionsEl) {
@@ -119,5 +131,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

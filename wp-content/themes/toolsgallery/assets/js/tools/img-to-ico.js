@@ -31,13 +31,20 @@
     var img = await loadImage(file);
     var pngDataArrays = [];
 
+    // Center-crop to square so non-square logos aren't distorted
+    var side = Math.min(img.naturalWidth, img.naturalHeight);
+    var sx = (img.naturalWidth - side) / 2;
+    var sy = (img.naturalHeight - side) / 2;
+
     for (var i = 0; i < sizes.length; i++) {
       onProgress && onProgress(0.2 + (i / sizes.length) * 0.5, 'Rendering ' + sizes[i] + 'x' + sizes[i] + '...');
       var size = sizes[i];
       var canvas = document.createElement('canvas');
       canvas.width = size; canvas.height = size;
       var ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, size, size);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
       var pngData = await canvasToPngBytes(canvas);
       pngDataArrays.push({ size: size, data: pngData });
     }

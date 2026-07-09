@@ -4084,3 +4084,280 @@ textarea {
 [data-theme="light"] .tg-footer .tg-logo-text {
     color: #fff !important;
 }
+/* ================================
+   TOOL OPTIONS UI — IMPROVED DESIGN
+   (PDF Tools Final Fix)
+   ================================ */
+
+.tg-opt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.tg-opt-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tg-opt-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tg-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tg-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: white;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.tg-radio-label:hover {
+  border-color: #F97316;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.tg-radio-label input[type="radio"] {
+  accent-color: #F97316;
+  width: 16px;
+  height: 16px;
+}
+
+.tg-radio-label:has(input[type="radio"]:checked) {
+  border-color: #F97316;
+  background: #fff7ed;
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.tg-select {
+  padding: 9px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #374151;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+
+.tg-select:focus {
+  outline: none;
+  border-color: #F97316;
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.1);
+}
+
+.tg-input,
+.tg-text-input {
+  padding: 9px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #374151;
+  background: white;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.tg-input:focus,
+.tg-text-input:focus {
+  outline: none;
+  border-color: #F97316;
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.1);
+}
+
+.tg-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tg-slider {
+  flex: 1;
+  accent-color: #F97316;
+  height: 6px;
+  cursor: pointer;
+}
+
+.tg-slider-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #F97316;
+  min-width: 40px;
+  text-align: right;
+}
+
+.tg-info-box {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  color: #1e40af;
+  line-height: 1.5;
+}
+
+.tg-warn-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.tg-btn-sm {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.tg-btn-primary {
+  background: #F97316;
+  color: white;
+}
+
+.tg-btn-primary:hover {
+  background: #ea580c;
+  transform: translateY(-1px);
+}
+
+.tg-btn-outline {
+  background: white;
+  border: 1.5px solid #d1d5db;
+  color: #374151;
+}
+
+.tg-btn-outline:hover {
+  border-color: #F97316;
+  color: #F97316;
+}
+
+/* Signature wizard steps */
+.tg-sig-steps {
+  display: flex;
+  gap: 0;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.tg-sig-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tg-sig-step.active {
+  color: #F97316;
+  border-bottom: 2px solid #F97316;
+  margin-bottom: -2px;
+}
+
+.tg-sig-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tg-sig-step.active .tg-sig-step-num {
+  background: #F97316;
+  color: white;
+}
+
+/* Dark theme overrides */
+[data-theme="dark"] .tg-opt-section {
+  background: #1e1e1e !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+[data-theme="dark"] .tg-opt-label {
+  color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .tg-radio-label {
+  background: #2a2a2a !important;
+  border-color: rgba(255,255,255,0.15) !important;
+  color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .tg-radio-label:hover,
+[data-theme="dark"] .tg-radio-label:has(input[type="radio"]:checked) {
+  border-color: #F97316 !important;
+  background: rgba(249,115,22,0.1) !important;
+  color: #fdba74 !important;
+}
+
+[data-theme="dark"] .tg-select,
+[data-theme="dark"] .tg-input,
+[data-theme="dark"] .tg-text-input {
+  background: #2a2a2a !important;
+  border-color: rgba(255,255,255,0.15) !important;
+  color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .tg-info-box {
+  background: rgba(59,130,246,0.1) !important;
+  border-color: rgba(59,130,246,0.3) !important;
+  color: #93c5fd !important;
+}
+
+[data-theme="dark"] .tg-warn-box {
+  background: rgba(245,158,11,0.1) !important;
+  border-color: rgba(245,158,11,0.3) !important;
+  color: #fcd34d !important;
+}
+
+[data-theme="dark"] .tg-btn-outline {
+  background: #2a2a2a !important;
+  border-color: rgba(255,255,255,0.2) !important;
+  color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .tg-btn-outline:hover {
+  border-color: #F97316 !important;
+  color: #F97316 !important;
+}

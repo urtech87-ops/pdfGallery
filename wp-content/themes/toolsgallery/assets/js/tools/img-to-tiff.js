@@ -7,34 +7,19 @@
   'use strict';
   var CONFIG = { handler: 'img-to-tiff', multiFile: true };
 
-  var _tiffSupported = null;
-
-  function checkTiffSupport() {
-    if (_tiffSupported !== null) return Promise.resolve(_tiffSupported);
-    return new Promise(function (resolve) {
-      var canvas = document.createElement('canvas');
-      canvas.width = 1; canvas.height = 1;
-      canvas.toBlob(function (blob) {
-        _tiffSupported = blob && blob.type === 'image/tiff';
-        resolve(_tiffSupported);
-      }, 'image/tiff');
-    });
-  }
-
   function getOptionsHTML() {
-    return '<div id="i2t-support-msg" style="font-size:13px;color:var(--color-gray-600);margin-bottom:8px">Checking TIFF support...</div>' +
+    return '<div id="i2t-support-msg" style="font-size:13px;color:var(--color-gray-600);margin-bottom:8px">Converts images to TIFF (uncompressed RGBA).</div>' +
     '<div id="i2t-results" style="margin-top:8px"></div>' +
     '<div id="i2t-dl-all-wrap" hidden style="margin-top:8px">' +
       '<button type="button" id="i2t-dl-all" class="tg-btn-secondary">Download All as ZIP</button>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var canvas=document.createElement("canvas");canvas.width=1;canvas.height=1;' +
-      'canvas.toBlob(function(blob){' +
-        'var msg=document.getElementById("i2t-support-msg");if(!msg)return;' +
-        'if(blob&&blob.type==="image/tiff"){msg.textContent="✓ TIFF format supported by your browser.";}' +
-        'else{msg.innerHTML="⚠ TIFF not supported — files will be exported as <strong>PNG</strong> instead.";}' +
-      '},"image/tiff");' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var msg = container.querySelector('#i2t-support-msg');
+    if (msg && !window.UTIF) {
+      msg.innerHTML = '⚠ TIFF encoder not loaded — files will be exported as <strong>PNG</strong> instead.';
+    }
   }
 
   function getOptions(optionsEl) { return {}; }
@@ -42,12 +27,13 @@
   var _results = [];
 
   async function run(file, options, onProgress) {
-    var supported = await checkTiffSupport();
     var box = document.querySelector('.tg-tool-box');
     var files = (box && box._tgFiles && box._tgFiles.length) ? Array.from(box._tgFiles) : [file];
     _results = [];
     var resultsEl = document.getElementById('i2t-results');
     if (resultsEl) resultsEl.innerHTML = '';
+
+    var supported = !!window.UTIF;
 
     for (var i = 0; i < files.length; i++) {
       onProgress && onProgress((i / files.length) * 0.9, 'Converting ' + files[i].name + '...');
@@ -90,29 +76,29 @@
     return { blob: _results[0].blob, filename: _results[0].filename };
   }
 
-  function convertOne(file, tiffSupported) {
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        URL.revokeObjectURL(url);
-        var canvas = document.createElement('canvas');
-        canvas.width = img.width; canvas.height = img.height;
-        canvas.getContext('2d').drawImage(img, 0, 0);
-        var mime = tiffSupported ? 'image/tiff' : 'image/png';
-        var ext = tiffSupported ? '.tiff' : '.png';
-        canvas.toBlob(function (blob) {
-          if (!blob) { reject(new Error('Conversion failed')); return; }
-          resolve({ blob: blob, filename: file.name.replace(/\.[^.]+$/, '') + ext });
-        }, mime);
+  async function convertOne(file, utifAvailable) {
+    var img = await TGImageUtil.loadImage(file);
+    var w = img.naturalWidth, h = img.naturalHeight;
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+
+    if (utifAvailable) {
+      var imageData = ctx.getImageData(0, 0, w, h);
+      var tiffBuffer = UTIF.encodeImage(imageData.data.buffer, w, h);
+      return {
+        blob: new Blob([tiffBuffer], { type: 'image/tiff' }),
+        filename: TGImageUtil.stripExt(file.name) + '.tiff',
       };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
-      img.src = url;
-    });
+    }
+
+    var blob = await TGImageUtil.canvasToBlob(canvas, 'image/png', 1.0);
+    return { blob: blob, filename: TGImageUtil.stripExt(file.name) + '.png' };
   }
 
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

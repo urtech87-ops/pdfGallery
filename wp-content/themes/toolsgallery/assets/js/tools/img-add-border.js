@@ -45,12 +45,24 @@
     '<div class="tg-opt-row">' +
       '<label class="tg-opt-label" for="iab-padding">Inner Padding: <span id="iab-padding-val">0</span>px</label>' +
       '<input type="range" id="iab-padding" min="0" max="50" value="0" style="flex:1">' +
-    '</div>' +
-    '<script>(function(){' +
-      'function link(id,valId,suf){var s=document.getElementById(id),v=document.getElementById(valId);if(s&&v)s.addEventListener("input",function(){v.textContent=s.value+(suf||"");});}' +
-      'link("iab-width","iab-width-val","");link("iab-radius","iab-radius-val","");link("iab-padding","iab-padding-val","");' +
-      'document.querySelectorAll("input[name=\'iab-corner\']").forEach(function(r){r.addEventListener("change",function(){var w=document.getElementById("iab-radius-wrap");if(w)w.hidden=r.value!=="rounded";});});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    function link(id, valId) {
+      var s = container.querySelector('#' + id);
+      var v = container.querySelector('#' + valId);
+      if (s && v) s.addEventListener('input', function () { v.textContent = s.value; });
+    }
+    link('iab-width', 'iab-width-val');
+    link('iab-radius', 'iab-radius-val');
+    link('iab-padding', 'iab-padding-val');
+    container.querySelectorAll('input[name="iab-corner"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var w = container.querySelector('#iab-radius-wrap');
+        if (w) w.hidden = r.value !== 'rounded';
+      });
+    });
   }
 
   function getOptions(optionsEl) {
@@ -167,5 +179,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

@@ -7,6 +7,7 @@
   'use strict';
   var CONFIG = { handler: 'img-profile' };
   var _cropper = null;
+  var _cropperUrl = null;
 
   var PLATFORMS = {
     linkedin: { size: 400, shape: 'circle', label: 'LinkedIn' },
@@ -48,26 +49,58 @@
       '<input type="color" id="ipf-bg-color" value="#4a90e2">' +
     '</div>' +
     '<div id="ipf-cropper-wrap" style="margin-top:12px;display:none;max-width:100%">' +
-      '<img id="ipf-img" style="max-width:100%">' +
+      '<p class="tg-opt-info">Drag to position and zoom your photo, then click the button below.</p>' +
+      '<img id="ipf-img" style="max-width:100%;display:block">' +
     '</div>' +
     '<div id="ipf-preview-label" hidden style="margin-top:8px;text-align:center">' +
-      '<p class="tg-opt-info">Preview (circle)</p>' +
+      '<p class="tg-opt-info">Preview</p>' +
       '<canvas id="ipf-preview" style="border-radius:50%;border:2px solid #ddd;max-width:150px"></canvas>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var sl=document.getElementById("ipf-size"),sv=document.getElementById("ipf-size-val");' +
-      'if(sl&&sv)sl.addEventListener("input",function(){sv.textContent=sl.value;});' +
-      'var platSel=document.getElementById("ipf-platform");' +
-      'if(platSel)platSel.addEventListener("change",function(){' +
-        'var platforms=' + JSON.stringify(PLATFORMS) + ';' +
-        'var p=platforms[platSel.value];if(!p)return;' +
-        'var ss=document.getElementById("ipf-size");if(ss){ss.value=p.size;if(sv)sv.textContent=p.size;}' +
-        'var radios=document.querySelectorAll("input[name=\'ipf-shape\']");' +
-        'radios.forEach(function(r){r.checked=r.value===p.shape;});' +
-      '});' +
-      'var bgChk=document.getElementById("ipf-bg"),bgWrap=document.getElementById("ipf-bg-wrap");' +
-      'if(bgChk&&bgWrap)bgChk.addEventListener("change",function(){bgWrap.hidden=!bgChk.checked;});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var sl = container.querySelector('#ipf-size');
+    var sv = container.querySelector('#ipf-size-val');
+    if (sl && sv) sl.addEventListener('input', function () { sv.textContent = sl.value; });
+
+    var platSel = container.querySelector('#ipf-platform');
+    if (platSel) {
+      platSel.addEventListener('change', function () {
+        var p = PLATFORMS[platSel.value];
+        if (!p) return;
+        if (sl) { sl.value = p.size; if (sv) sv.textContent = p.size; }
+        container.querySelectorAll('input[name="ipf-shape"]').forEach(function (r) {
+          r.checked = r.value === p.shape;
+        });
+      });
+    }
+
+    var bgChk = container.querySelector('#ipf-bg');
+    var bgWrap = container.querySelector('#ipf-bg-wrap');
+    if (bgChk && bgWrap) bgChk.addEventListener('change', function () { bgWrap.hidden = !bgChk.checked; });
+  }
+
+  /* Called by tool-runner when a file is selected — sets up the cropper so
+     the user can position the photo before running the export. */
+  function onFileReady(file) {
+    var cropperWrap = document.getElementById('ipf-cropper-wrap');
+    var imgEl = document.getElementById('ipf-img');
+    if (!cropperWrap || !imgEl || !window.Cropper) return;
+
+    if (_cropper) { try { _cropper.destroy(); } catch (e) {} _cropper = null; }
+    if (_cropperUrl) { URL.revokeObjectURL(_cropperUrl); _cropperUrl = null; }
+
+    _cropperUrl = URL.createObjectURL(file);
+    imgEl.onload = function () {
+      _cropper = new Cropper(imgEl, {
+        aspectRatio: 1,
+        viewMode: 1,
+        responsive: true,
+        autoCropArea: 1,
+      });
+    };
+    imgEl.src = _cropperUrl;
+    cropperWrap.style.display = 'block';
   }
 
   function getOptions(optionsEl) {
@@ -87,52 +120,26 @@
   }
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(0.1, 'Loading image...');
-
-    return new Promise(function (resolve, reject) {
-      var cropperWrap = document.getElementById('ipf-cropper-wrap');
-      var imgEl = document.getElementById('ipf-img');
-
-      if (!cropperWrap || !imgEl) { reject(new Error('UI not ready')); return; }
-
-      if (window._ipfCropper && window._ipfReady) {
-        doCrop(file, options, resolve, reject, onProgress);
-        return;
-      }
-
-      var url = URL.createObjectURL(file);
-      imgEl.src = url;
-      cropperWrap.style.display = 'block';
-
-      imgEl.onload = function () {
-        if (!window.Cropper) { reject(new Error('Cropper.js not loaded')); return; }
-        if (_cropper) { _cropper.destroy(); _cropper = null; }
-        _cropper = new Cropper(imgEl, {
-          aspectRatio: 1,
-          viewMode: 1,
-          responsive: true,
-        });
-        window._ipfCropper = _cropper;
-        window._ipfReady = true;
-        onProgress && onProgress(0.5, 'Position your photo, then click the button to export.');
-        resolve({ _wait: true, file: file, options: options });
-      };
-      imgEl.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
-    }).then(function (r) {
-      if (r && r._wait) {
-        return new Promise(function (res, rej) { doCrop(r.file, r.options, res, rej, function(){}); });
-      }
-      return r;
-    });
-  }
-
-  function doCrop(file, options, resolve, reject, onProgress) {
-    if (!_cropper) { reject(new Error('No active cropper')); return; }
-    onProgress && onProgress(0.7, 'Exporting...');
+    onProgress && onProgress(0.2, 'Cropping photo...');
     var size = options.size || 400;
-    var cropCanvas = _cropper.getCroppedCanvas({ width: size, height: size });
-    if (!cropCanvas) { reject(new Error('Crop failed')); return; }
+    var cropCanvas;
 
+    if (_cropper) {
+      cropCanvas = _cropper.getCroppedCanvas({ width: size, height: size });
+      if (!cropCanvas) throw new Error('Crop failed. Please try again.');
+    } else {
+      // Cropper unavailable — fall back to a centered square crop
+      var img = await TGImageUtil.loadImage(file);
+      var side = Math.min(img.naturalWidth, img.naturalHeight);
+      var sx = (img.naturalWidth - side) / 2;
+      var sy = (img.naturalHeight - side) / 2;
+      cropCanvas = document.createElement('canvas');
+      cropCanvas.width = size;
+      cropCanvas.height = size;
+      cropCanvas.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, size, size);
+    }
+
+    onProgress && onProgress(0.6, 'Exporting...');
     var outCanvas = document.createElement('canvas');
     outCanvas.width = size; outCanvas.height = size;
     var ctx = outCanvas.getContext('2d');
@@ -167,15 +174,11 @@
       previewLabel.hidden = false;
     }
 
-    var platform = options.platform || 'linkedin';
-    outCanvas.toBlob(function (blob) {
-      if (!blob) { reject(new Error('Export failed')); return; }
-      window._ipfReady = false;
-      onProgress && onProgress(1, 'Done!');
-      resolve({ blob: blob, filename: 'profile-' + platform + '.png' });
-    }, 'image/png');
+    var blob = await TGImageUtil.canvasToBlob(outCanvas, 'image/png', 1.0);
+    onProgress && onProgress(1, 'Done!');
+    return { blob: blob, filename: 'profile-' + (options.platform || 'photo') + '.png' };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

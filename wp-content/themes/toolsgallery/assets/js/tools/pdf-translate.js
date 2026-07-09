@@ -1,72 +1,114 @@
 /* ToolsGallery — pdf-translate.js
    Handler: pdf-translate
-   Phase 3C
+   Extracts PDF text with PDF.js and translates it via the AI proxy
+   (tg_ai_proxy). Result is shown in a copyable/downloadable text box.
 */
 (function () {
   'use strict';
 
   var CONFIG = {
     handler: 'pdf-translate',
-    downloadName: 'translated.txt',
+    downloadName: 'translation.txt',
   };
 
-  var LANGUAGES = ['English','Spanish','French','German','Italian','Portuguese','Dutch','Russian','Chinese (Simplified)','Chinese (Traditional)','Japanese','Korean','Arabic','Hindi','Turkish','Polish','Swedish','Norwegian','Danish','Finnish'];
+  var LANGUAGES = [
+    'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch',
+    'Russian', 'Arabic', 'Chinese (Simplified)', 'Chinese (Traditional)',
+    'Japanese', 'Korean', 'Hindi', 'Turkish', 'Polish', 'Swedish',
+    'Norwegian', 'Danish', 'Finnish', 'Greek', 'Hebrew', 'Thai',
+    'Vietnamese', 'Indonesian', 'Malay', 'English',
+  ];
+
+  var MAX_CHARS = 8000;
 
   function getOptionsHTML(pageCount) {
-    var langOpts = LANGUAGES.map(function (l) { return '<option value="' + l + '">' + l + '</option>'; }).join('');
-    return '<div class="tg-opt-row">' +
-      '<label class="tg-opt-label" for="trans-lang">Translate to</label>' +
-      '<select id="trans-lang" class="tg-select">' + langOpts + '</select>' +
-    '</div>' +
-    '<div class="tg-opt-row">' +
-      '<label class="tg-opt-label">Pages</label>' +
-      '<div class="tg-radio-group">' +
-        '<label><input type="radio" name="trans-pages" value="all" checked> All pages</label>' +
-        '<label><input type="radio" name="trans-pages" value="specific"> Specific pages</label>' +
+    var langOpts = LANGUAGES.map(function (l) {
+      return '<option value="' + l + '">' + l + '</option>';
+    }).join('');
+    return '<div class="tg-opt-section">' +
+      '<div class="tg-opt-row">' +
+        '<label class="tg-opt-label" for="trans-lang">&#127760; Translate To</label>' +
+        '<select id="trans-lang" class="tg-select">' + langOpts + '</select>' +
       '</div>' +
-      '<div id="trans-pages-wrap" hidden style="margin-top:6px;">' +
-        '<input type="text" id="trans-pages-input" class="tg-text-input" placeholder="e.g. 1,3,5-8">' +
+      '<div class="tg-opt-row">' +
+        '<label class="tg-opt-label" for="trans-style">Translation Style</label>' +
+        '<select id="trans-style" class="tg-select">' +
+          '<option value="natural">Natural (recommended)</option>' +
+          '<option value="formal">Formal / Professional</option>' +
+          '<option value="literal">Literal / Close to original</option>' +
+        '</select>' +
       '</div>' +
-    '</div>' +
-    '<div class="tg-opt-row">' +
-      '<label class="tg-opt-label">Translation quality</label>' +
-      '<div class="tg-radio-group">' +
-        '<label><input type="radio" name="trans-quality" value="standard" checked> Standard</label>' +
-        '<label><input type="radio" name="trans-quality" value="detailed"> Detailed (slower)</label>' +
+      '<div class="tg-opt-row">' +
+        '<label class="tg-opt-label">Pages</label>' +
+        '<div class="tg-radio-group">' +
+          '<label class="tg-radio-label"><input type="radio" name="trans-pages" value="all" checked> <span>All pages</span></label>' +
+          '<label class="tg-radio-label"><input type="radio" name="trans-pages" value="specific"> <span>Specific pages</span></label>' +
+        '</div>' +
+        '<div id="trans-pages-wrap" hidden style="margin-top:6px;">' +
+          '<input type="text" id="trans-pages-input" class="tg-input" placeholder="e.g. 1,3,5-8">' +
+        '</div>' +
       '</div>' +
     '</div>' +
     '<div id="trans-output-wrap" hidden style="margin-top:12px;">' +
-      '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">' +
-        '<button type="button" id="trans-copy-btn" class="tg-btn-secondary">Copy Text</button>' +
-        '<button type="button" id="trans-dl-txt" class="tg-btn-secondary">Download .txt</button>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">' +
+        '<strong style="font-size:15px;">&#127760; Translation Result</strong>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button type="button" id="trans-copy-btn" class="tg-btn-sm tg-btn-outline">&#128203; Copy</button>' +
+          '<button type="button" id="trans-dl-txt" class="tg-btn-sm tg-btn-primary">&#11015;&#65039; Download TXT</button>' +
+        '</div>' +
       '</div>' +
-      '<div id="trans-output-content" style="background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:12px;max-height:300px;overflow-y:auto;white-space:pre-wrap;font-family:Georgia,serif;line-height:1.6;font-size:14px;"></div>' +
+      '<textarea id="trans-output-content" readonly style="width:100%;height:320px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;line-height:1.6;resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>' +
     '</div>';
   }
 
-  function onFileReady(file, optionsEl) {
-    if (!optionsEl) return;
-    var wrap = optionsEl.querySelector('#trans-pages-wrap');
-    if (!wrap || wrap.dataset.wired) return;
-    wrap.dataset.wired = '1';
+  /* Inline <script> tags in injected markup never execute — wired here. */
+  function wireOptions(optionsEl) {
+    if (!optionsEl || optionsEl.dataset.transWired) return;
+    optionsEl.dataset.transWired = '1';
     optionsEl.querySelectorAll('input[name="trans-pages"]').forEach(function (r) {
       r.addEventListener('change', function () {
-        wrap.hidden = r.value !== 'specific';
+        var wrap = optionsEl.querySelector('#trans-pages-wrap');
+        if (wrap) wrap.hidden = r.value !== 'specific';
       });
     });
+    var copyBtn = optionsEl.querySelector('#trans-copy-btn');
+    if (copyBtn) copyBtn.addEventListener('click', function () {
+      var ta = optionsEl.querySelector('#trans-output-content');
+      if (!ta || !ta.value) return;
+      navigator.clipboard.writeText(ta.value).catch(function () {
+        ta.select();
+        document.execCommand('copy');
+      });
+      copyBtn.textContent = '✓ Copied!';
+      setTimeout(function () { copyBtn.textContent = '📋 Copy'; }, 2000);
+    });
+    var dlBtn = optionsEl.querySelector('#trans-dl-txt');
+    if (dlBtn) dlBtn.addEventListener('click', function () {
+      var ta = optionsEl.querySelector('#trans-output-content');
+      if (!ta || !ta.value) return;
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([ta.value], { type: 'text/plain' }));
+      a.download = 'translation.txt';
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+    });
+  }
+
+  function onFileReady(file, optionsEl) {
+    wireOptions(optionsEl);
   }
 
   function getOptions(optionsEl) {
     if (!optionsEl) return {};
     var lang = optionsEl.querySelector('#trans-lang');
+    var style = optionsEl.querySelector('#trans-style');
     var pagesMode = optionsEl.querySelector('input[name="trans-pages"]:checked');
     var pagesInput = optionsEl.querySelector('#trans-pages-input');
-    var quality = optionsEl.querySelector('input[name="trans-quality"]:checked');
     return {
       language: lang ? lang.value : 'Spanish',
+      style: style ? style.value : 'natural',
       pagesMode: pagesMode ? pagesMode.value : 'all',
       pagesRange: pagesInput ? pagesInput.value : '',
-      quality: quality ? quality.value : 'standard',
     };
   }
 
@@ -87,11 +129,21 @@
     return pages.length ? pages : null;
   }
 
-  async function run(file, options, onProgress) {
-    if (!window.pdfjsLib) throw new Error('PDF.js not loaded.');
-    if (typeof tgAiConfig === 'undefined') throw new Error('AI config not available.');
+  function showResult(text) {
+    var wrap = document.getElementById('trans-output-wrap');
+    var ta = document.getElementById('trans-output-content');
+    if (wrap) { wrap.hidden = false; wrap.style.display = 'block'; }
+    if (ta) ta.value = text;
+    try { wrap && wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+  }
 
-    onProgress && onProgress(0.1, 'Extracting text from PDF...');
+  async function run(file, options, onProgress) {
+    if (!window.pdfjsLib) throw new Error('PDF.js not loaded. Please refresh the page.');
+    if (typeof tgAiConfig === 'undefined') {
+      throw new Error('AI configuration not found. Please refresh the page.');
+    }
+
+    onProgress && onProgress(0.1, 'Reading PDF...');
     var arrayBuffer = await file.arrayBuffer();
     var pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     var totalPages = pdf.numPages;
@@ -106,99 +158,58 @@
 
     var extractedParts = [];
     for (var p = 0; p < pageNums.length; p++) {
-      onProgress && onProgress(0.1 + p / pageNums.length * 0.3, 'Extracting page ' + pageNums[p] + '...');
+      onProgress && onProgress(0.1 + (p / pageNums.length) * 0.3,
+        'Extracting page ' + pageNums[p] + ' of ' + totalPages + '...');
       var page = await pdf.getPage(pageNums[p]);
       var tc = await page.getTextContent();
-      var pageText = tc.items.map(function (it) { return it.str; }).join(' ');
-      if (pageText.trim()) extractedParts.push(pageText.trim());
+      var pageText = tc.items.map(function (it) { return it.str; }).join(' ').trim();
+      if (pageText) extractedParts.push('--- Page ' + pageNums[p] + ' ---\n' + pageText);
     }
 
-    if (!extractedParts.length) throw new Error('No text found in PDF. It may contain only images.');
+    if (!extractedParts.length) {
+      throw new Error('No text found in this PDF. The file may contain only images or be a scanned document.');
+    }
 
     var text = extractedParts.join('\n\n');
-    // Truncate to ~3000 chars for API
-    if (text.length > 3000) text = text.substring(0, 3000) + '...\n[Text truncated for translation]';
+    if (text.length > MAX_CHARS) {
+      text = text.substring(0, MAX_CHARS) +
+        '\n\n[Document truncated for translation. Total length: ' + text.length + ' characters]';
+    }
 
-    onProgress && onProgress(0.5, 'Sending to translation service...');
+    onProgress && onProgress(0.5, 'Translating to ' + options.language + '...');
 
     var formData = new FormData();
     formData.append('action', 'tg_ai_proxy');
     formData.append('nonce', tgAiConfig.nonce);
     formData.append('tool', 'pdf-translate');
     formData.append('payload[text]', text);
-    formData.append('payload[language]', options.language);
+    formData.append('payload[language]', options.language + (options.style && options.style !== 'natural' ? ' (' + options.style + ' style)' : ''));
 
     var response = await fetch(tgAiConfig.ajaxUrl, { method: 'POST', body: formData });
+    if (!response.ok) {
+      var httpMsg = 'Translation service error (' + response.status + '). Please try again.';
+      try {
+        var errData = await response.json();
+        if (errData && errData.data && errData.data.message) httpMsg = errData.data.message;
+      } catch (pe) { /* keep generic message */ }
+      throw new Error(httpMsg);
+    }
     var data = await response.json();
+    if (!data.success) {
+      throw new Error((data.data && data.data.message) ? data.data.message : 'Translation failed. Please try again.');
+    }
 
-    if (!data.success) throw new Error((data.data && data.data.message) ? data.data.message : 'Translation failed. Please try again.');
+    var translated = (data.data && data.data.result) ? String(data.data.result) : '';
+    if (!translated.trim()) throw new Error('AI returned an empty translation. Please try again.');
 
-    var translated = (data.data && data.data.result) ? data.data.result : '';
-    if (!translated) throw new Error('Translation returned empty result.');
-
-    onProgress && onProgress(0.9, 'Displaying result...');
+    onProgress && onProgress(0.95, 'Displaying result...');
     showResult(translated);
 
+    onProgress && onProgress(1.0, 'Translation complete!');
     var blob = new Blob([translated], { type: 'text/plain' });
-    return { blob: blob, filename: CONFIG.downloadName };
-  }
-
-  function showResult(translated) {
-    /* Reuse the markup from getOptionsHTML if present; otherwise build it so
-       the result always appears even if the options panel was re-rendered. */
-    var outputWrap = document.getElementById('trans-output-wrap');
-    var outputContent = document.getElementById('trans-output-content');
-
-    if (!outputWrap || !outputContent) {
-      var host = document.querySelector('.tg-tool-box .tg-options') ||
-                 document.querySelector('.tg-tool-box') || document.body;
-      outputWrap = document.createElement('div');
-      outputWrap.id = 'trans-output-wrap';
-      outputWrap.style.cssText = 'margin-top:12px;';
-      outputWrap.innerHTML =
-        '<div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">' +
-          '<strong style="flex:1 0 100%;margin-bottom:4px;">Translation Result:</strong>' +
-          '<button type="button" id="trans-copy-btn" class="tg-btn-secondary">Copy Text</button>' +
-          '<button type="button" id="trans-dl-txt" class="tg-btn-secondary">Download .txt</button>' +
-        '</div>' +
-        '<div id="trans-output-content" style="background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:12px;max-height:320px;overflow-y:auto;white-space:pre-wrap;font-family:Georgia,serif;line-height:1.6;font-size:14px;"></div>';
-      host.appendChild(outputWrap);
-      outputContent = document.getElementById('trans-output-content');
-    }
-
-    outputWrap.hidden = false;
-    outputWrap.style.display = 'block';
-    outputContent.textContent = translated;
-
-    var copyBtn = document.getElementById('trans-copy-btn');
-    if (copyBtn) {
-      copyBtn.onclick = function () {
-        navigator.clipboard.writeText(translated).catch(function () {
-          var ta = document.createElement('textarea');
-          ta.value = translated;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-        });
-        copyBtn.textContent = 'Copied!';
-        setTimeout(function () { copyBtn.textContent = 'Copy Text'; }, 2000);
-      };
-    }
-
-    var dlTxt = document.getElementById('trans-dl-txt');
-    if (dlTxt) {
-      dlTxt.onclick = function () {
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([translated], { type: 'text/plain' }));
-        a.download = 'translated.txt';
-        a.click();
-      };
-    }
-
-    try { outputWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+    return { blob: blob, filename: file.name.replace(/\.pdf$/i, '') + '-' + options.language.toLowerCase().replace(/[^a-z]+/g, '-') + '.txt' };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

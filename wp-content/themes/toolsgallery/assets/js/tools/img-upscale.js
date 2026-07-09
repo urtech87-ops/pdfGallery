@@ -21,16 +21,20 @@
       '<input type="range" id="iu-quality" min="50" max="100" value="95" style="flex:1">' +
     '</div>' +
     '<p class="tg-opt-info">Note: Browser upscaling uses bicubic interpolation. Results are best for 2x. For AI-based super-resolution, a server-side API is required.</p>' +
-    '<div id="iu-info" style="margin-top:8px"></div>' +
-    '<script>(function(){' +
-      'var btns=document.querySelectorAll(".iu-scale-btn");' +
-      'btns.forEach(function(b){b.addEventListener("click",function(){' +
-        'btns.forEach(function(x){x.classList.remove("iu-scale-btn--active");});' +
-        'b.classList.add("iu-scale-btn--active");' +
-      '});});' +
-      'var sl=document.getElementById("iu-quality"),sv=document.getElementById("iu-quality-val");' +
-      'if(sl&&sv)sl.addEventListener("input",function(){sv.textContent=sl.value;});' +
-    '})();<\/script>';
+    '<div id="iu-info" style="margin-top:8px"></div>';
+  }
+
+  function wireOptions(container) {
+    var btns = container.querySelectorAll('.iu-scale-btn');
+    btns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        btns.forEach(function (x) { x.classList.remove('iu-scale-btn--active'); });
+        b.classList.add('iu-scale-btn--active');
+      });
+    });
+    var sl = container.querySelector('#iu-quality');
+    var sv = container.querySelector('#iu-quality-val');
+    if (sl && sv) sl.addEventListener('input', function () { sv.textContent = sl.value; });
   }
 
   function getOptions(optionsEl) {
@@ -81,5 +85,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

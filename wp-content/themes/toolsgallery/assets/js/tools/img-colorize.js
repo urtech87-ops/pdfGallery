@@ -28,13 +28,23 @@
     '<div id="ico-preview-wrap" style="margin-top:12px;display:none">' +
       '<canvas id="ico-preview" style="max-width:100%;border:1px solid #ddd;border-radius:4px"></canvas>' +
     '</div>' +
-    '<script>(function(){' +
-      'function link(id,vid){var s=document.getElementById(id),v=document.getElementById(vid);if(s&&v)s.addEventListener("input",function(){v.textContent=s.value;});}' +
-      'link("ico-hue","ico-hue-val");link("ico-strength","ico-strength-val");' +
-      'document.querySelectorAll("input[name=\'ico-effect\']").forEach(function(r){' +
-        'r.addEventListener("change",function(){var w=document.getElementById("ico-custom-wrap");if(w)w.hidden=r.value!=="custom";});' +
-      '});' +
-    '})();<\/script>';
+    '';
+  }
+
+  function wireOptions(container) {
+    function link(id, vid) {
+      var s = container.querySelector('#' + id);
+      var v = container.querySelector('#' + vid);
+      if (s && v) s.addEventListener('input', function () { v.textContent = s.value; });
+    }
+    link('ico-hue', 'ico-hue-val');
+    link('ico-strength', 'ico-strength-val');
+    container.querySelectorAll('input[name="ico-effect"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var w = container.querySelector('#ico-custom-wrap');
+        if (w) w.hidden = r.value !== 'custom';
+      });
+    });
   }
 
   function getOptions(optionsEl) {
@@ -130,5 +140,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

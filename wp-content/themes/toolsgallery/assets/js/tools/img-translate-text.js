@@ -2,18 +2,47 @@
  * ToolsGallery — Translate Image Text
  * Handler: img-translate-text
  * URL: /tool/translate-image-text/
+ * OCR runs in the browser via Tesseract.js; translation goes
+ * through the WordPress AI proxy (tg_ai_proxy / ai-translator).
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'img-translate-text' };
 
-  var LANGS = ['Spanish','French','German','Italian','Portuguese','Dutch','Russian','Chinese (Simplified)','Chinese (Traditional)','Japanese','Korean','Arabic','Hindi','Turkish','Polish','Swedish','Norwegian','Danish','Finnish','Greek','Hebrew','Vietnamese','Thai','Indonesian'];
+  var TESSERACT_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
+
+  var OCR_LANGS = [
+    { label: 'English', code: 'eng' },
+    { label: 'Spanish', code: 'spa' },
+    { label: 'French', code: 'fra' },
+    { label: 'German', code: 'deu' },
+    { label: 'Italian', code: 'ita' },
+    { label: 'Portuguese', code: 'por' },
+    { label: 'Dutch', code: 'nld' },
+    { label: 'Russian', code: 'rus' },
+    { label: 'Chinese (Simplified)', code: 'chi_sim' },
+    { label: 'Japanese', code: 'jpn' },
+    { label: 'Korean', code: 'kor' },
+    { label: 'Arabic', code: 'ara' },
+    { label: 'Hindi', code: 'hin' },
+  ];
+
+  var TARGET_LANGS = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Japanese', 'Korean', 'Arabic', 'Hindi', 'Turkish', 'Polish', 'Swedish', 'Norwegian', 'Danish', 'Finnish', 'Greek', 'Hebrew', 'Vietnamese', 'Thai', 'Indonesian'];
 
   function getOptionsHTML() {
-    var langOpts = LANGS.map(function (l) { return '<option value="' + l + '">' + l + '</option>'; }).join('');
+    var srcOpts = OCR_LANGS.map(function (l) {
+      return '<option value="' + l.code + '">' + l.label + '</option>';
+    }).join('');
+    var tgtOpts = TARGET_LANGS.map(function (l) {
+      return '<option value="' + l + '"' + (l === 'Spanish' ? ' selected' : '') + '>' + l + '</option>';
+    }).join('');
     return '<div class="tg-opt-row">' +
+      '<label class="tg-opt-label" for="itt-src-lang">Text Language</label>' +
+      '<select id="itt-src-lang" class="tg-select">' + srcOpts + '</select>' +
+    '</div>' +
+    '<div class="tg-opt-row">' +
       '<label class="tg-opt-label" for="itt-lang">Translate To</label>' +
-      '<select id="itt-lang" class="tg-select">' + langOpts + '</select>' +
+      '<select id="itt-lang" class="tg-select">' + tgtOpts + '</select>' +
     '</div>' +
     '<div id="itt-result-wrap" hidden style="margin-top:12px">' +
       '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
@@ -30,53 +59,86 @@
         '<button type="button" class="tg-btn-secondary" id="itt-copy">Copy Translation</button>' +
         '<button type="button" class="tg-btn-secondary" id="itt-download">Download .txt</button>' +
       '</div>' +
-    '</div>' +
-    '<script>(function(){' +
-      'var cp=document.getElementById("itt-copy");' +
-      'if(cp)cp.addEventListener("click",function(){var ta=document.getElementById("itt-translation");if(ta){navigator.clipboard.writeText(ta.value).catch(function(){ta.select();document.execCommand("copy");});cp.textContent="Copied!";setTimeout(function(){cp.textContent="Copy Translation";},2000);}});' +
-      'var dl=document.getElementById("itt-download");' +
-      'if(dl)dl.addEventListener("click",function(){var ta=document.getElementById("itt-translation");if(!ta)return;var b=new Blob([ta.value],{type:"text/plain"});var a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="translation.txt";a.click();});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    var cp = container.querySelector('#itt-copy');
+    if (cp) cp.addEventListener('click', function () {
+      var ta = container.querySelector('#itt-translation');
+      if (!ta) return;
+      navigator.clipboard.writeText(ta.value).catch(function () {
+        ta.select();
+        document.execCommand('copy');
+      });
+      cp.textContent = 'Copied!';
+      setTimeout(function () { cp.textContent = 'Copy Translation'; }, 2000);
+    });
+    var dl = container.querySelector('#itt-download');
+    if (dl) dl.addEventListener('click', function () {
+      var ta = container.querySelector('#itt-translation');
+      if (!ta) return;
+      var b = new Blob([ta.value], { type: 'text/plain' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(b);
+      a.download = 'translation.txt';
+      a.click();
+    });
   }
 
   function getOptions(optionsEl) {
-    if (!optionsEl) return {};
+    if (!optionsEl) return { srcLang: 'eng', language: 'Spanish' };
+    var src = optionsEl.querySelector('#itt-src-lang');
     var lang = optionsEl.querySelector('#itt-lang');
-    return { language: lang ? lang.value : 'Spanish' };
+    return {
+      srcLang: src ? src.value : 'eng',
+      language: lang ? lang.value : 'Spanish',
+    };
+  }
+
+  async function ocr(file, lang, onProgress) {
+    if (!window.Tesseract) {
+      onProgress && onProgress(0.05, 'Loading OCR engine...');
+      await TGImageUtil.loadScript(TESSERACT_SRC);
+    }
+    onProgress && onProgress(0.1, 'Extracting text from image...');
+    var result = await Tesseract.recognize(file, lang || 'eng', {
+      logger: function (m) {
+        if (m.status === 'recognizing text') {
+          onProgress && onProgress(0.1 + m.progress * 0.5,
+            'Extracting text... ' + Math.round(m.progress * 100) + '%');
+        }
+      },
+    });
+    return result.data.text || '';
+  }
+
+  async function translate(text, language) {
+    var config = window.tgAiConfig || {};
+    var fd = new FormData();
+    fd.append('action', 'tg_ai_proxy');
+    fd.append('nonce', config.nonce || '');
+    fd.append('tool', 'ai-translator');
+    fd.append('payload[text]', text);
+    fd.append('payload[language]', language);
+
+    var resp = await fetch(config.ajaxUrl || '/wp-admin/admin-ajax.php', { method: 'POST', body: fd });
+    var json = await resp.json();
+    if (!json.success || !json.data || !json.data.result) {
+      throw new Error((json.data && json.data.message) || 'Translation failed. Please try again.');
+    }
+    return json.data.result;
   }
 
   async function run(file, options, onProgress) {
-    onProgress && onProgress(0.1, 'Preparing image...');
-    var config = window.tgAiConfig || {};
-    var ajaxUrl = config.ajaxUrl || '/wp-admin/admin-ajax.php';
-    var nonce = config.nonce || '';
-    var base64 = await fileToBase64(file);
+    var originalText = await ocr(file, options.srcLang, onProgress);
+    if (!originalText.trim()) {
+      throw new Error('No text could be recognized in this image. Try a clearer image or a different text language.');
+    }
 
-    // First pass: extract text
-    onProgress && onProgress(0.2, 'Extracting text...');
-    var fd1 = new FormData();
-    fd1.append('action', 'tg_image_ai'); fd1.append('nonce', nonce);
-    fd1.append('tool', 'img-ocr'); fd1.append('image', base64);
-    fd1.append('prompt', 'Extract all visible text from this image. Return only the text, preserving line breaks.');
+    onProgress && onProgress(0.7, 'Translating to ' + options.language + '...');
+    var translatedText = await translate(originalText, options.language);
 
-    var resp1 = await fetch(ajaxUrl, { method: 'POST', body: fd1 });
-    var json1 = await resp1.json();
-    if (!json1.success) throw new Error((json1.data && json1.data.message) || 'Text extraction failed');
-    var originalText = (json1.data && json1.data.result) || '';
-
-    // Second pass: translate
-    onProgress && onProgress(0.6, 'Translating to ' + options.language + '...');
-    var fd2 = new FormData();
-    fd2.append('action', 'tg_image_ai'); fd2.append('nonce', nonce);
-    fd2.append('tool', 'img-translate'); fd2.append('image', base64);
-    fd2.append('prompt', options.language);
-
-    var resp2 = await fetch(ajaxUrl, { method: 'POST', body: fd2 });
-    var json2 = await resp2.json();
-    if (!json2.success) throw new Error((json2.data && json2.data.message) || 'Translation failed');
-    var translatedText = (json2.data && json2.data.result) || '';
-
-    // Show in UI
     var resultWrap = document.getElementById('itt-result-wrap');
     var origEl = document.getElementById('itt-original');
     var transEl = document.getElementById('itt-translation');
@@ -87,18 +149,9 @@
     var combined = 'Original:\n' + originalText + '\n\n---\n\nTranslation (' + options.language + '):\n' + translatedText;
     var blob = new Blob([combined], { type: 'text/plain' });
     onProgress && onProgress(1, 'Done!');
-    return { blob: blob, filename: file.name.replace(/\.[^.]+$/, '') + '-translated.txt' };
-  }
-
-  function fileToBase64(file) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function (e) { resolve(e.target.result.replace(/^data:[^;]+;base64,/, '')); };
-      reader.onerror = function () { reject(new Error('Could not read file')); };
-      reader.readAsDataURL(file);
-    });
+    return { blob: blob, filename: TGImageUtil.stripExt(file.name) + '-translated.txt' };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();

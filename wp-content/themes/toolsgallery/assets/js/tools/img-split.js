@@ -33,12 +33,19 @@
     '</div>' +
     '<div id="isp-preview-wrap" style="margin-top:12px;display:none">' +
       '<canvas id="isp-preview" style="max-width:100%;border:1px solid #ddd;border-radius:4px"></canvas>' +
-    '</div>' +
-    '<script>(function(){' +
-      'document.querySelectorAll("input[name=\'isp-mode\']").forEach(function(r){r.addEventListener("change",function(){var g=document.getElementById("isp-grid-wrap");if(g)g.hidden=r.value!=="grid";});});' +
-      'var gs=document.getElementById("isp-grid"),cw=document.getElementById("isp-custom-wrap");' +
-      'if(gs&&cw)gs.addEventListener("change",function(){cw.hidden=gs.value!=="custom";});' +
-    '})();<\/script>';
+    '</div>';
+  }
+
+  function wireOptions(container) {
+    container.querySelectorAll('input[name="isp-mode"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        var g = container.querySelector('#isp-grid-wrap');
+        if (g) g.hidden = r.value !== 'grid';
+      });
+    });
+    var gs = container.querySelector('#isp-grid');
+    var cw = container.querySelector('#isp-custom-wrap');
+    if (gs && cw) gs.addEventListener('change', function () { cw.hidden = gs.value !== 'custom'; });
   }
 
   function getOptions(optionsEl) {
@@ -126,5 +133,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
 })();
