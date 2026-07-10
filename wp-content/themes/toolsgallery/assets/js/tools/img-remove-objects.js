@@ -2,12 +2,18 @@
  * ToolsGallery — Remove Objects from Image
  * Handler: img-remove-objects
  * URL: /tool/remove-objects/
+ *
+ * The preview draws only after the image's onload fires (canvas sized
+ * after load, never before). Pointer coordinates are mapped through
+ * getBoundingClientRect so selections stay accurate when CSS shrinks
+ * the canvas, and the selection rectangle now draws live while dragging.
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'img-remove-objects' };
   var _selections = [];
   var _origImg = null;
+  var _redrawOverlay = null;
 
   function getOptionsHTML() {
     return '<p class="tg-opt-info">Draw rectangles over objects you want to remove. The tool will fill the area with surrounding content.</p>' +
@@ -15,9 +21,9 @@
       '<label class="tg-opt-label" for="iro-blend">Blend Radius: <span id="iro-blend-val">8</span>px</label>' +
       '<input type="range" id="iro-blend" min="2" max="30" value="8" style="flex:1">' +
     '</div>' +
-    '<div id="iro-canvas-wrap" style="margin-top:12px;display:none;position:relative">' +
-      '<canvas id="iro-canvas" style="display:block;max-width:100%;cursor:crosshair;border:1px solid #ddd;border-radius:4px"></canvas>' +
-      '<canvas id="iro-overlay" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>' +
+    '<div id="iro-canvas-wrap" style="margin-top:12px;display:none;position:relative;max-width:100%">' +
+      '<canvas id="iro-canvas" style="display:block;width:100%;height:auto;cursor:crosshair;border:1px solid #ddd;border-radius:4px;touch-action:none"></canvas>' +
+      '<canvas id="iro-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas>' +
     '</div>' +
     '<div style="margin-top:8px">' +
       '<button type="button" class="tg-btn-secondary" id="iro-clear-btn">Clear Selections</button>' +
@@ -31,14 +37,22 @@
     var clr = container.querySelector('#iro-clear-btn');
     if (clr) clr.addEventListener('click', function () {
       _selections = [];
-      if (window._iroRedraw) window._iroRedraw();
+      if (_redrawOverlay) _redrawOverlay();
     });
   }
 
   function getOptions(optionsEl) {
     if (!optionsEl) return {};
     var blend = optionsEl.querySelector('#iro-blend');
-    return { blend: blend ? parseInt(blend.value) : 8 };
+    return { blend: blend ? parseInt(blend.value, 10) : 8 };
+  }
+
+  function canvasPos(canvas, clientX, clientY) {
+    var r = canvas.getBoundingClientRect();
+    return {
+      x: (clientX - r.left) * (canvas.width / r.width),
+      y: (clientY - r.top) * (canvas.height / r.height),
+    };
   }
 
   function onFileReady(file) {
@@ -46,7 +60,11 @@
     _selections = [];
     if (!file) return;
 
-    TGImageUtil.loadImage(file).then(function (img) {
+    var img = new Image();
+    var objectUrl = URL.createObjectURL(file);
+
+    img.onload = function () {
+      URL.revokeObjectURL(objectUrl);
       _origImg = img;
 
       var wrap = document.getElementById('iro-canvas-wrap');
@@ -54,51 +72,111 @@
       var overlay = document.getElementById('iro-overlay');
       if (!wrap || !canvas || !overlay) return;
 
+      // Size the canvas AFTER the image has loaded.
       var maxW = Math.min(700, window.innerWidth - 40);
       var sc = Math.min(1, maxW / img.naturalWidth);
-      var dw = Math.round(img.naturalWidth * sc), dh = Math.round(img.naturalHeight * sc);
+      var dw = Math.max(1, Math.round(img.naturalWidth * sc));
+      var dh = Math.max(1, Math.round(img.naturalHeight * sc));
 
-      canvas.width = dw; canvas.height = dh;
-      canvas.getContext('2d').drawImage(img, 0, 0, dw, dh);
-      overlay.width = dw; overlay.height = dh;
-      overlay.style.width = dw + 'px'; overlay.style.height = dh + 'px';
+      canvas.width = dw;
+      canvas.height = dh;
+      var ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, dw, dh);
+      ctx.drawImage(img, 0, 0, dw, dh);
+
+      overlay.width = dw;
+      overlay.height = dh;
       wrap.style.display = 'block';
-      wrap.style.width = dw + 'px'; wrap.style.height = dh + 'px';
+      wrap.style.width = dw + 'px';
 
-      function redrawOverlay() {
+      function drawRect(octx, x, y, w, h) {
+        octx.fillRect(x, y, w, h);
+        octx.strokeRect(x, y, w, h);
+      }
+
+      function redrawOverlay(liveRect) {
         var octx = overlay.getContext('2d');
         octx.clearRect(0, 0, dw, dh);
         octx.strokeStyle = '#ff0000';
         octx.fillStyle = 'rgba(255,0,0,0.25)';
         octx.lineWidth = 2;
         _selections.forEach(function (sel) {
-          octx.fillRect(sel.x * sc, sel.y * sc, sel.w * sc, sel.h * sc);
-          octx.strokeRect(sel.x * sc, sel.y * sc, sel.w * sc, sel.h * sc);
+          drawRect(octx, sel.x * sc, sel.y * sc, sel.w * sc, sel.h * sc);
         });
+        if (liveRect) {
+          octx.setLineDash([5, 3]);
+          drawRect(octx, liveRect.x, liveRect.y, liveRect.w, liveRect.h);
+          octx.setLineDash([]);
+        }
       }
-      window._iroRedraw = redrawOverlay;
+      _redrawOverlay = redrawOverlay;
+      redrawOverlay();
 
       var drawing = false, sx = 0, sy = 0;
+
+      function start(px, py) { drawing = true; sx = px; sy = py; }
+      function move(px, py) {
+        if (!drawing) return;
+        redrawOverlay({
+          x: Math.min(sx, px), y: Math.min(sy, py),
+          w: Math.abs(px - sx), h: Math.abs(py - sy),
+        });
+      }
+      function end(px, py) {
+        if (!drawing) return;
+        drawing = false;
+        if (Math.abs(px - sx) > 5 && Math.abs(py - sy) > 5) {
+          _selections.push({
+            x: Math.round(Math.min(sx, px) / sc),
+            y: Math.round(Math.min(sy, py) / sc),
+            w: Math.round(Math.abs(px - sx) / sc),
+            h: Math.round(Math.abs(py - sy) / sc),
+          });
+        }
+        redrawOverlay();
+      }
+
       canvas.onmousedown = function (e) {
-        var r = canvas.getBoundingClientRect();
-        sx = e.clientX - r.left; sy = e.clientY - r.top;
-        drawing = true;
+        var p = canvasPos(canvas, e.clientX, e.clientY);
+        start(p.x, p.y);
+      };
+      canvas.onmousemove = function (e) {
+        var p = canvasPos(canvas, e.clientX, e.clientY);
+        move(p.x, p.y);
       };
       canvas.onmouseup = function (e) {
-        drawing = false;
-        var r = canvas.getBoundingClientRect();
-        var ex = e.clientX - r.left, ey = e.clientY - r.top;
-        if (Math.abs(ex - sx) > 5 && Math.abs(ey - sy) > 5) {
-          _selections.push({
-            x: Math.round(Math.min(sx, ex) / sc),
-            y: Math.round(Math.min(sy, ey) / sc),
-            w: Math.round(Math.abs(ex - sx) / sc),
-            h: Math.round(Math.abs(ey - sy) / sc),
-          });
-          redrawOverlay();
-        }
+        var p = canvasPos(canvas, e.clientX, e.clientY);
+        end(p.x, p.y);
       };
-    }).catch(function () {});
+      canvas.onmouseleave = function (e) {
+        var p = canvasPos(canvas, e.clientX, e.clientY);
+        end(p.x, p.y);
+      };
+
+      canvas.ontouchstart = function (e) {
+        e.preventDefault();
+        var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
+        start(p.x, p.y);
+      };
+      canvas.ontouchmove = function (e) {
+        e.preventDefault();
+        var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
+        move(p.x, p.y);
+      };
+      canvas.ontouchend = function (e) {
+        e.preventDefault();
+        var t = e.changedTouches[0];
+        var p = canvasPos(canvas, t.clientX, t.clientY);
+        end(p.x, p.y);
+      };
+    };
+
+    img.onerror = function () {
+      URL.revokeObjectURL(objectUrl);
+      alert('Could not load image. Please try a different file.');
+    };
+
+    img.src = objectUrl;
   }
 
   async function run(file, options, onProgress) {
