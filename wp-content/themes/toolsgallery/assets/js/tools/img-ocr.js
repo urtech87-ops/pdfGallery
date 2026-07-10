@@ -95,6 +95,9 @@
   }
 
   async function run(file, options, onProgress) {
+    if (!window.TGImageUtil) {
+      throw new Error('Image processing library not loaded. Please refresh the page.');
+    }
     var text = await recognizeText(file, options.language, onProgress);
 
     if (!text.trim()) {

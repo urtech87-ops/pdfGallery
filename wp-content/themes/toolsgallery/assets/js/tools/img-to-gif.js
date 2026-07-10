@@ -56,6 +56,9 @@
   }
 
   async function run(file, options, onProgress) {
+    if (!window.TGImageUtil) {
+      throw new Error('Image processing library not loaded. Please refresh the page.');
+    }
     var box = document.querySelector('.tg-tool-box');
     var files = (box && box._tgFiles && box._tgFiles.length) ? Array.from(box._tgFiles) : [file];
     _results = [];

@@ -17,6 +17,17 @@ while (have_posts()):
     $action_label = get_post_meta($post_id, '_tg_action_label', true) ?: __('Process File', 'toolsgallery');
     $accept_types = get_post_meta($post_id, '_tg_accept_types', true) ?: '';
     $handler = get_post_meta($post_id, '_tg_handler', true);
+    /* Tools with no stored accept types fall back to their category's
+       file family so valid uploads aren't rejected by validation. */
+    if (!$accept_types) {
+        if ($tg_cat_slug === 'image-tools') {
+            $accept_types = 'image/*';
+        } elseif ($tg_cat_slug === 'video-tools') {
+            $accept_types = 'video/*';
+        } elseif ($tg_cat_slug === 'pdf-tools') {
+            $accept_types = '.pdf';
+        }
+    }
     $faqs_raw = get_post_meta($post_id, '_tg_faqs', true);
     $features_raw = get_post_meta($post_id, '_tg_features', true);
     $steps_raw = get_post_meta($post_id, '_tg_steps', true);
@@ -261,6 +272,14 @@ while (have_posts()):
                                 <?php echo $multi_file ? esc_html__('Drop your files here', 'toolsgallery') : esc_html__('Drop your file here', 'toolsgallery'); ?>
                             </p>
                             <span class="tg-upload-sub"><?php esc_html_e('or click to browse', 'toolsgallery'); ?></span>
+                            <?php if ($accept_types): ?>
+                                <p class="tg-upload-hint">
+                                    <?php
+                                    /* translators: %s: comma-separated list of accepted file types */
+                                    echo esc_html(sprintf(__('Accepted: %s', 'toolsgallery'), $accept_types));
+                                    ?>
+                                </p>
+                            <?php endif; ?>
                             <input type="file" id="file-input" <?php echo $multi_file ? ' multiple' : ''; ?> hidden>
                         </div>
 

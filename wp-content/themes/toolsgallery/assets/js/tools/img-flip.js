@@ -72,6 +72,9 @@
   }
 
   async function run(file, options, onProgress) {
+    if (!window.TGImageUtil) {
+      throw new Error('Image processing library not loaded. Please refresh the page.');
+    }
     onProgress && onProgress(0.1, 'Loading image...');
     var img = _img || await TGImageUtil.loadImage(file);
     onProgress && onProgress(0.5, 'Flipping...');

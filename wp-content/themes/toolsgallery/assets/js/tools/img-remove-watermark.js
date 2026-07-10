@@ -102,6 +102,9 @@
   }
 
   async function run(file, options, onProgress) {
+    if (!window.TGImageUtil) {
+      throw new Error('Image processing library not loaded. Please refresh the page.');
+    }
     onProgress && onProgress(0.1, 'Loading image...');
     var img = _origImg || await TGImageUtil.loadImage(file);
     if (_selections.length === 0) {
