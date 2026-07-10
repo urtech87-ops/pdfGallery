@@ -2,6 +2,11 @@
  * ToolsGallery — Change Image Background
  * Handler: img-change-bg
  * URL: /tool/change-background/
+ *
+ * The preview draws only after the image's onload fires (canvas sized
+ * after load, never before). Pointer coordinates are mapped through
+ * getBoundingClientRect so the subject selection stays accurate when
+ * CSS shrinks the canvas, and the selection stays visible after drawing.
  */
 (function () {
   'use strict';
@@ -37,9 +42,9 @@
         '<input type="color" id="icb-grad2" value="#764ba2">' +
       '</div>' +
     '</div>' +
-    '<div id="icb-canvas-wrap" style="margin-top:12px;display:none;position:relative">' +
-      '<canvas id="icb-canvas" style="display:block;max-width:100%;cursor:crosshair;border:1px solid #ddd;border-radius:4px"></canvas>' +
-      '<canvas id="icb-overlay" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>' +
+    '<div id="icb-canvas-wrap" style="margin-top:12px;display:none;position:relative;max-width:100%">' +
+      '<canvas id="icb-canvas" style="display:block;width:100%;height:auto;cursor:crosshair;border:1px solid #ddd;border-radius:4px;touch-action:none"></canvas>' +
+      '<canvas id="icb-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas>' +
     '</div>';
   }
 
@@ -72,12 +77,24 @@
     };
   }
 
+  function canvasPos(canvas, clientX, clientY) {
+    var r = canvas.getBoundingClientRect();
+    return {
+      x: (clientX - r.left) * (canvas.width / r.width),
+      y: (clientY - r.top) * (canvas.height / r.height),
+    };
+  }
+
   function onFileReady(file) {
     _origImg = null;
     _subjectRect = null;
     if (!file) return;
 
-    TGImageUtil.loadImage(file).then(function (img) {
+    var img = new Image();
+    var objectUrl = URL.createObjectURL(file);
+
+    img.onload = function () {
+      URL.revokeObjectURL(objectUrl);
       _origImg = img;
 
       var wrap = document.getElementById('icb-canvas-wrap');
@@ -85,50 +102,101 @@
       var overlay = document.getElementById('icb-overlay');
       if (!wrap || !canvas || !overlay) return;
 
+      // Size the canvas AFTER the image has loaded.
       var maxW = Math.min(700, window.innerWidth - 40);
       var sc = Math.min(1, maxW / img.naturalWidth);
-      var dw = Math.round(img.naturalWidth * sc), dh = Math.round(img.naturalHeight * sc);
+      var dw = Math.max(1, Math.round(img.naturalWidth * sc));
+      var dh = Math.max(1, Math.round(img.naturalHeight * sc));
 
-      canvas.width = dw; canvas.height = dh;
-      canvas.getContext('2d').drawImage(img, 0, 0, dw, dh);
-      overlay.width = dw; overlay.height = dh;
-      overlay.style.width = dw + 'px'; overlay.style.height = dh + 'px';
+      canvas.width = dw;
+      canvas.height = dh;
+      var ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, dw, dh);
+      ctx.drawImage(img, 0, 0, dw, dh);
+
+      overlay.width = dw;
+      overlay.height = dh;
       wrap.style.display = 'block';
-      wrap.style.width = dw + 'px'; wrap.style.height = dh + 'px';
+      wrap.style.width = dw + 'px';
 
-      var drawing = false, sx = 0, sy = 0;
-      canvas.onmousedown = function (e) {
-        var r = canvas.getBoundingClientRect();
-        sx = e.clientX - r.left; sy = e.clientY - r.top;
-        drawing = true;
-      };
-      canvas.onmousemove = function (e) {
-        if (!drawing) return;
-        var r = canvas.getBoundingClientRect();
-        var ex = e.clientX - r.left, ey = e.clientY - r.top;
+      function drawSelection(x, y, w, h) {
         var octx = overlay.getContext('2d');
         octx.clearRect(0, 0, dw, dh);
+        if (w <= 0 || h <= 0) return;
         octx.strokeStyle = '#00cc00';
         octx.lineWidth = 2;
         octx.setLineDash([5, 3]);
-        octx.strokeRect(sx, sy, ex - sx, ey - sy);
+        octx.strokeRect(x, y, w, h);
         octx.fillStyle = 'rgba(0,200,0,0.1)';
-        octx.fillRect(sx, sy, ex - sx, ey - sy);
+        octx.fillRect(x, y, w, h);
+        octx.setLineDash([]);
+      }
+
+      var drawing = false, sx = 0, sy = 0;
+
+      function start(px, py) { drawing = true; sx = px; sy = py; }
+      function move(px, py) {
+        if (!drawing) return;
+        drawSelection(Math.min(sx, px), Math.min(sy, py), Math.abs(px - sx), Math.abs(py - sy));
+      }
+      function end(px, py) {
+        if (!drawing) return;
+        drawing = false;
+        if (Math.abs(px - sx) > 10 && Math.abs(py - sy) > 10) {
+          _subjectRect = {
+            x: Math.round(Math.min(sx, px) / sc),
+            y: Math.round(Math.min(sy, py) / sc),
+            w: Math.round(Math.abs(px - sx) / sc),
+            h: Math.round(Math.abs(py - sy) / sc),
+          };
+          // Keep the final selection visible
+          drawSelection(Math.min(sx, px), Math.min(sy, py), Math.abs(px - sx), Math.abs(py - sy));
+        } else if (_subjectRect) {
+          drawSelection(_subjectRect.x * sc, _subjectRect.y * sc, _subjectRect.w * sc, _subjectRect.h * sc);
+        }
+      }
+
+      canvas.onmousedown = function (e) {
+        var p = canvasPos(canvas, e.clientX, e.clientY);
+        start(p.x, p.y);
+      };
+      canvas.onmousemove = function (e) {
+        var p = canvasPos(canvas, e.clientX, e.clientY);
+        move(p.x, p.y);
       };
       canvas.onmouseup = function (e) {
-        drawing = false;
-        var r = canvas.getBoundingClientRect();
-        var ex = e.clientX - r.left, ey = e.clientY - r.top;
-        if (Math.abs(ex - sx) > 10 && Math.abs(ey - sy) > 10) {
-          _subjectRect = {
-            x: Math.round(Math.min(sx, ex) / sc),
-            y: Math.round(Math.min(sy, ey) / sc),
-            w: Math.round(Math.abs(ex - sx) / sc),
-            h: Math.round(Math.abs(ey - sy) / sc),
-          };
-        }
+        var p = canvasPos(canvas, e.clientX, e.clientY);
+        end(p.x, p.y);
       };
-    }).catch(function () {});
+      canvas.onmouseleave = function (e) {
+        var p = canvasPos(canvas, e.clientX, e.clientY);
+        end(p.x, p.y);
+      };
+
+      canvas.ontouchstart = function (e) {
+        e.preventDefault();
+        var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
+        start(p.x, p.y);
+      };
+      canvas.ontouchmove = function (e) {
+        e.preventDefault();
+        var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
+        move(p.x, p.y);
+      };
+      canvas.ontouchend = function (e) {
+        e.preventDefault();
+        var t = e.changedTouches[0];
+        var p = canvasPos(canvas, t.clientX, t.clientY);
+        end(p.x, p.y);
+      };
+    };
+
+    img.onerror = function () {
+      URL.revokeObjectURL(objectUrl);
+      alert('Could not load image. Please try a different file.');
+    };
+
+    img.src = objectUrl;
   }
 
   async function run(file, options, onProgress) {

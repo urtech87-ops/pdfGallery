@@ -349,33 +349,9 @@ function tg_enqueue_assets()
 
             $img_tool_deps = ['tg-img-util'];
 
-            if ($tg_handler === 'img-crop') {
-                wp_enqueue_style(
-                    'cropperjs',
-                    'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css',
-                    [],
-                    null
-                );
-                wp_enqueue_script(
-                    'cropperjs',
-                    'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js',
-                    [],
-                    null,
-                    true
-                );
-                $img_tool_deps[] = 'cropperjs';
-            }
-
-            if ($tg_handler === 'img-add-text') {
-                wp_enqueue_script(
-                    'fabricjs',
-                    'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js',
-                    [],
-                    null,
-                    true
-                );
-                $img_tool_deps[] = 'fabricjs';
-            }
+            /* img-crop and img-add-text no longer need Cropper.js /
+               Fabric.js — both use plain-canvas editors now, so no CDN
+               dependency can leave their previews blank. */
 
             $img_file = get_template_directory() . '/assets/js/tools/' . $img_tool_files[$tg_handler];
             $img_handle = 'tg-tool-' . $tg_handler;
