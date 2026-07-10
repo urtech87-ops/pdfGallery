@@ -87,6 +87,9 @@
   }
 
   async function run(file, options, onProgress) {
+    if (!window.TGImageUtil) {
+      throw new Error('Image processing library not loaded. Please refresh the page.');
+    }
     if (!window.Cropper) throw new Error('Cropper.js failed to load. Please refresh the page.');
     if (!_cropper) throw new Error('Crop area not ready yet — wait for the image preview, adjust the selection, then try again.');
 

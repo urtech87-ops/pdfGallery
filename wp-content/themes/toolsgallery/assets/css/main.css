@@ -4361,3 +4361,112 @@ textarea {
   border-color: #F97316 !important;
   color: #F97316 !important;
 }
+
+/* ================================
+   PROCESSING LOADER
+   (spinner + message + progress bar
+   shown while any tool is running)
+   ================================ */
+
+.tg-proc-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 28px 20px;
+  margin: 16px 0;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.tg-proc-loader[hidden] { display: none; }
+
+.tg-proc-spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid #e5e7eb;
+  border-top-color: #F97316;
+  border-radius: 50%;
+  animation: tg-proc-spin 0.8s linear infinite;
+}
+
+@keyframes tg-proc-spin {
+  to { transform: rotate(360deg); }
+}
+
+.tg-proc-msg {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  text-align: center;
+  max-width: 280px;
+  line-height: 1.4;
+}
+
+.tg-proc-bar-wrap {
+  width: 100%;
+  max-width: 280px;
+}
+
+.tg-proc-bar {
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.tg-proc-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #F97316, #ea580c);
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+/* Dark theme */
+[data-theme="dark"] .tg-proc-loader {
+  background: #1e1e1e !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+
+[data-theme="dark"] .tg-proc-msg {
+  color: #e5e7eb !important;
+}
+
+[data-theme="dark"] .tg-proc-bar {
+  background: #374151 !important;
+}
+
+/* Action button loading state */
+.tg-action-btn:disabled {
+  opacity: 0.7 !important;
+  cursor: not-allowed !important;
+}
+
+/* FFmpeg specific loader (video tools take longer) */
+.tg-proc-loader.tg-ffmpeg-loader {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-color: rgba(249,115,22,0.2);
+}
+
+.tg-proc-loader.tg-ffmpeg-loader .tg-proc-spinner {
+  border-color: rgba(255,255,255,0.1);
+  border-top-color: #F97316;
+}
+
+.tg-proc-loader.tg-ffmpeg-loader .tg-proc-msg {
+  color: #e5e7eb;
+}
+
+/* Accepted-formats hint inside the upload zone */
+.tg-upload-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+[data-theme="dark"] .tg-upload-hint {
+  color: #6b7280 !important;
+}

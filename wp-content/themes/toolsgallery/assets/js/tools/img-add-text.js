@@ -164,6 +164,9 @@
   }
 
   async function run(file, options, onProgress) {
+    if (!window.TGImageUtil) {
+      throw new Error('Image processing library not loaded. Please refresh the page.');
+    }
     if (!window.fabric) throw new Error('Fabric.js failed to load. Please refresh the page.');
     if (!_fabricCanvas) throw new Error('Editor not ready yet — wait for the image preview, add your text, then try again.');
 

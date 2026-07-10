@@ -5,6 +5,67 @@
 (function () {
   'use strict';
 
+  /* ── Processing loader (spinner + message + progress bar) ──
+     Shared by the file-tool box and the data-input box so every
+     tool category gets a visible loading indicator. */
+  function tgShowLoading(container, msg, extraClass) {
+    if (!container) return;
+    var btn = container.querySelector('.tg-action-btn');
+    if (btn && !btn.hidden && !btn.disabled) {
+      btn._tgOrigText = btn.textContent;
+      btn._tgLoadingDisabled = true;
+      btn.disabled = true;
+      btn.textContent = '⏳ Processing...';
+    }
+    var loader = container.querySelector('.tg-proc-loader');
+    if (!loader) {
+      loader = document.createElement('div');
+      loader.className = 'tg-proc-loader';
+      loader.innerHTML =
+        '<div class="tg-proc-spinner"></div>' +
+        '<div class="tg-proc-msg"></div>' +
+        '<div class="tg-proc-bar-wrap"><div class="tg-proc-bar"><div class="tg-proc-fill"></div></div></div>';
+      var anchor = container.querySelector('.tg-progress');
+      if (anchor && anchor.parentNode) {
+        anchor.parentNode.insertBefore(loader, anchor);
+      } else {
+        container.appendChild(loader);
+      }
+    }
+    if (extraClass) loader.classList.add(extraClass);
+    var msgEl = loader.querySelector('.tg-proc-msg');
+    if (msgEl) msgEl.textContent = msg || 'Processing...';
+    var fill = loader.querySelector('.tg-proc-fill');
+    if (fill) fill.style.width = '0%';
+    loader.hidden = false;
+  }
+
+  function tgUpdateLoading(container, pct, msg) {
+    if (!container) return;
+    var loader = container.querySelector('.tg-proc-loader');
+    if (!loader || loader.hidden) return;
+    if (msg) {
+      var msgEl = loader.querySelector('.tg-proc-msg');
+      if (msgEl) msgEl.textContent = msg;
+    }
+    if (typeof pct === 'number' && !isNaN(pct)) {
+      var fill = loader.querySelector('.tg-proc-fill');
+      if (fill) fill.style.width = Math.max(0, Math.min(100, pct * 100)) + '%';
+    }
+  }
+
+  function tgHideLoading(container) {
+    if (!container) return;
+    var btn = container.querySelector('.tg-action-btn');
+    if (btn && btn._tgLoadingDisabled) {
+      btn._tgLoadingDisabled = false;
+      btn.disabled = false;
+      if (btn._tgOrigText) btn.textContent = btn._tgOrigText;
+    }
+    var loader = container.querySelector('.tg-proc-loader');
+    if (loader) loader.hidden = true;
+  }
+
   /* ── URL-input tool type handler (Phase 3C) ── */
   var urlBox = document.querySelector('.tg-tool-box[data-tool-type="url-input"]');
   if (urlBox) {
@@ -180,10 +241,29 @@
 
   function validateFile(file) {
     if (!accept) return true;
-    var types = accept.split(',').map(function (s) { return s.trim(); });
-    return types.some(function (t) {
-      if (t.charAt(0) === '.') return file.name.toLowerCase().slice(-t.length) === t.toLowerCase();
-      return file.type === t;
+    var fileName = file.name.toLowerCase();
+    var fileType = (file.type || '').toLowerCase();
+    return accept.split(',').some(function (t) {
+      t = t.trim().toLowerCase();
+      if (!t) return false;
+
+      /* Wildcard MIME — e.g. "image/*" accepts any image. Some OSes
+         report no MIME type for valid files, so an empty type passes
+         and the tool itself surfaces a real error if the file is bad. */
+      if (t.slice(-2) === '/*') {
+        if (!fileType) return true;
+        return fileType.indexOf(t.slice(0, -1)) === 0;
+      }
+
+      /* Exact MIME type — e.g. "image/jpeg" (prefix-tolerant for
+         variants like "image/svg" vs "image/svg+xml") */
+      if (t.indexOf('/') !== -1) {
+        return fileType === t || fileType.indexOf(t) === 0;
+      }
+
+      /* Extension — ".pdf", "pdf" */
+      var ext = t.charAt(0) === '.' ? t : '.' + t;
+      return fileName.slice(-ext.length) === ext;
     });
   }
 
@@ -257,27 +337,38 @@
     if (resultEl)      resultEl.hidden      = false;
   }
 
+  /* Video tools run FFmpeg.wasm and take noticeably longer — give
+     their loader a distinct dark style. */
+  var loaderClass = (handler.indexOf('vid-') === 0 || handler === 'gif-to-vid') ? 'tg-ffmpeg-loader' : '';
+
   function startProgress() {
     if (fileSelected) fileSelected.hidden = true;
     if (fileListEl)   fileListEl.hidden   = true;
     if (actionBtn)    actionBtn.hidden    = true;
+    /* The legacy .tg-progress bar is replaced by the richer
+       .tg-proc-loader (spinner + message + bar); keep updating the old
+       bar's width for any code that reads it, but keep it hidden. */
     if (progressEl) {
-      progressEl.hidden = false;
+      progressEl.hidden = true;
       if (progressBar) progressBar.style.width = '0%';
     }
+    tgShowLoading(box, loaderClass ? 'Loading FFmpeg engine...' : 'Processing...', loaderClass);
     /* animate to 85% */
     var startTime = Date.now();
     box._progressInterval = setInterval(function () {
       var pct = Math.min(85, ((Date.now() - startTime) / 2000) * 85);
       if (progressBar) progressBar.style.width = pct + '%';
+      tgUpdateLoading(box, pct / 100);
     }, 50);
   }
 
   function finishProgress(isError) {
     clearInterval(box._progressInterval);
     if (progressBar) progressBar.style.width = isError ? '0%' : '100%';
+    tgUpdateLoading(box, isError ? 0 : 1);
     setTimeout(function () {
       if (progressEl) progressEl.hidden = true;
+      tgHideLoading(box);
       if (isError && actionBtn) actionBtn.hidden = false;
       if (isError && (fileSelected || fileListEl)) {
         if (fileSelected && currentFile)  fileSelected.hidden = false;
@@ -819,7 +910,8 @@
   ----------------------------------------------- */
   function selectFile(file) {
     if (!validateFile(file)) {
-      alert('Please select a valid file. Accepted: ' + accept);
+      alert('Please select a valid file.\nAccepted formats: ' + accept +
+        '\n\nFile selected: ' + file.name + ' (' + (file.type || 'unknown type') + ')');
       return;
     }
     currentFile = file;
@@ -844,7 +936,7 @@
       if (!dup) { currentFiles.push(file); }
     }
     if (invalid.length) {
-      alert('Skipped invalid file(s): ' + invalid.join(', ') + '\nAccepted: ' + accept);
+      alert('Skipped invalid file(s): ' + invalid.join(', ') + '\nAccepted formats: ' + accept);
     }
     renderFileList();
     if (uploadZone) uploadZone.hidden = currentFiles.length > 0;
@@ -910,6 +1002,8 @@
      RESET
   ----------------------------------------------- */
   function resetState() {
+    clearInterval(box._progressInterval);
+    tgHideLoading(box);
     currentFile  = null;
     currentFiles = [];
     rotationState    = {};
@@ -1597,9 +1691,13 @@
         startProgress();
 
         tool3c.run(toolFile, opts3c, function (pct, msg) {
+          /* Real progress from the tool — stop the fake 85% animation
+             so it doesn't overwrite these updates. */
+          clearInterval(box._progressInterval);
           if (progressBar) progressBar.style.width = (pct * 100) + '%';
           var labelEl = progressEl ? progressEl.querySelector('.tg-progress-label') : null;
           if (labelEl && msg) labelEl.textContent = msg;
+          tgUpdateLoading(box, pct, msg);
         }).then(function (result) {
           finishProgress();
           /* Keep the tool usable after a successful run: restore the action
@@ -1659,17 +1757,20 @@
       if (fileSelected) fileSelected.hidden = true;
       if (fileListEl)   fileListEl.hidden   = true;
       actionBtn.hidden = true;
-      if (progressEl) { progressEl.hidden = false; if (progressBar) progressBar.style.width = '0%'; }
+      if (progressEl) { progressEl.hidden = true; if (progressBar) progressBar.style.width = '0%'; }
+      tgShowLoading(box, 'Processing...');
       var startAnim = null;
       var duration  = 1500;
       function animate(ts) {
         if (!startAnim) startAnim = ts;
         var pct = Math.min(100, ((ts - startAnim) / duration) * 100);
         if (progressBar) progressBar.style.width = pct + '%';
+        tgUpdateLoading(box, pct / 100);
         if (pct < 100) {
           requestAnimationFrame(animate);
         } else {
           if (progressEl) progressEl.hidden = true;
+          tgHideLoading(box);
           var blob = new Blob(['ToolsGallery placeholder output'], { type: 'text/plain' });
           blobUrl = URL.createObjectURL(blob);
           downloadFilename = 'toolsgallery-output.txt';
@@ -2351,16 +2452,19 @@
         var opts = diTool2.getOptions ? diTool2.getOptions(diOptionsEl) : {};
 
         diActionBtn.hidden = true;
-        if (diProgressEl) { diProgressEl.hidden = false; if (diProgressBar) diProgressBar.style.width = '0%'; }
+        if (diProgressEl) { diProgressEl.hidden = true; if (diProgressBar) diProgressBar.style.width = '0%'; }
         if (diResultEl)   diResultEl.hidden = true;
         if (diErrorBanner) diErrorBanner.hidden = true;
+        tgShowLoading(diBox, 'Processing...');
 
         diTool2.run(null, opts, function (pct, msg) {
           if (diProgressBar) diProgressBar.style.width = (pct * 100) + '%';
           var lbl = diProgressEl ? diProgressEl.querySelector('.tg-progress-label') : null;
           if (lbl && msg) lbl.textContent = msg;
+          tgUpdateLoading(diBox, pct, msg);
         }).then(function (result) {
           if (diProgressEl) diProgressEl.hidden = true;
+          tgHideLoading(diBox);
           if (diBlobUrl) URL.revokeObjectURL(diBlobUrl);
           diBlobUrl = URL.createObjectURL(result.blob);
           diFilename = result.filename || 'output';
@@ -2371,6 +2475,7 @@
           diActionBtn.hidden = false;
         }).catch(function (e) {
           if (diProgressEl) diProgressEl.hidden = true;
+          tgHideLoading(diBox);
           diActionBtn.hidden = false;
           if (diResultEl) diResultEl.hidden = false;
           if (diSuccessBanner) diSuccessBanner.hidden = true;
