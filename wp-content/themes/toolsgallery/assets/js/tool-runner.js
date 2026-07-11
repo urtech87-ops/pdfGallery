@@ -177,6 +177,114 @@
     }
   }
 
+  /* -----------------------------------------------
+     DATA-INPUT TOOL BOX (Phase 4 — Chart Maker, QR Code)
+     No file upload; button always enabled.
+  ----------------------------------------------- */
+  (function () {
+    var diBox = document.querySelector('.tg-tool-box[data-tool-type="data-input"]');
+    if (!diBox) return;
+
+    var diHandler    = diBox.dataset.handler || '';
+    var diOptionsEl  = diBox.querySelector('.tg-options');
+    var diActionBtn  = diBox.querySelector('.tg-action-btn');
+    var diProgressEl = diBox.querySelector('.tg-progress');
+    var diProgressBar = diBox.querySelector('.tg-progress-bar');
+    var diResultEl   = diBox.querySelector('.tg-result');
+    var diSuccessBanner = diResultEl ? diResultEl.querySelector('.tg-success-banner') : null;
+    var diErrorBanner   = diResultEl ? diResultEl.querySelector('.tg-error-banner') : null;
+    var diDownloadBtn   = diBox.querySelector('.tg-download-btn');
+    var diResetLink     = diBox.querySelector('.tg-reset');
+    var diBlobUrl = null;
+    var diFilename = 'output';
+
+    if (window.TGTools && window.TGTools[diHandler]) {
+      var diTool = window.TGTools[diHandler];
+      /* Tools that manage their own UI via init() */
+      if (typeof diTool.init === 'function') {
+        if (diOptionsEl) { diOptionsEl.hidden = false; }
+        diTool.init(diBox);
+        /* Hide default action button — tool manages its own actions */
+        if (diActionBtn) diActionBtn.hidden = true;
+        return; /* tool is fully self-contained */
+      }
+      if (diTool.getOptionsHTML && diOptionsEl) {
+        diOptionsEl.innerHTML = diTool.getOptionsHTML();
+        diOptionsEl.hidden = false;
+        /* Inline <script> tags in injected HTML never execute — tools wire
+           their option events through this hook instead. */
+        if (typeof diTool.wireOptions === 'function') {
+          try { diTool.wireOptions(diOptionsEl); } catch (e) {}
+        }
+      }
+    }
+
+    if (diActionBtn) diActionBtn.disabled = false;
+
+    if (diActionBtn) {
+      diActionBtn.addEventListener('click', function () {
+        if (!window.TGTools || !window.TGTools[diHandler]) return;
+        var diTool2 = window.TGTools[diHandler];
+        var opts = diTool2.getOptions ? diTool2.getOptions(diOptionsEl) : {};
+
+        diActionBtn.hidden = true;
+        if (diProgressEl) { diProgressEl.hidden = true; if (diProgressBar) diProgressBar.style.width = '0%'; }
+        if (diResultEl)   diResultEl.hidden = true;
+        if (diErrorBanner) diErrorBanner.hidden = true;
+        tgShowLoading(diBox, 'Processing...');
+
+        diTool2.run(null, opts, function (pct, msg) {
+          if (diProgressBar) diProgressBar.style.width = (pct * 100) + '%';
+          var lbl = diProgressEl ? diProgressEl.querySelector('.tg-progress-label') : null;
+          if (lbl && msg) lbl.textContent = msg;
+          tgUpdateLoading(diBox, pct, msg);
+        }).then(function (result) {
+          if (diProgressEl) diProgressEl.hidden = true;
+          tgHideLoading(diBox);
+          if (diBlobUrl) URL.revokeObjectURL(diBlobUrl);
+          diBlobUrl = URL.createObjectURL(result.blob);
+          diFilename = result.filename || 'output';
+          if (diResultEl) diResultEl.hidden = false;
+          if (diSuccessBanner) diSuccessBanner.hidden = false;
+          if (diErrorBanner)   diErrorBanner.hidden = true;
+          if (diDownloadBtn)   diDownloadBtn.hidden = false;
+          diActionBtn.hidden = false;
+        }).catch(function (e) {
+          if (diProgressEl) diProgressEl.hidden = true;
+          tgHideLoading(diBox);
+          diActionBtn.hidden = false;
+          if (diResultEl) diResultEl.hidden = false;
+          if (diSuccessBanner) diSuccessBanner.hidden = true;
+          if (diErrorBanner) {
+            diErrorBanner.hidden = false;
+            var em = diErrorBanner.querySelector('.tg-error-msg');
+            if (em) em.textContent = e && e.message ? e.message : 'An error occurred.';
+          }
+        });
+      });
+    }
+
+    if (diDownloadBtn) {
+      diDownloadBtn.addEventListener('click', function () {
+        if (!diBlobUrl) return;
+        var a = document.createElement('a');
+        a.href = diBlobUrl;
+        a.download = diFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      });
+    }
+
+    if (diResetLink) {
+      diResetLink.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (diResultEl) diResultEl.hidden = true;
+        if (diActionBtn) { diActionBtn.hidden = false; diActionBtn.disabled = false; }
+      });
+    }
+  })();
+
   var box = document.querySelector('.tg-tool-box[data-tool-type="browser"], .tg-tool-box[data-tool-type="server"]');
   if (!box) return;
 
@@ -941,6 +1049,9 @@
     renderFileList();
     if (uploadZone) uploadZone.hidden = currentFiles.length > 0;
     if (actionBtn)  actionBtn.disabled = currentFiles.length === 0;
+    /* Multi-file mode needs the same file-ready hook single-file mode
+       gets (show options, call the tool's onFileReady) */
+    if (currentFiles.length > 0) onFileReadyForPageCountTools(currentFiles[0]);
   }
 
   function removeFileAt(index) {
@@ -948,6 +1059,7 @@
     renderFileList();
     if (uploadZone) uploadZone.hidden = currentFiles.length > 0;
     if (actionBtn)  actionBtn.disabled = currentFiles.length === 0;
+    if (currentFiles.length > 0) onFileReadyForPageCountTools(currentFiles[0]);
   }
 
   function renderFileList() {
@@ -2401,111 +2513,4 @@
     resetState:      resetState,
   };
 
-  /* -----------------------------------------------
-     DATA-INPUT TOOL BOX (Phase 4 — Chart Maker, QR Code)
-     No file upload; button always enabled.
-  ----------------------------------------------- */
-  (function () {
-    var diBox = document.querySelector('.tg-tool-box[data-tool-type="data-input"]');
-    if (!diBox) return;
-
-    var diHandler    = diBox.dataset.handler || '';
-    var diOptionsEl  = diBox.querySelector('.tg-options');
-    var diActionBtn  = diBox.querySelector('.tg-action-btn');
-    var diProgressEl = diBox.querySelector('.tg-progress');
-    var diProgressBar = diBox.querySelector('.tg-progress-bar');
-    var diResultEl   = diBox.querySelector('.tg-result');
-    var diSuccessBanner = diResultEl ? diResultEl.querySelector('.tg-success-banner') : null;
-    var diErrorBanner   = diResultEl ? diResultEl.querySelector('.tg-error-banner') : null;
-    var diDownloadBtn   = diBox.querySelector('.tg-download-btn');
-    var diResetLink     = diBox.querySelector('.tg-reset');
-    var diBlobUrl = null;
-    var diFilename = 'output';
-
-    if (window.TGTools && window.TGTools[diHandler]) {
-      var diTool = window.TGTools[diHandler];
-      /* Tools that manage their own UI via init() */
-      if (typeof diTool.init === 'function') {
-        if (diOptionsEl) { diOptionsEl.hidden = false; }
-        diTool.init(diBox);
-        /* Hide default action button — tool manages its own actions */
-        if (diActionBtn) diActionBtn.hidden = true;
-        return; /* tool is fully self-contained */
-      }
-      if (diTool.getOptionsHTML && diOptionsEl) {
-        diOptionsEl.innerHTML = diTool.getOptionsHTML();
-        diOptionsEl.hidden = false;
-        /* Inline <script> tags in injected HTML never execute — tools wire
-           their option events through this hook instead. */
-        if (typeof diTool.wireOptions === 'function') {
-          try { diTool.wireOptions(diOptionsEl); } catch (e) {}
-        }
-      }
-    }
-
-    if (diActionBtn) diActionBtn.disabled = false;
-
-    if (diActionBtn) {
-      diActionBtn.addEventListener('click', function () {
-        if (!window.TGTools || !window.TGTools[diHandler]) return;
-        var diTool2 = window.TGTools[diHandler];
-        var opts = diTool2.getOptions ? diTool2.getOptions(diOptionsEl) : {};
-
-        diActionBtn.hidden = true;
-        if (diProgressEl) { diProgressEl.hidden = true; if (diProgressBar) diProgressBar.style.width = '0%'; }
-        if (diResultEl)   diResultEl.hidden = true;
-        if (diErrorBanner) diErrorBanner.hidden = true;
-        tgShowLoading(diBox, 'Processing...');
-
-        diTool2.run(null, opts, function (pct, msg) {
-          if (diProgressBar) diProgressBar.style.width = (pct * 100) + '%';
-          var lbl = diProgressEl ? diProgressEl.querySelector('.tg-progress-label') : null;
-          if (lbl && msg) lbl.textContent = msg;
-          tgUpdateLoading(diBox, pct, msg);
-        }).then(function (result) {
-          if (diProgressEl) diProgressEl.hidden = true;
-          tgHideLoading(diBox);
-          if (diBlobUrl) URL.revokeObjectURL(diBlobUrl);
-          diBlobUrl = URL.createObjectURL(result.blob);
-          diFilename = result.filename || 'output';
-          if (diResultEl) diResultEl.hidden = false;
-          if (diSuccessBanner) diSuccessBanner.hidden = false;
-          if (diErrorBanner)   diErrorBanner.hidden = true;
-          if (diDownloadBtn)   diDownloadBtn.hidden = false;
-          diActionBtn.hidden = false;
-        }).catch(function (e) {
-          if (diProgressEl) diProgressEl.hidden = true;
-          tgHideLoading(diBox);
-          diActionBtn.hidden = false;
-          if (diResultEl) diResultEl.hidden = false;
-          if (diSuccessBanner) diSuccessBanner.hidden = true;
-          if (diErrorBanner) {
-            diErrorBanner.hidden = false;
-            var em = diErrorBanner.querySelector('.tg-error-msg');
-            if (em) em.textContent = e && e.message ? e.message : 'An error occurred.';
-          }
-        });
-      });
-    }
-
-    if (diDownloadBtn) {
-      diDownloadBtn.addEventListener('click', function () {
-        if (!diBlobUrl) return;
-        var a = document.createElement('a');
-        a.href = diBlobUrl;
-        a.download = diFilename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      });
-    }
-
-    if (diResetLink) {
-      diResetLink.addEventListener('click', function (e) {
-        e.preventDefault();
-        if (diResultEl) diResultEl.hidden = true;
-        if (diActionBtn) { diActionBtn.hidden = false; diActionBtn.disabled = false; }
-      });
-    }
-  })();
 })();

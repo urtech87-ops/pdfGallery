@@ -31,6 +31,7 @@
     return '<div class="tg-opt-row">' +
       '<label class="tg-opt-label" for="icv-fmt">Convert to</label>' +
       '<select id="icv-fmt" class="tg-select"' + (locked ? ' disabled' : '') + '>' + fmtOpts + '</select>' +
+      '<img id="icv-preview" alt="Uploaded image preview" hidden style="max-width:64px;max-height:48px;margin-left:12px;border:1px solid #ddd;border-radius:3px;vertical-align:middle;background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 0 0 / 10px 10px">' +
     '</div>' +
     (locked ? '<p class="tg-opt-info">Converting ' + inputFmt.toUpperCase() + ' to ' + outputFmt.toUpperCase() + '</p>' : '') +
     '<div id="icv-results" style="margin-top:12px"></div>' +
@@ -43,6 +44,24 @@
     if (!optionsEl) return {};
     var fmt = optionsEl.querySelector('#icv-fmt');
     return { format: fmt ? fmt.value : 'png' };
+  }
+
+  var _previewUrl = null;
+
+  /* Called by tool-runner when a file is selected — guarantees the
+     format selector is visible and shows a thumbnail of the first file. */
+  function onFileReady(file, optionsEl) {
+    if (!optionsEl) return;
+    if (!optionsEl.querySelector('#icv-fmt')) optionsEl.innerHTML = getOptionsHTML();
+    optionsEl.hidden = false;
+    var thumb = optionsEl.querySelector('#icv-preview');
+    if (thumb && file) {
+      if (_previewUrl) URL.revokeObjectURL(_previewUrl);
+      _previewUrl = URL.createObjectURL(file);
+      thumb.onerror = function () { thumb.hidden = true; };
+      thumb.onload = function () { thumb.hidden = false; };
+      thumb.src = _previewUrl;
+    }
   }
 
   var _convertedFiles = [];
@@ -198,5 +217,5 @@
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();
