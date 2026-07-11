@@ -367,6 +367,15 @@ function tg_enqueue_assets()
                 $img_tool_deps[] = 'tg-img-segment';
             }
 
+            /* UPNG.js color quantization for real PNG compression —
+               UPNG needs the pako global, so pako must load first */
+            if ($tg_handler === 'img-compress') {
+                wp_enqueue_script('pako', 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js', [], null, true);
+                wp_enqueue_script('upng', 'https://cdn.jsdelivr.net/npm/upng-js@2.1.0/UPNG.js', ['pako'], null, true);
+                $img_tool_deps[] = 'pako';
+                $img_tool_deps[] = 'upng';
+            }
+
             $img_file = get_template_directory() . '/assets/js/tools/' . $img_tool_files[$tg_handler];
             $img_handle = 'tg-tool-' . $tg_handler;
             wp_enqueue_script(

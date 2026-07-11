@@ -34,10 +34,7 @@
       '<img id="icv-preview" alt="Uploaded image preview" hidden style="max-width:64px;max-height:48px;margin-left:12px;border:1px solid #ddd;border-radius:3px;vertical-align:middle;background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 0 0 / 10px 10px">' +
     '</div>' +
     (locked ? '<p class="tg-opt-info">Converting ' + inputFmt.toUpperCase() + ' to ' + outputFmt.toUpperCase() + '</p>' : '') +
-    '<div id="icv-results" style="margin-top:12px"></div>' +
-    '<div id="icv-dl-all-wrap" hidden style="margin-top:10px">' +
-      '<button type="button" id="icv-dl-all" class="tg-btn-secondary">Download All as ZIP</button>' +
-    '</div>';
+    '<div id="icv-results" style="margin-top:12px"></div>';
   }
 
   function getOptions(optionsEl) {
@@ -141,32 +138,35 @@
       }
     }
 
-    var dlAllWrap = document.getElementById('icv-dl-all-wrap');
-    if (dlAllWrap && _convertedFiles.length > 1) {
-      dlAllWrap.hidden = false;
-      var dlAllBtn = document.getElementById('icv-dl-all');
-      if (dlAllBtn) {
-        // onclick (not addEventListener) so repeated runs don't stack handlers
-        dlAllBtn.onclick = async function () {
-          if (!window.JSZip) {
-            try {
-              await TGImageUtil.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
-            } catch (e) { alert('Could not load ZIP library. Please check your connection.'); return; }
-          }
-          dlAllBtn.disabled = true; dlAllBtn.textContent = 'Building ZIP...';
-          var zip = new JSZip();
-          _convertedFiles.forEach(function (item) { zip.file(item.filename, item.blob); });
-          var zipBlob = await zip.generateAsync({ type: 'blob' });
-          var a = document.createElement('a'); a.href = URL.createObjectURL(zipBlob); a.download = 'converted-images.zip'; a.click();
-          dlAllBtn.disabled = false; dlAllBtn.textContent = 'Download All as ZIP';
-        };
+    var first = _convertedFiles[0];
+    if (!first) throw (lastError || new Error('No files could be converted.'));
+
+    // 2+ files: the main Download button delivers a ZIP of every output
+    if (_convertedFiles.length > 1) {
+      onProgress && onProgress(0.95, 'Building ZIP...');
+      var zipBlob = await buildZip(_convertedFiles);
+      if (zipBlob) {
+        onProgress && onProgress(1, 'Done!');
+        return { blob: zipBlob, filename: 'converted-images.zip' };
       }
     }
 
     onProgress && onProgress(1, 'Done!');
-    var first = _convertedFiles[0];
-    if (!first) throw (lastError || new Error('No files could be converted.'));
     return { blob: first.blob, filename: first.filename };
+  }
+
+  /* Bundle all output blobs into one ZIP; returns null if the ZIP
+     library can't be loaded (caller falls back to the first file). */
+  async function buildZip(items) {
+    if (!window.JSZip) {
+      try {
+        await TGImageUtil.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      } catch (e) { /* offline / blocked CDN */ }
+    }
+    if (!window.JSZip) return null;
+    var zip = new JSZip();
+    items.forEach(function (item) { zip.file(item.filename, item.blob); });
+    return zip.generateAsync({ type: 'blob' });
   }
 
   async function convertOne(file, toFmt) {
