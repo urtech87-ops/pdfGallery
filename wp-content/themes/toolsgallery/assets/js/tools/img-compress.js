@@ -29,6 +29,19 @@
     '<div class="tg-opt-row">' +
       '<label><input type="checkbox" id="ic-png2jpg"> Convert PNG to JPG</label>' +
     '</div>' +
+    '<p id="ic-png-note" class="tg-opt-info" hidden style="color:#b45309">' +
+      'PNG is lossless — the quality slider has no effect on PNG output. ' +
+      'For smaller files enable "Convert PNG to JPG" or reduce Max Width.' +
+    '</p>' +
+    '<div id="ic-preview-wrap" hidden style="margin-top:12px">' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+        '<div><p style="margin:0 0 4px;font-size:12px;font-weight:600">Before (<span id="ic-before-size"></span>)</p>' +
+          '<canvas id="ic-before" style="max-width:220px;border:1px solid #ddd;border-radius:4px"></canvas></div>' +
+        '<div><p style="margin:0 0 4px;font-size:12px;font-weight:600">After (<span id="ic-after-size"></span>)</p>' +
+          '<canvas id="ic-after" style="max-width:220px;border:1px solid #ddd;border-radius:4px"></canvas></div>' +
+      '</div>' +
+      '<p id="ic-preview-note" class="tg-opt-info" style="margin-top:4px"></p>' +
+    '</div>' +
     '<div id="ic-results-wrap" style="margin-top:12px"></div>' +
     '<div id="ic-dl-all-wrap" hidden style="margin-top:10px">' +
       '<button type="button" id="ic-dl-all" class="tg-btn-secondary">Download All as ZIP</button>' +
@@ -90,6 +103,11 @@
 
     if (resultsWrap) resultsWrap.innerHTML = tableHtml;
 
+    var anyPngKeptAsPng = false;
+    var firstResult = null;
+    var firstImg = null;
+    var firstOrigSize = 0;
+
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       onProgress && onProgress((i / files.length) * 0.9, 'Compressing ' + f.name + '...');
@@ -97,6 +115,8 @@
       try {
         var result = await compressOne(f, options);
         _compressedFiles.push(result);
+        if (result.pngLossless) anyPngKeptAsPng = true;
+        if (!firstResult) { firstResult = result; firstImg = result.sourceImg; firstOrigSize = f.size; }
 
         var saved = Math.round((1 - result.blob.size / f.size) * 100);
         var row = '<tr>' +
@@ -114,6 +134,15 @@
       } catch (e) {
         console.error('Compress error:', e);
       }
+    }
+
+    // PNG-is-lossless note: quality slider cannot shrink a PNG kept as PNG
+    var pngNote = document.getElementById('ic-png-note');
+    if (pngNote) pngNote.hidden = !anyPngKeptAsPng;
+
+    // Before → after preview of the first compressed file
+    if (firstResult && firstImg) {
+      await renderPreview(firstImg, firstResult, firstOrigSize);
     }
 
     // Attach download handlers
@@ -137,8 +166,13 @@
       dlAllWrap.hidden = false;
       var dlAllBtn = document.getElementById('ic-dl-all');
       if (dlAllBtn) {
-        dlAllBtn.addEventListener('click', async function () {
-          if (!window.JSZip) { alert('JSZip not loaded'); return; }
+        // onclick (not addEventListener) so repeated runs don't stack handlers
+        dlAllBtn.onclick = async function () {
+          if (!window.JSZip) {
+            try {
+              await TGImageUtil.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+            } catch (e) { alert('Could not load ZIP library. Please check your connection.'); return; }
+          }
           dlAllBtn.disabled = true;
           dlAllBtn.textContent = 'Building ZIP...';
           var zip = new JSZip();
@@ -152,7 +186,7 @@
           a.click();
           dlAllBtn.disabled = false;
           dlAllBtn.textContent = 'Download All as ZIP';
-        });
+        };
       }
     }
 
@@ -160,6 +194,33 @@
     var firstItem = _compressedFiles[0];
     if (!firstItem) throw new Error('No files could be compressed.');
     return { blob: firstItem.blob, filename: firstItem.filename };
+  }
+
+  async function renderPreview(origImg, result, origSize) {
+    var wrap = document.getElementById('ic-preview-wrap');
+    var beforeEl = document.getElementById('ic-before');
+    var afterEl = document.getElementById('ic-after');
+    if (!wrap || !beforeEl || !afterEl) return;
+
+    TGImageUtil.drawPreview(origImg, beforeEl, 220);
+    try {
+      var compImg = await TGImageUtil.loadImage(result.blob);
+      TGImageUtil.drawPreview(compImg, afterEl, 220);
+    } catch (e) { /* preview is best-effort */ }
+
+    var beforeSize = document.getElementById('ic-before-size');
+    var afterSize = document.getElementById('ic-after-size');
+    if (beforeSize) beforeSize.textContent = fmtBytes(origSize);
+    if (afterSize) afterSize.textContent = fmtBytes(result.blob.size);
+
+    var note = document.getElementById('ic-preview-note');
+    if (note) {
+      var saved = origSize ? Math.round((1 - result.blob.size / origSize) * 100) : 0;
+      note.textContent = saved > 0
+        ? 'Compressed result — ' + saved + '% smaller.'
+        : 'Output is not smaller — try a lower quality or a smaller Max Width.';
+    }
+    wrap.hidden = false;
   }
 
   async function compressOne(file, options) {
@@ -179,13 +240,30 @@
         ctx.drawImage(img, 0, 0, w, h);
 
         var isPng = file.type === 'image/png';
-        var outMime = (isPng && options.png2jpg) ? 'image/jpeg' : (isPng ? 'image/png' : 'image/jpeg');
-        var ext = outMime === 'image/png' ? '.png' : '.jpg';
+        var isWebp = file.type === 'image/webp';
+        var outMime = (isPng && options.png2jpg) ? 'image/jpeg'
+          : (isPng ? 'image/png' : (isWebp ? 'image/webp' : 'image/jpeg'));
+        var ext = outMime === 'image/png' ? '.png' : (outMime === 'image/webp' ? '.webp' : '.jpg');
         var baseName = file.name.replace(/\.[^.]+$/, '');
+        // JPEG output over a transparent PNG needs a white backing
+        if (outMime === 'image/jpeg' && isPng) {
+          var flat = document.createElement('canvas');
+          flat.width = w; flat.height = h;
+          var fctx = flat.getContext('2d');
+          fctx.fillStyle = '#ffffff';
+          fctx.fillRect(0, 0, w, h);
+          fctx.drawImage(canvas, 0, 0);
+          canvas = flat;
+        }
 
         canvas.toBlob(function (blob) {
           if (!blob) { reject(new Error('Canvas toBlob failed')); return; }
-          resolve({ blob: blob, filename: baseName + '-compressed' + ext });
+          resolve({
+            blob: blob,
+            filename: baseName + '-compressed' + ext,
+            pngLossless: outMime === 'image/png',
+            sourceImg: img,
+          });
         }, outMime, options.quality);
       };
       img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };

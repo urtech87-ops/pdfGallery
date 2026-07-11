@@ -349,32 +349,22 @@ function tg_enqueue_assets()
 
             $img_tool_deps = ['tg-img-util'];
 
-            if ($tg_handler === 'img-crop') {
-                wp_enqueue_style(
-                    'cropperjs',
-                    'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css',
-                    [],
-                    null
-                );
-                wp_enqueue_script(
-                    'cropperjs',
-                    'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js',
-                    [],
-                    null,
-                    true
-                );
-                $img_tool_deps[] = 'cropperjs';
-            }
+            /* img-crop and img-add-text no longer need Cropper.js /
+               Fabric.js — both use plain-canvas editors now, so no CDN
+               dependency can leave their previews blank. */
 
-            if ($tg_handler === 'img-add-text') {
+            /* Shared subject-segmentation helper (TGSegment) for the
+               background tools — remove.bg API → MediaPipe → flood fill */
+            if (in_array($tg_handler, ['img-remove-bg', 'img-change-bg', 'img-blur-bg'], true)) {
+                $img_segment_file = get_template_directory() . '/assets/js/tools/img-segment.js';
                 wp_enqueue_script(
-                    'fabricjs',
-                    'https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js',
-                    [],
-                    null,
+                    'tg-img-segment',
+                    get_template_directory_uri() . '/assets/js/tools/img-segment.js',
+                    ['tg-img-util'],
+                    file_exists($img_segment_file) ? filemtime($img_segment_file) : $ver,
                     true
                 );
-                $img_tool_deps[] = 'fabricjs';
+                $img_tool_deps[] = 'tg-img-segment';
             }
 
             $img_file = get_template_directory() . '/assets/js/tools/' . $img_tool_files[$tg_handler];

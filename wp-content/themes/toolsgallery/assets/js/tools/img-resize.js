@@ -117,6 +117,9 @@
   }
 
   async function run(file, options, onProgress) {
+    if (!window.TGImageUtil) {
+      throw new Error('Image processing library not loaded. Please refresh the page.');
+    }
     onProgress && onProgress(0.1, 'Loading image...');
     return new Promise(function (resolve, reject) {
       var img = new Image();

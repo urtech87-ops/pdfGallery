@@ -131,6 +131,9 @@
   }
 
   async function run(file, options, onProgress) {
+    if (!window.TGImageUtil) {
+      throw new Error('Image processing library not loaded. Please refresh the page.');
+    }
     var originalText = await ocr(file, options.srcLang, onProgress);
     if (!originalText.trim()) {
       throw new Error('No text could be recognized in this image. Try a clearer image or a different text language.');
