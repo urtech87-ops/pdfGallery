@@ -86,8 +86,12 @@
   }
 
   function wireOptions(optionsEl) {
-    if (!optionsEl || optionsEl.dataset.epWired) return;
-    optionsEl.dataset.epWired = '1';
+    if (!optionsEl) return;
+    /* Guard on the injected toolbar, not the persistent container —
+       resetState re-injects fresh markup that needs re-wiring. */
+    var toolbar = optionsEl.querySelector('#ep-toolbar');
+    if (!toolbar || toolbar.dataset.epWired) return;
+    toolbar.dataset.epWired = '1';
     _optionsEl = optionsEl;
 
     optionsEl.querySelectorAll('.ep-mode-btn').forEach(function (btn) {

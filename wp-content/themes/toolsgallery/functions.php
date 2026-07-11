@@ -105,6 +105,7 @@ function tg_enqueue_assets()
            cache busting so browsers pick up JS changes
            ============================================= */
         $pdf_tool_files = [
+            'edit-pdf' => 'edit-pdf.js',
             'url-to-pdf' => 'url-to-pdf.js',
             'redact-pdf' => 'redact-pdf.js',
             'extract-images' => 'extract-images.js',
