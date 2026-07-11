@@ -9,10 +9,7 @@
 
   function getOptionsHTML() {
     return '<p style="font-size:13px;color:var(--color-gray-600);margin:0">Converts images to PNG format. Transparency is preserved.</p>' +
-    '<div id="i2p-results" style="margin-top:8px"></div>' +
-    '<div id="i2p-dl-all-wrap" hidden style="margin-top:8px">' +
-      '<button type="button" id="i2p-dl-all" class="tg-btn-secondary">Download All as ZIP</button>' +
-    '</div>';
+    '<div id="i2p-results" style="margin-top:8px"></div>';
   }
 
   function getOptions(optionsEl) { return {}; }
@@ -49,22 +46,32 @@
       });
     }
 
+    // 2+ files: the main Download button delivers a ZIP of every output
     if (_results.length > 1) {
-      var wrap = document.getElementById('i2p-dl-all-wrap');
-      if (wrap) {
-        wrap.hidden = false;
-        document.getElementById('i2p-dl-all').addEventListener('click', async function () {
-          if (!window.JSZip) { alert('JSZip not loaded'); return; }
-          var zip = new JSZip();
-          _results.forEach(function (r) { zip.file(r.filename, r.blob); });
-          var zipBlob = await zip.generateAsync({ type: 'blob' });
-          var a = document.createElement('a'); a.href = URL.createObjectURL(zipBlob); a.download = 'images-png.zip'; a.click();
-        });
+      onProgress && onProgress(0.95, 'Building ZIP...');
+      var zipBlob = await buildZip(_results);
+      if (zipBlob) {
+        onProgress && onProgress(1, 'Done!');
+        return { blob: zipBlob, filename: 'images-png.zip' };
       }
     }
 
     onProgress && onProgress(1, 'Done!');
     return { blob: _results[0].blob, filename: _results[0].filename };
+  }
+
+  /* Bundle all output blobs into one ZIP; returns null if the ZIP
+     library can't be loaded (caller falls back to the first file). */
+  async function buildZip(items) {
+    if (!window.JSZip && window.TGImageUtil && TGImageUtil.loadScript) {
+      try {
+        await TGImageUtil.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      } catch (e) { /* offline / blocked CDN */ }
+    }
+    if (!window.JSZip) return null;
+    var zip = new JSZip();
+    items.forEach(function (item) { zip.file(item.filename, item.blob); });
+    return zip.generateAsync({ type: 'blob' });
   }
 
   function convertOne(file) {
