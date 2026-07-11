@@ -106,6 +106,7 @@
     var anyPngKeptAsPng = false;
     var firstResult = null;
     var firstImg = null;
+    var firstOrigSize = 0;
 
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
@@ -115,7 +116,7 @@
         var result = await compressOne(f, options);
         _compressedFiles.push(result);
         if (result.pngLossless) anyPngKeptAsPng = true;
-        if (!firstResult) { firstResult = result; firstImg = result.sourceImg; }
+        if (!firstResult) { firstResult = result; firstImg = result.sourceImg; firstOrigSize = f.size; }
 
         var saved = Math.round((1 - result.blob.size / f.size) * 100);
         var row = '<tr>' +
@@ -141,7 +142,7 @@
 
     // Before → after preview of the first compressed file
     if (firstResult && firstImg) {
-      await renderPreview(firstImg, firstResult, files[0] ? files[0].size : 0);
+      await renderPreview(firstImg, firstResult, firstOrigSize);
     }
 
     // Attach download handlers
