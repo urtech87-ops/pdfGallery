@@ -8,10 +8,12 @@
 
   var CONFIG = { handler: 'img-compress' };
 
+  /* quality drives JPEG/WebP output; pngColors is the UPNG.js color
+     count (cnum) for PNG output — 0 means lossless re-encode */
   var LEVELS = {
-    light:      { quality: 0.85, label: 'Light',      desc: 'quality 85% — subtle compression, best image quality' },
-    standard:   { quality: 0.72, label: 'Standard',   desc: 'quality 72% — balanced size and quality' },
-    aggressive: { quality: 0.55, label: 'Aggressive', desc: 'quality 55% — smallest file, visible quality loss' },
+    light:      { quality: 0.85, pngColors: 0,   label: 'Light',      desc: 'quality 85% — subtle compression, best image quality' },
+    standard:   { quality: 0.72, pngColors: 128, label: 'Standard',   desc: 'quality 72% — balanced size and quality' },
+    aggressive: { quality: 0.55, pngColors: 64,  label: 'Aggressive', desc: 'quality 55% — smallest file, visible quality loss' },
   };
 
   function getOptionsHTML() {
@@ -48,8 +50,7 @@
       '<label><input type="checkbox" id="ic-png2jpg"> Convert PNG to JPG</label>' +
     '</div>' +
     '<p id="ic-png-note" class="tg-opt-info" hidden style="color:#b45309">' +
-      'PNG is lossless — the quality slider has no effect on PNG output. ' +
-      'For smaller files enable "Convert PNG to JPG" or reduce Max Width.' +
+      'PNG uses color optimization; enable \'Convert to JPG\' for maximum savings on photos.' +
     '</p>' +
     '<div id="ic-preview-wrap" hidden style="margin-top:12px">' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
@@ -60,10 +61,7 @@
       '</div>' +
       '<p id="ic-preview-note" class="tg-opt-info" style="margin-top:4px"></p>' +
     '</div>' +
-    '<div id="ic-results-wrap" style="margin-top:12px"></div>' +
-    '<div id="ic-dl-all-wrap" hidden style="margin-top:10px">' +
-      '<button type="button" id="ic-dl-all" class="tg-btn-secondary">Download All as ZIP</button>' +
-    '</div>';
+    '<div id="ic-results-wrap" style="margin-top:12px"></div>';
   }
 
   function wireOptions(container) {
@@ -98,7 +96,8 @@
     var mw = optionsEl.querySelector('#ic-maxw');
     var cw = optionsEl.querySelector('#ic-custom-w');
     var p2j = optionsEl.querySelector('#ic-png2jpg');
-    var quality = (LEVELS[level ? level.value : 'standard'] || LEVELS.standard).quality;
+    var levelCfg = LEVELS[level ? level.value : 'standard'] || LEVELS.standard;
+    var quality = levelCfg.quality;
     if (customOn && customOn.checked && q) quality = parseInt(q.value) / 100;
     var maxW = 0;
     if (mw) {
@@ -107,6 +106,7 @@
     }
     return {
       quality: quality,
+      pngColors: levelCfg.pngColors,
       maxWidth: maxW,
       png2jpg: p2j ? p2j.checked : false,
     };
@@ -156,11 +156,14 @@
         if (!firstResult) { firstResult = result; firstImg = result.sourceImg; firstOrigSize = f.size; }
 
         var saved = Math.round((1 - result.blob.size / f.size) * 100);
+        var savedText = result.alreadyOptimized
+          ? 'Saved 0% (already optimized)'
+          : (saved > 0 ? '-' + saved + '%' : '~0%');
         var row = '<tr>' +
           '<td style="padding:6px 8px;border:1px solid #ddd">' + escHtml(f.name) + '</td>' +
           '<td style="padding:6px 8px;text-align:right;border:1px solid #ddd">' + fmtBytes(f.size) + '</td>' +
           '<td style="padding:6px 8px;text-align:right;border:1px solid #ddd">' + fmtBytes(result.blob.size) + '</td>' +
-          '<td style="padding:6px 8px;text-align:right;border:1px solid #ddd;color:' + (saved > 0 ? 'green' : '#999') + '">' + (saved > 0 ? '-' + saved + '%' : '~0%') + '</td>' +
+          '<td style="padding:6px 8px;text-align:right;border:1px solid #ddd;color:' + (!result.alreadyOptimized && saved > 0 ? 'green' : '#999') + '">' + savedText + '</td>' +
           '<td style="padding:6px 8px;border:1px solid #ddd">' +
             '<button type="button" class="tg-btn-secondary" style="font-size:11px;padding:2px 8px" data-ic-idx="' + (_compressedFiles.length - 1) + '">Download</button>' +
           '</td>' +
@@ -198,39 +201,37 @@
       });
     }
 
-    var dlAllWrap = document.getElementById('ic-dl-all-wrap');
-    if (dlAllWrap && _compressedFiles.length > 1) {
-      dlAllWrap.hidden = false;
-      var dlAllBtn = document.getElementById('ic-dl-all');
-      if (dlAllBtn) {
-        // onclick (not addEventListener) so repeated runs don't stack handlers
-        dlAllBtn.onclick = async function () {
-          if (!window.JSZip) {
-            try {
-              await TGImageUtil.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
-            } catch (e) { alert('Could not load ZIP library. Please check your connection.'); return; }
-          }
-          dlAllBtn.disabled = true;
-          dlAllBtn.textContent = 'Building ZIP...';
-          var zip = new JSZip();
-          _compressedFiles.forEach(function (item) {
-            zip.file(item.filename, item.blob);
-          });
-          var zipBlob = await zip.generateAsync({ type: 'blob' });
-          var a = document.createElement('a');
-          a.href = URL.createObjectURL(zipBlob);
-          a.download = 'compressed-images.zip';
-          a.click();
-          dlAllBtn.disabled = false;
-          dlAllBtn.textContent = 'Download All as ZIP';
-        };
+    var firstItem = _compressedFiles[0];
+    if (!firstItem) throw new Error('No files could be compressed.');
+
+    // 2+ files: the main Download button delivers a ZIP of every output
+    if (_compressedFiles.length > 1) {
+      onProgress && onProgress(0.95, 'Building ZIP...');
+      var zipBlob = await buildZip(_compressedFiles);
+      if (zipBlob) {
+        onProgress && onProgress(1, 'Done!');
+        return { blob: zipBlob, filename: 'compressed-images.zip' };
       }
     }
 
     onProgress && onProgress(1, 'Done!');
-    var firstItem = _compressedFiles[0];
-    if (!firstItem) throw new Error('No files could be compressed.');
     return { blob: firstItem.blob, filename: firstItem.filename };
+  }
+
+  /* Bundle all output blobs into one ZIP; returns null if the ZIP
+     library can't be loaded (caller falls back to the first file). */
+  async function buildZip(items) {
+    if (!window.JSZip) {
+      try {
+        await TGImageUtil.loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      } catch (e) { /* offline / blocked CDN */ }
+    }
+    if (!window.JSZip) return null;
+    var zip = new JSZip();
+    items.forEach(function (item) {
+      zip.file(item.filename, item.blob);
+    });
+    return zip.generateAsync({ type: 'blob' });
   }
 
   async function renderPreview(origImg, result, origSize) {
@@ -253,59 +254,82 @@
     var note = document.getElementById('ic-preview-note');
     if (note) {
       var saved = origSize ? Math.round((1 - result.blob.size / origSize) * 100) : 0;
-      note.textContent = saved > 0
-        ? 'Compressed result — ' + saved + '% smaller.'
-        : 'Output is not smaller — try a lower quality or a smaller Max Width.';
+      note.textContent = result.alreadyOptimized
+        ? 'Already optimized — keeping the original file.'
+        : (saved > 0
+          ? 'Compressed result — ' + saved + '% smaller.'
+          : 'Output is not smaller — try a lower quality or a smaller Max Width.');
     }
     wrap.hidden = false;
   }
 
   async function compressOne(file, options) {
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        URL.revokeObjectURL(url);
-        var w = img.width, h = img.height;
-        if (options.maxWidth && w > options.maxWidth) {
-          h = Math.round(h * options.maxWidth / w);
-          w = options.maxWidth;
-        }
-        var canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        var ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
+    var img = await TGImageUtil.loadImage(file);
+    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (options.maxWidth && w > options.maxWidth) {
+      h = Math.round(h * options.maxWidth / w);
+      w = options.maxWidth;
+    }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
 
-        var isPng = file.type === 'image/png';
-        var isWebp = file.type === 'image/webp';
-        var outMime = (isPng && options.png2jpg) ? 'image/jpeg'
-          : (isPng ? 'image/png' : (isWebp ? 'image/webp' : 'image/jpeg'));
-        var ext = outMime === 'image/png' ? '.png' : (outMime === 'image/webp' ? '.webp' : '.jpg');
-        var baseName = file.name.replace(/\.[^.]+$/, '');
-        // JPEG output over a transparent PNG needs a white backing
-        if (outMime === 'image/jpeg' && isPng) {
-          var flat = document.createElement('canvas');
-          flat.width = w; flat.height = h;
-          var fctx = flat.getContext('2d');
-          fctx.fillStyle = '#ffffff';
-          fctx.fillRect(0, 0, w, h);
-          fctx.drawImage(canvas, 0, 0);
-          canvas = flat;
-        }
+    var isPng = file.type === 'image/png';
+    var isWebp = file.type === 'image/webp';
+    var outMime = (isPng && options.png2jpg) ? 'image/jpeg'
+      : (isPng ? 'image/png' : (isWebp ? 'image/webp' : 'image/jpeg'));
+    var ext = outMime === 'image/png' ? '.png' : (outMime === 'image/webp' ? '.webp' : '.jpg');
+    var baseName = file.name.replace(/\.[^.]+$/, '');
 
-        canvas.toBlob(function (blob) {
-          if (!blob) { reject(new Error('Canvas toBlob failed')); return; }
-          resolve({
-            blob: blob,
-            filename: baseName + '-compressed' + ext,
-            pngLossless: outMime === 'image/png',
-            sourceImg: img,
-          });
-        }, outMime, options.quality);
+    var blob;
+    if (outMime === 'image/png') {
+      blob = await encodePng(ctx, w, h, options.pngColors);
+    } else {
+      // JPEG output over a transparent PNG needs a white backing
+      if (outMime === 'image/jpeg' && isPng) {
+        var flat = document.createElement('canvas');
+        flat.width = w; flat.height = h;
+        var fctx = flat.getContext('2d');
+        fctx.fillStyle = '#ffffff';
+        fctx.fillRect(0, 0, w, h);
+        fctx.drawImage(canvas, 0, 0);
+        canvas = flat;
+      }
+      blob = await TGImageUtil.canvasToBlob(canvas, outMime, options.quality);
+    }
+
+    // Never output a bigger file — keep the original bytes instead
+    if (!blob || blob.size >= file.size) {
+      return {
+        blob: file,
+        filename: file.name,
+        alreadyOptimized: true,
+        pngLossless: outMime === 'image/png',
+        sourceImg: img,
       };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
-      img.src = url;
-    });
+    }
+
+    return {
+      blob: blob,
+      filename: baseName + '-compressed' + ext,
+      pngLossless: outMime === 'image/png',
+      sourceImg: img,
+    };
+  }
+
+  /* PNG re-encode with UPNG.js color quantization (canvas.toBlob cannot
+     shrink PNGs). cnum 0 = lossless; falls back to canvas PNG if the
+     UPNG library isn't available. */
+  async function encodePng(ctx, w, h, cnum) {
+    if (window.UPNG) {
+      try {
+        var rgba = ctx.getImageData(0, 0, w, h).data;
+        var buf = window.UPNG.encode([rgba.buffer], w, h, cnum || 0);
+        return new Blob([buf], { type: 'image/png' });
+      } catch (e) { /* fall through to canvas PNG */ }
+    }
+    return TGImageUtil.canvasToBlob(ctx.canvas, 'image/png');
   }
 
   function fmtBytes(b) {
