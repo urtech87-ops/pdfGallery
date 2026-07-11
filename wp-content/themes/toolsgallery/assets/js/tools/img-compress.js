@@ -8,11 +8,29 @@
 
   var CONFIG = { handler: 'img-compress' };
 
+  var LEVELS = {
+    light:      { quality: 0.85, label: 'Light',      desc: 'quality 85% — subtle compression, best image quality' },
+    standard:   { quality: 0.72, label: 'Standard',   desc: 'quality 72% — balanced size and quality' },
+    aggressive: { quality: 0.55, label: 'Aggressive', desc: 'quality 55% — smallest file, visible quality loss' },
+  };
+
   function getOptionsHTML() {
+    var levelInputs = Object.keys(LEVELS).map(function (key) {
+      var l = LEVELS[key];
+      return '<label style="margin-right:12px"><input type="radio" name="ic-level" value="' + key + '"' +
+        (key === 'standard' ? ' checked' : '') + '> ' + l.label + '</label>';
+    }).join('');
     return '<div class="tg-opt-row">' +
-      '<label class="tg-opt-label" for="ic-quality">Quality: <span id="ic-quality-val">80</span>%</label>' +
-      '<input type="range" id="ic-quality" min="1" max="100" value="80" style="flex:1">' +
+      '<label class="tg-opt-label">Compression Level</label>' +
+      '<div style="flex:1">' + levelInputs + '</div>' +
     '</div>' +
+    '<p id="ic-level-note" class="tg-opt-info">Standard — ' + LEVELS.standard.desc + '</p>' +
+    '<details style="margin-top:6px"><summary class="tg-opt-label" style="cursor:pointer">Advanced: custom quality</summary>' +
+      '<div class="tg-opt-row" style="margin-top:6px">' +
+        '<label><input type="checkbox" id="ic-custom-q-on"> Custom quality: <span id="ic-quality-val">72</span>%</label>' +
+        '<input type="range" id="ic-quality" min="1" max="100" value="72" style="flex:1">' +
+      '</div>' +
+    '</details>' +
     '<div class="tg-opt-row">' +
       '<label class="tg-opt-label" for="ic-maxw">Max Width</label>' +
       '<select id="ic-maxw" class="tg-select">' +
@@ -49,9 +67,24 @@
   }
 
   function wireOptions(container) {
+    var note = container.querySelector('#ic-level-note');
+    var customOn = container.querySelector('#ic-custom-q-on');
+    container.querySelectorAll('input[name="ic-level"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        var l = LEVELS[radio.value];
+        if (note && l) note.textContent = l.label + ' — ' + l.desc;
+        if (customOn) customOn.checked = false;
+      });
+    });
     var q = container.querySelector('#ic-quality');
     var v = container.querySelector('#ic-quality-val');
-    if (q && v) q.addEventListener('input', function () { v.textContent = q.value; });
+    if (q && v) {
+      q.addEventListener('input', function () {
+        v.textContent = q.value;
+        // moving the slider implies the user wants the custom value
+        if (customOn) customOn.checked = true;
+      });
+    }
     var s = container.querySelector('#ic-maxw');
     var w = container.querySelector('#ic-custom-w-wrap');
     if (s && w) s.addEventListener('change', function () { w.hidden = s.value !== 'custom'; });
@@ -59,17 +92,21 @@
 
   function getOptions(optionsEl) {
     if (!optionsEl) return {};
+    var level = optionsEl.querySelector('input[name="ic-level"]:checked');
+    var customOn = optionsEl.querySelector('#ic-custom-q-on');
     var q = optionsEl.querySelector('#ic-quality');
     var mw = optionsEl.querySelector('#ic-maxw');
     var cw = optionsEl.querySelector('#ic-custom-w');
     var p2j = optionsEl.querySelector('#ic-png2jpg');
+    var quality = (LEVELS[level ? level.value : 'standard'] || LEVELS.standard).quality;
+    if (customOn && customOn.checked && q) quality = parseInt(q.value) / 100;
     var maxW = 0;
     if (mw) {
       if (mw.value === 'custom') maxW = cw ? parseInt(cw.value) || 0 : 0;
       else maxW = parseInt(mw.value) || 0;
     }
     return {
-      quality: q ? parseInt(q.value) / 100 : 0.8,
+      quality: quality,
       maxWidth: maxW,
       png2jpg: p2j ? p2j.checked : false,
     };
