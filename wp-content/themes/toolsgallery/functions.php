@@ -2224,3 +2224,45 @@ function tg_save_tool_meta_boxes($post_id)
         );
     }
 }
+
+/* Sync required tool meta on every environment (laptop, production).
+   Runs once per $seed_version — bump it whenever this list changes. */
+add_action('init', 'tg_sync_tool_meta_defaults', 20);
+function tg_sync_tool_meta_defaults() {
+    $seed_version = '2026-07-13a';
+    if (get_option('tg_tool_meta_seed') === $seed_version) return;
+
+    $map = [
+        'img-qr'         => ['_tg_tool_type' => 'data-input'],
+        'img-chart'      => ['_tg_tool_type' => 'data-input'],
+        'base64-encoder' => ['_tg_tool_type' => 'data-input'],
+        'base64-decoder' => ['_tg_tool_type' => 'data-input'],
+        'url-encoder'    => ['_tg_tool_type' => 'data-input'],
+        'hash-generator' => ['_tg_tool_type' => 'data-input'],
+        'img-compress'   => ['_tg_multi_file' => 'true'],
+        'img-convert'    => ['_tg_multi_file' => 'true'],
+        'img-to-jpg'     => ['_tg_multi_file' => 'true'],
+        'img-to-png'     => ['_tg_multi_file' => 'true'],
+        'img-to-webp'    => ['_tg_multi_file' => 'true'],
+        'img-to-gif'     => ['_tg_multi_file' => 'true'],
+        'img-to-bmp'     => ['_tg_multi_file' => 'true'],
+    ];
+
+    foreach ($map as $handler => $metas) {
+        $ids = get_posts([
+            'post_type'      => 'tg_tool',
+            'post_status'    => 'any',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'meta_key'       => '_tg_handler',
+            'meta_value'     => $handler,
+        ]);
+        if (empty($ids)) continue;
+        foreach ($metas as $k => $v) {
+            if (get_post_meta($ids[0], $k, true) !== $v) {
+                update_post_meta($ids[0], $k, $v);
+            }
+        }
+    }
+    update_option('tg_tool_meta_seed', $seed_version);
+}
