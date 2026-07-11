@@ -1049,6 +1049,9 @@
     renderFileList();
     if (uploadZone) uploadZone.hidden = currentFiles.length > 0;
     if (actionBtn)  actionBtn.disabled = currentFiles.length === 0;
+    /* Multi-file mode needs the same file-ready hook single-file mode
+       gets (show options, call the tool's onFileReady) */
+    if (currentFiles.length > 0) onFileReadyForPageCountTools(currentFiles[0]);
   }
 
   function removeFileAt(index) {
@@ -1056,6 +1059,7 @@
     renderFileList();
     if (uploadZone) uploadZone.hidden = currentFiles.length > 0;
     if (actionBtn)  actionBtn.disabled = currentFiles.length === 0;
+    if (currentFiles.length > 0) onFileReadyForPageCountTools(currentFiles[0]);
   }
 
   function renderFileList() {
