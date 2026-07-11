@@ -3,48 +3,52 @@
  * Handler: img-change-bg
  * URL: /tool/change-background/
  *
- * The preview draws only after the image's onload fires (canvas sized
- * after load, never before). Pointer coordinates are mapped through
- * getBoundingClientRect so the subject selection stays accurate when
- * CSS shrinks the canvas, and the selection stays visible after drawing.
+ * The subject is cut out automatically via TGSegment (no rectangle).
+ * The composite over the chosen background (solid / gradient / image)
+ * previews live whenever any background option changes.
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'img-change-bg' };
-  var _subjectRect = null;
+
   var _origImg = null;
+  var _cutout = null;
+  var _cutoutPromise = null;
+  var _bgImg = null;
 
   function getOptionsHTML() {
-    return '<p class="tg-opt-info">Draw a rectangle around the subject you want to keep. Then choose a new background.</p>' +
+    return '<p class="tg-opt-info" id="icb-status">Upload a photo — the subject is detected automatically, then pick a new background.</p>' +
     '<div class="tg-opt-row">' +
       '<label class="tg-opt-label">Background</label>' +
       '<div class="tg-radio-group">' +
         '<label><input type="radio" name="icb-bg" value="color" checked> Solid Color</label>' +
-        '<label><input type="radio" name="icb-bg" value="image"> Upload Image</label>' +
         '<label><input type="radio" name="icb-bg" value="gradient"> Gradient</label>' +
+        '<label><input type="radio" name="icb-bg" value="image"> Upload Image</label>' +
       '</div>' +
     '</div>' +
     '<div id="icb-color-wrap" class="tg-opt-row">' +
       '<label class="tg-opt-label" for="icb-color">Color</label>' +
       '<input type="color" id="icb-color" value="#4a90e2">' +
     '</div>' +
-    '<div id="icb-image-wrap" hidden class="tg-opt-row">' +
-      '<label class="tg-opt-label">Background Image</label>' +
-      '<input type="file" id="icb-bg-file" accept="image/*" class="tg-text-input">' +
-    '</div>' +
     '<div id="icb-gradient-wrap" hidden>' +
       '<div class="tg-opt-row">' +
         '<label class="tg-opt-label" for="icb-grad1">Color 1</label>' +
         '<input type="color" id="icb-grad1" value="#667eea">' +
-      '</div>' +
-      '<div class="tg-opt-row">' +
-        '<label class="tg-opt-label" for="icb-grad2">Color 2</label>' +
+        '<label class="tg-opt-label" for="icb-grad2" style="margin-left:12px">Color 2</label>' +
         '<input type="color" id="icb-grad2" value="#764ba2">' +
       '</div>' +
     '</div>' +
-    '<div id="icb-canvas-wrap" style="margin-top:12px;display:none;position:relative;max-width:100%">' +
-      '<canvas id="icb-canvas" style="display:block;width:100%;height:auto;cursor:crosshair;border:1px solid #ddd;border-radius:4px;touch-action:none"></canvas>' +
-      '<canvas id="icb-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas>' +
+    '<div id="icb-image-wrap" hidden class="tg-opt-row">' +
+      '<label class="tg-opt-label">Background Image</label>' +
+      '<input type="file" id="icb-bg-file" accept="image/*" class="tg-text-input">' +
+    '</div>' +
+    '<div id="icb-preview-wrap" style="margin-top:12px;display:none">' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+        '<div><p style="margin:0 0 4px;font-size:12px;font-weight:600">Original</p>' +
+          '<canvas id="icb-before" style="max-width:280px;border:1px solid #ddd;border-radius:4px"></canvas></div>' +
+        '<div><p style="margin:0 0 4px;font-size:12px;font-weight:600">New background</p>' +
+          '<canvas id="icb-after" style="max-width:280px;border:1px solid #ddd;border-radius:4px"></canvas></div>' +
+      '</div>' +
     '</div>';
   }
 
@@ -57,7 +61,22 @@
         if (colorWrap) colorWrap.hidden = r.value !== 'color';
         if (imageWrap) imageWrap.hidden = r.value !== 'image';
         if (gradWrap) gradWrap.hidden = r.value !== 'gradient';
+        updatePreview(container);
       });
+    });
+    ['#icb-color', '#icb-grad1', '#icb-grad2'].forEach(function (sel) {
+      var input = container.querySelector(sel);
+      if (input) input.addEventListener('input', function () { updatePreview(container); });
+    });
+    var bgFile = container.querySelector('#icb-bg-file');
+    if (bgFile) bgFile.addEventListener('change', function () {
+      _bgImg = null;
+      if (bgFile.files && bgFile.files[0]) {
+        TGImageUtil.loadImage(bgFile.files[0]).then(function (img) {
+          _bgImg = img;
+          updatePreview(container);
+        }).catch(function () {});
+      }
     });
   }
 
@@ -77,162 +96,96 @@
     };
   }
 
-  function canvasPos(canvas, clientX, clientY) {
-    var r = canvas.getBoundingClientRect();
-    return {
-      x: (clientX - r.left) * (canvas.width / r.width),
-      y: (clientY - r.top) * (canvas.height / r.height),
-    };
+  function setStatus(msg) {
+    var el = document.getElementById('icb-status');
+    if (el) el.textContent = msg;
+  }
+
+  /* Paint the chosen background onto a context, then the subject on top */
+  function composite(ctx, w, h, opts) {
+    if (opts.bgType === 'gradient') {
+      var grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, opts.grad1);
+      grad.addColorStop(1, opts.grad2);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+    } else if (opts.bgType === 'image' && _bgImg) {
+      // Cover-fit the background image
+      var scale = Math.max(w / _bgImg.naturalWidth, h / _bgImg.naturalHeight);
+      var bw = _bgImg.naturalWidth * scale, bh = _bgImg.naturalHeight * scale;
+      ctx.drawImage(_bgImg, (w - bw) / 2, (h - bh) / 2, bw, bh);
+    } else {
+      ctx.fillStyle = opts.color || '#4a90e2';
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.drawImage(_cutout.subjectCanvas, 0, 0, w, h);
+  }
+
+  function updatePreview(optionsEl) {
+    if (!_cutout) return;
+    var afterEl = document.getElementById('icb-after');
+    if (!afterEl) return;
+    var opts = getOptions(optionsEl || document.querySelector('.tg-tool-box .tg-options'));
+    var scale = Math.min(1, 280 / _cutout.width);
+    afterEl.width = Math.round(_cutout.width * scale);
+    afterEl.height = Math.round(_cutout.height * scale);
+    composite(afterEl.getContext('2d'), afterEl.width, afterEl.height, opts);
+  }
+
+  function startCutout(file) {
+    _cutoutPromise = TGSegment.cutout(file || _origImg, function (pct, msg) {
+      if (msg) setStatus(msg);
+    }).then(function (result) {
+      _cutout = result;
+      setStatus(result.method === 'floodfill'
+        ? 'Subject isolated with color detection (works best on even backgrounds). Choose a background.'
+        : 'Subject detected! Choose a background below — the preview updates live.');
+      updatePreview();
+      return result;
+    }).catch(function (e) {
+      setStatus('Could not detect the subject: ' + (e && e.message ? e.message : 'unknown error'));
+      throw e;
+    });
+    return _cutoutPromise;
   }
 
   function onFileReady(file) {
     _origImg = null;
-    _subjectRect = null;
+    _cutout = null;
+    _cutoutPromise = null;
     if (!file) return;
 
-    var img = new Image();
-    var objectUrl = URL.createObjectURL(file);
-
-    img.onload = function () {
-      URL.revokeObjectURL(objectUrl);
+    TGImageUtil.loadImage(file).then(function (img) {
       _origImg = img;
-
-      var wrap = document.getElementById('icb-canvas-wrap');
-      var canvas = document.getElementById('icb-canvas');
-      var overlay = document.getElementById('icb-overlay');
-      if (!wrap || !canvas || !overlay) return;
-
-      // Size the canvas AFTER the image has loaded.
-      var maxW = Math.min(700, window.innerWidth - 40);
-      var sc = Math.min(1, maxW / img.naturalWidth);
-      var dw = Math.max(1, Math.round(img.naturalWidth * sc));
-      var dh = Math.max(1, Math.round(img.naturalHeight * sc));
-
-      canvas.width = dw;
-      canvas.height = dh;
-      var ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, dw, dh);
-      ctx.drawImage(img, 0, 0, dw, dh);
-
-      overlay.width = dw;
-      overlay.height = dh;
-      wrap.style.display = 'block';
-      wrap.style.width = dw + 'px';
-
-      function drawSelection(x, y, w, h) {
-        var octx = overlay.getContext('2d');
-        octx.clearRect(0, 0, dw, dh);
-        if (w <= 0 || h <= 0) return;
-        octx.strokeStyle = '#00cc00';
-        octx.lineWidth = 2;
-        octx.setLineDash([5, 3]);
-        octx.strokeRect(x, y, w, h);
-        octx.fillStyle = 'rgba(0,200,0,0.1)';
-        octx.fillRect(x, y, w, h);
-        octx.setLineDash([]);
-      }
-
-      var drawing = false, sx = 0, sy = 0;
-
-      function start(px, py) { drawing = true; sx = px; sy = py; }
-      function move(px, py) {
-        if (!drawing) return;
-        drawSelection(Math.min(sx, px), Math.min(sy, py), Math.abs(px - sx), Math.abs(py - sy));
-      }
-      function end(px, py) {
-        if (!drawing) return;
-        drawing = false;
-        if (Math.abs(px - sx) > 10 && Math.abs(py - sy) > 10) {
-          _subjectRect = {
-            x: Math.round(Math.min(sx, px) / sc),
-            y: Math.round(Math.min(sy, py) / sc),
-            w: Math.round(Math.abs(px - sx) / sc),
-            h: Math.round(Math.abs(py - sy) / sc),
-          };
-          // Keep the final selection visible
-          drawSelection(Math.min(sx, px), Math.min(sy, py), Math.abs(px - sx), Math.abs(py - sy));
-        } else if (_subjectRect) {
-          drawSelection(_subjectRect.x * sc, _subjectRect.y * sc, _subjectRect.w * sc, _subjectRect.h * sc);
-        }
-      }
-
-      canvas.onmousedown = function (e) {
-        var p = canvasPos(canvas, e.clientX, e.clientY);
-        start(p.x, p.y);
-      };
-      canvas.onmousemove = function (e) {
-        var p = canvasPos(canvas, e.clientX, e.clientY);
-        move(p.x, p.y);
-      };
-      canvas.onmouseup = function (e) {
-        var p = canvasPos(canvas, e.clientX, e.clientY);
-        end(p.x, p.y);
-      };
-      canvas.onmouseleave = function (e) {
-        var p = canvasPos(canvas, e.clientX, e.clientY);
-        end(p.x, p.y);
-      };
-
-      canvas.ontouchstart = function (e) {
-        e.preventDefault();
-        var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
-        start(p.x, p.y);
-      };
-      canvas.ontouchmove = function (e) {
-        e.preventDefault();
-        var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
-        move(p.x, p.y);
-      };
-      canvas.ontouchend = function (e) {
-        e.preventDefault();
-        var t = e.changedTouches[0];
-        var p = canvasPos(canvas, t.clientX, t.clientY);
-        end(p.x, p.y);
-      };
-    };
-
-    img.onerror = function () {
-      URL.revokeObjectURL(objectUrl);
+      var beforeEl = document.getElementById('icb-before');
+      var wrap = document.getElementById('icb-preview-wrap');
+      if (beforeEl) TGImageUtil.drawPreview(img, beforeEl, 280);
+      if (wrap) wrap.style.display = 'block';
+      setStatus('Detecting subject...');
+      startCutout(file);
+    }).catch(function () {
       alert('Could not load image. Please try a different file.');
-    };
-
-    img.src = objectUrl;
+    });
   }
 
   async function run(file, options, onProgress) {
-    if (!window.TGImageUtil) {
+    if (!window.TGImageUtil || !window.TGSegment) {
       throw new Error('Image processing library not loaded. Please refresh the page.');
     }
-    onProgress && onProgress(0.1, 'Loading image...');
-    var img = _origImg || await TGImageUtil.loadImage(file);
-    if (!_subjectRect) {
-      throw new Error('Please draw a rectangle around the subject first, then click the button again.');
-    }
+    onProgress && onProgress(0.1, 'Preparing...');
+    if (!_origImg) _origImg = await TGImageUtil.loadImage(file);
+    if (options.bgFile && !_bgImg) _bgImg = await TGImageUtil.loadImage(options.bgFile);
 
-    onProgress && onProgress(0.6, 'Compositing...');
+    await (_cutoutPromise || startCutout(file));
+    if (!_cutout) throw new Error('Could not detect the subject in this image.');
+
+    onProgress && onProgress(0.7, 'Compositing...');
+    var w = _cutout.width, h = _cutout.height;
     var canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-    var ctx = canvas.getContext('2d');
+    canvas.width = w; canvas.height = h;
+    composite(canvas.getContext('2d'), w, h, options);
 
-    // Draw new background
-    if (options.bgType === 'gradient') {
-      var grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      grad.addColorStop(0, options.grad1);
-      grad.addColorStop(1, options.grad2);
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    } else if (options.bgType === 'image' && options.bgFile) {
-      var bgImg = await TGImageUtil.loadImage(options.bgFile);
-      ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-    } else {
-      ctx.fillStyle = options.color || '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    // Draw subject on top
-    var rect = _subjectRect;
-    ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h, rect.x, rect.y, rect.w, rect.h);
-
+    updatePreview();
     onProgress && onProgress(0.9, 'Saving...');
     var blob = await TGImageUtil.canvasToBlob(canvas, 'image/jpeg', 0.92);
     onProgress && onProgress(1, 'Done!');

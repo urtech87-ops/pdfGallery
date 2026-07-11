@@ -353,6 +353,20 @@ function tg_enqueue_assets()
                Fabric.js — both use plain-canvas editors now, so no CDN
                dependency can leave their previews blank. */
 
+            /* Shared subject-segmentation helper (TGSegment) for the
+               background tools — remove.bg API → MediaPipe → flood fill */
+            if (in_array($tg_handler, ['img-remove-bg', 'img-change-bg', 'img-blur-bg'], true)) {
+                $img_segment_file = get_template_directory() . '/assets/js/tools/img-segment.js';
+                wp_enqueue_script(
+                    'tg-img-segment',
+                    get_template_directory_uri() . '/assets/js/tools/img-segment.js',
+                    ['tg-img-util'],
+                    file_exists($img_segment_file) ? filemtime($img_segment_file) : $ver,
+                    true
+                );
+                $img_tool_deps[] = 'tg-img-segment';
+            }
+
             $img_file = get_template_directory() . '/assets/js/tools/' . $img_tool_files[$tg_handler];
             $img_handle = 'tg-tool-' . $tg_handler;
             wp_enqueue_script(

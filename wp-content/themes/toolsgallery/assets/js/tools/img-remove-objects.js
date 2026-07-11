@@ -14,6 +14,7 @@
   var _selections = [];
   var _origImg = null;
   var _redrawOverlay = null;
+  var _workCanvas = null; /* cumulative edit buffer — fills persist across runs */
 
   function getOptionsHTML() {
     return '<p class="tg-opt-info">Draw rectangles over objects you want to remove. The tool will fill the area with surrounding content.</p>' +
@@ -58,6 +59,7 @@
   function onFileReady(file) {
     _origImg = null;
     _selections = [];
+    _workCanvas = null;
     if (!file) return;
 
     var img = new Image();
@@ -190,47 +192,131 @@
     }
 
     onProgress && onProgress(0.6, 'Removing objects...');
-    var canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
-    var ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    var id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    /* Fills accumulate on a working canvas so the user can remove several
+       objects in successive passes without losing earlier removals. */
+    if (!_workCanvas) {
+      _workCanvas = document.createElement('canvas');
+      _workCanvas.width = img.naturalWidth;
+      _workCanvas.height = img.naturalHeight;
+      _workCanvas.getContext('2d').drawImage(img, 0, 0);
+    }
+    var ctx = _workCanvas.getContext('2d');
+    var id = ctx.getImageData(0, 0, _workCanvas.width, _workCanvas.height);
 
     _selections.forEach(function (sel) {
-      contentAwareFill(id, sel, canvas.width, canvas.height, options.blend || 8);
+      inpaintRegion(id, sel, _workCanvas.width, _workCanvas.height, options.blend || 8);
     });
 
     ctx.putImageData(id, 0, 0);
+
+    /* Live result preview: show the filled image on the selection canvas
+       and clear the used selections so the next drag starts fresh. */
+    _selections = [];
+    var previewCanvas = document.getElementById('iro-canvas');
+    if (previewCanvas) {
+      previewCanvas.getContext('2d').drawImage(_workCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+    }
+    if (_redrawOverlay) _redrawOverlay();
+
     onProgress && onProgress(0.9, 'Saving...');
-    var blob = await TGImageUtil.canvasToBlob(canvas, 'image/jpeg', 0.95);
+    var blob = await TGImageUtil.canvasToBlob(_workCanvas, 'image/jpeg', 0.95);
     onProgress && onProgress(1, 'Done!');
     return { blob: blob, filename: TGImageUtil.stripExt(file.name) + '-removed.jpg' };
   }
 
-  function contentAwareFill(id, rect, w, h, blendR) {
+  /* Onion-peel inpaint: fill the region from its boundary inward, each
+     pixel taking the distance-weighted average of already-known neighbors,
+     then run smoothing passes over the region to blend directional streaks.
+     Much more seamless than flat box-averaging. */
+  function inpaintRegion(id, rect, w, h, blend) {
     var d = id.data;
     var x1 = Math.max(0, rect.x), y1 = Math.max(0, rect.y);
     var x2 = Math.min(w - 1, rect.x + rect.w), y2 = Math.min(h - 1, rect.y + rect.h);
+    if (x2 < x1 || y2 < y1) return;
 
-    for (var y = y1; y <= y2; y++) {
-      for (var x = x1; x <= x2; x++) {
-        var rSum = 0, gSum = 0, bSum = 0, cnt = 0;
-        for (var dy = -blendR; dy <= blendR; dy++) {
-          for (var dx = -blendR; dx <= blendR; dx++) {
-            var nx = x + dx, ny = y + dy;
-            if (nx < x1 || nx > x2 || ny < y1 || ny > y2) {
-              if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-                var idx = (ny * w + nx) * 4;
-                rSum += d[idx]; gSum += d[idx + 1]; bSum += d[idx + 2]; cnt++;
-              }
+    var known = new Uint8Array(w * h);
+    known.fill(1);
+    var x, y, i;
+    for (y = y1; y <= y2; y++) {
+      for (x = x1; x <= x2; x++) known[y * w + x] = 0;
+    }
+
+    /* Neighbor offsets with inverse-distance weights (8-connected) */
+    var nbs = [
+      [-1, 0, 1], [1, 0, 1], [0, -1, 1], [0, 1, 1],
+      [-1, -1, 0.7071], [1, -1, 0.7071], [-1, 1, 0.7071], [1, 1, 0.7071],
+    ];
+
+    /* Seed queue: unknown pixels touching a known pixel (region border) */
+    var queue = [];
+    var queued = new Uint8Array(w * h);
+    for (y = y1; y <= y2; y++) {
+      for (x = x1; x <= x2; x++) {
+        i = y * w + x;
+        for (var n = 0; n < nbs.length; n++) {
+          var nx = x + nbs[n][0], ny = y + nbs[n][1];
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+          if (known[ny * w + nx]) { queue.push(i); queued[i] = 1; break; }
+        }
+      }
+    }
+
+    /* Grow inward */
+    var head = 0;
+    while (head < queue.length) {
+      i = queue[head++];
+      x = i % w; y = (i / w) | 0;
+      var rSum = 0, gSum = 0, bSum = 0, wSum = 0;
+      for (var k = 0; k < nbs.length; k++) {
+        var kx = x + nbs[k][0], ky = y + nbs[k][1];
+        if (kx < 0 || kx >= w || ky < 0 || ky >= h) continue;
+        var ki = ky * w + kx;
+        if (!known[ki]) continue;
+        var wt = nbs[k][2];
+        var pi = ki * 4;
+        rSum += d[pi] * wt; gSum += d[pi + 1] * wt; bSum += d[pi + 2] * wt;
+        wSum += wt;
+      }
+      if (wSum > 0) {
+        var oi = i * 4;
+        d[oi] = rSum / wSum;
+        d[oi + 1] = gSum / wSum;
+        d[oi + 2] = bSum / wSum;
+      }
+      known[i] = 1;
+      for (var m = 0; m < 4; m++) { // 4-connected growth keeps the front tight
+        var mx = x + nbs[m][0], my = y + nbs[m][1];
+        if (mx < x1 || mx > x2 || my < y1 || my > y2) continue;
+        var mi = my * w + mx;
+        if (!known[mi] && !queued[mi]) { queue.push(mi); queued[mi] = 1; }
+      }
+    }
+
+    /* Smoothing passes over the filled region to blend onion rings.
+       The blend slider controls how many passes run. */
+    var passes = Math.max(1, Math.min(6, Math.round(blend / 4)));
+    var buf = new Float32Array((x2 - x1 + 1) * (y2 - y1 + 1) * 3);
+    for (var p = 0; p < passes; p++) {
+      var bi = 0;
+      for (y = y1; y <= y2; y++) {
+        for (x = x1; x <= x2; x++) {
+          var sr = 0, sg = 0, sb = 0, cnt = 0;
+          for (var dy = -1; dy <= 1; dy++) {
+            for (var dx = -1; dx <= 1; dx++) {
+              var ax = x + dx, ay = y + dy;
+              if (ax < 0 || ax >= w || ay < 0 || ay >= h) continue;
+              var ai = (ay * w + ax) * 4;
+              sr += d[ai]; sg += d[ai + 1]; sb += d[ai + 2]; cnt++;
             }
           }
+          buf[bi++] = sr / cnt; buf[bi++] = sg / cnt; buf[bi++] = sb / cnt;
         }
-        if (cnt > 0) {
-          var i = (y * w + x) * 4;
-          d[i] = Math.round(rSum / cnt);
-          d[i + 1] = Math.round(gSum / cnt);
-          d[i + 2] = Math.round(bSum / cnt);
+      }
+      bi = 0;
+      for (y = y1; y <= y2; y++) {
+        for (x = x1; x <= x2; x++) {
+          var wi = (y * w + x) * 4;
+          d[wi] = buf[bi++]; d[wi + 1] = buf[bi++]; d[wi + 2] = buf[bi++];
         }
       }
     }
