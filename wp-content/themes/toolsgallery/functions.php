@@ -2221,7 +2221,7 @@ function tg_save_tool_meta_boxes($post_id)
    Runs once per $seed_version — bump it whenever this list changes. */
 add_action('init', 'tg_sync_tool_meta_defaults', 20);
 function tg_sync_tool_meta_defaults() {
-    $seed_version = '2026-07-13a';
+    $seed_version = '2026-07-13b';
     if (get_option('tg_tool_meta_seed') === $seed_version) return;
 
     $map = [
@@ -2238,6 +2238,8 @@ function tg_sync_tool_meta_defaults() {
         'img-to-webp'    => ['_tg_multi_file' => 'true'],
         'img-to-gif'     => ['_tg_multi_file' => 'true'],
         'img-to-bmp'     => ['_tg_multi_file' => 'true'],
+        'pdf-summarize'  => ['_tg_tool_type' => 'browser', '_tg_accept_types' => '.pdf'],
+        'pdf-translate'  => ['_tg_tool_type' => 'browser', '_tg_accept_types' => '.pdf'],
     ];
 
     foreach ($map as $handler => $metas) {
