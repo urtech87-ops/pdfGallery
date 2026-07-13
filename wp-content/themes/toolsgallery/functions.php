@@ -6,6 +6,17 @@
 defined('ABSPATH') || exit;
 
 /* =============================================
+   AI MODEL — single source of truth
+   Every AI tool routed through tg_ai_proxy uses this OpenRouter
+   model slug. Override in wp-config.php by defining TG_AI_MODEL
+   before the theme loads. Must be a valid text chat-completions
+   model on openrouter.ai/models.
+   ============================================= */
+if (!defined('TG_AI_MODEL')) {
+    define('TG_AI_MODEL', 'google/gemini-2.5-flash');
+}
+
+/* =============================================
    THEME SETUP
    ============================================= */
 function tg_setup()
@@ -94,6 +105,7 @@ function tg_enqueue_assets()
            cache busting so browsers pick up JS changes
            ============================================= */
         $pdf_tool_files = [
+            'edit-pdf' => 'edit-pdf.js',
             'url-to-pdf' => 'url-to-pdf.js',
             'redact-pdf' => 'redact-pdf.js',
             'extract-images' => 'extract-images.js',
@@ -365,6 +377,15 @@ function tg_enqueue_assets()
                     true
                 );
                 $img_tool_deps[] = 'tg-img-segment';
+            }
+
+            /* UPNG.js color quantization for real PNG compression —
+               UPNG needs the pako global, so pako must load first */
+            if ($tg_handler === 'img-compress') {
+                wp_enqueue_script('pako', 'https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js', [], null, true);
+                wp_enqueue_script('upng', 'https://cdn.jsdelivr.net/npm/upng-js@2.1.0/UPNG.js', ['pako'], null, true);
+                $img_tool_deps[] = 'pako';
+                $img_tool_deps[] = 'upng';
             }
 
             $img_file = get_template_directory() . '/assets/js/tools/' . $img_tool_files[$tg_handler];
@@ -1055,7 +1076,7 @@ function tg_call_openrouter($tool_key, $payload)
     }
 
     $request_body = wp_json_encode([
-        'model' => $config['model'] ?? 'google/gemini-3.1-flash-lite',
+        'model' => $config['model'] ?? TG_AI_MODEL,
         'messages' => [
             [
                 'role' => 'system',
@@ -1123,175 +1144,146 @@ function tg_get_tool_prompts()
 {
     return [
         'pdf-summarize' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 2000,
             'system' => 'You are an expert document analyst. Summarize the provided text clearly and accurately. Be concise but comprehensive.',
             'user_template' => "Summarize the following document text {format} ({length} summary):\n\n{text}",
         ],
         'pdf-translate' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 3000,
             'system' => 'You are a professional translator. Translate the provided text accurately while preserving meaning, tone, and formatting.',
             'user_template' => "Translate the following text to {language}. Provide only the translation without any explanation:\n\n{text}",
         ],
         'grammar-fixer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 2000,
             'system' => 'You are an expert proofreader and editor. Fix grammar, spelling, and punctuation errors. Return only the corrected text without explanations.',
             'user_template' => "Fix all grammar, spelling, and punctuation errors in the following text. Return only the corrected text:\n\n{text}",
         ],
         'paraphraser' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 2000,
             'system' => 'You are an expert writer. Paraphrase text while preserving the original meaning. Return only the paraphrased version.',
             'user_template' => "Paraphrase the following text in a {tone} tone. Return only the paraphrased text:\n\n{text}",
         ],
         'ai-humanizer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 2000,
             'system' => 'You are an expert writer. Rewrite AI-generated text to sound natural and human. Vary sentence length, use contractions, and add personality.',
             'user_template' => "Rewrite the following AI-generated text to sound natural and human-written. Return only the rewritten text:\n\n{text}",
         ],
         'summarizer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1500,
             'system' => 'You are an expert at summarizing content. Create clear, accurate summaries.',
             'user_template' => "Summarize the following text in a {length} summary:\n\n{text}",
         ],
         'essay-writer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 3000,
             'system' => 'You are an expert academic writer. Write well-structured essays with clear introduction, body paragraphs, and conclusion.',
             'user_template' => "Write a {length} {type} essay about the following topic. Use proper essay structure:\n\n{text}",
         ],
         'article-writer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 3000,
             'system' => 'You are an expert content writer. Write engaging, well-structured articles.',
             'user_template' => "Write a {length} article about: {text}",
         ],
         'blog-post-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 3000,
             'system' => 'You are an expert blogger. Write engaging, SEO-friendly blog posts with proper headings and structure.',
             'user_template' => "Write a blog post about: {text}",
         ],
         'ai-translator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 3000,
             'system' => 'You are a professional translator. Translate text accurately while preserving meaning and tone.',
             'user_template' => "Translate the following text to {language}. Provide only the translation:\n\n{text}",
         ],
         'sentence-rewriter' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1000,
             'system' => 'You are an expert editor. Rewrite sentences to improve clarity, tone, or style.',
             'user_template' => "Rewrite the following text to be more {mode}. Return only the rewritten version:\n\n{text}",
         ],
         'plagiarism-checker' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1000,
             'system' => 'You are an expert at detecting AI-generated and plagiarized content. Analyze text and report patterns.',
             'user_template' => "Analyze the following text for signs of AI generation or plagiarism. Provide a detailed report:\n\n{text}",
         ],
         'cover-letter-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1500,
             'system' => 'You are an expert career coach. Write professional, compelling cover letters.',
             'user_template' => "Write a professional cover letter for: {text}",
         ],
         'resume-writer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 2000,
             'system' => 'You are an expert resume writer. Create professional, ATS-optimized resume content.',
             'user_template' => "Write professional resume content for: {text}",
         ],
         'email-writer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1000,
             'system' => 'You are an expert business writer. Write clear, professional emails.',
             'user_template' => "Write a professional {type} email about: {text}",
         ],
         'product-desc-writer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1000,
             'system' => 'You are an expert copywriter. Write compelling product descriptions that convert.',
             'user_template' => "Write a compelling product description for: {text}",
         ],
         'ad-copy-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1000,
             'system' => 'You are an expert advertising copywriter. Write compelling ad copy that drives clicks and conversions.',
             'user_template' => "Write {platform} ad copy for: {text}",
         ],
         'social-caption-writer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 500,
             'system' => 'You are a social media expert. Write engaging captions that drive engagement.',
             'user_template' => "Write a {platform} caption for: {text}",
         ],
         'hashtag-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 500,
             'system' => 'You are a social media expert. Generate relevant, trending hashtags.',
             'user_template' => "Generate {count} relevant hashtags for this {platform} post about: {text}",
         ],
         'slogan-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 500,
             'system' => 'You are an expert brand strategist and copywriter. Create memorable, catchy slogans.',
             'user_template' => "Generate 10 creative slogans for: {text}",
         ],
         'business-name-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 500,
             'system' => 'You are an expert brand consultant. Generate creative, memorable business names.',
             'user_template' => "Generate 15 unique business names for a {industry} business. Include a short tagline for each: {text}",
         ],
         'story-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 3000,
             'system' => 'You are a creative fiction writer. Write engaging stories with compelling characters and plot.',
             'user_template' => "Write a {genre} short story about: {text}",
         ],
         'poem-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1000,
             'system' => 'You are an expert poet. Write beautiful, evocative poems in the requested style.',
             'user_template' => "Write a {style} poem about: {text}",
         ],
         'lyrics-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1500,
             'system' => 'You are an expert songwriter. Write creative, rhyming song lyrics with verses and chorus.',
             'user_template' => "Write {genre} song lyrics about: {text}",
         ],
         'faq-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 2000,
             'system' => 'You are an expert content strategist. Generate comprehensive, realistic FAQs.',
             'user_template' => "Generate {count} frequently asked questions with detailed answers for: {text}",
         ],
         'meta-desc-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 500,
             'system' => 'You are an SEO expert. Write compelling meta descriptions under 160 characters that improve click-through rates.',
             'user_template' => "Write 5 SEO-optimized meta descriptions (under 160 chars each) for a page about: {text}",
         ],
         'youtube-title-generator' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 500,
             'system' => 'You are a YouTube SEO expert. Generate click-worthy, SEO-optimized video titles.',
             'user_template' => "Generate 10 compelling YouTube video titles for a video about: {text}",
         ],
         'youtube-desc-writer' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 1000,
             'system' => 'You are a YouTube SEO expert. Write engaging, keyword-rich video descriptions.',
             'user_template' => "Write an SEO-optimized YouTube description for a video about: {text}",
         ],
         'word-counter' => [
-            'model' => 'google/gemini-3.1-flash-lite',
             'max_tokens' => 200,
             'system' => 'Count words accurately.',
             'user_template' => "{text}",
@@ -2229,7 +2221,7 @@ function tg_save_tool_meta_boxes($post_id)
    Runs once per $seed_version — bump it whenever this list changes. */
 add_action('init', 'tg_sync_tool_meta_defaults', 20);
 function tg_sync_tool_meta_defaults() {
-    $seed_version = '2026-07-13a';
+    $seed_version = '2026-07-13b';
     if (get_option('tg_tool_meta_seed') === $seed_version) return;
 
     $map = [
@@ -2246,6 +2238,8 @@ function tg_sync_tool_meta_defaults() {
         'img-to-webp'    => ['_tg_multi_file' => 'true'],
         'img-to-gif'     => ['_tg_multi_file' => 'true'],
         'img-to-bmp'     => ['_tg_multi_file' => 'true'],
+        'pdf-summarize'  => ['_tg_tool_type' => 'browser', '_tg_accept_types' => '.pdf'],
+        'pdf-translate'  => ['_tg_tool_type' => 'browser', '_tg_accept_types' => '.pdf'],
     ];
 
     foreach ($map as $handler => $metas) {

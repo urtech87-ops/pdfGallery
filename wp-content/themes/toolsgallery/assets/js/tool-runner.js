@@ -890,7 +890,9 @@
       buildRearrangeUI(file);
     }
 
-    if (handler === 'edit-pdf') {
+    /* The dedicated TGTools edit-pdf editor (in-place text editing)
+       supersedes this legacy built-in Fabric editor when loaded. */
+    if (handler === 'edit-pdf' && !(window.TGTools && window.TGTools['edit-pdf'])) {
       buildEditPdfUI(file);
     }
 
@@ -1520,8 +1522,9 @@
         return;
       }
 
-      /* ── EDIT PDF ── */
-      if (handler === 'edit-pdf') {
+      /* ── EDIT PDF (legacy built-in — skipped when the dedicated
+            TGTools implementation is loaded) ── */
+      if (handler === 'edit-pdf' && !hasTgTool) {
         if (!currentFile) return;
         if (editPdfDeleted.length >= (parseInt(box.dataset.pageCount || '1', 10))) {
           showInlineMsg('Cannot delete all pages — keep at least one page.'); return;

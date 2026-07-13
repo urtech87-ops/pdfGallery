@@ -19,7 +19,61 @@
     'Vietnamese', 'Indonesian', 'Malay', 'English',
   ];
 
-  var MAX_CHARS = 8000;
+  /* Long documents are processed in chunks instead of being truncated */
+  var CHUNK_SIZE = 6000;
+  var MAX_CHUNKS = 10;
+
+  /* Split text into ~chunkSize pieces on paragraph boundaries */
+  function splitIntoChunks(text, chunkSize, maxChunks) {
+    var paragraphs = text.split(/\n{2,}/);
+    var chunks = [];
+    var current = '';
+    for (var i = 0; i < paragraphs.length; i++) {
+      var para = paragraphs[i];
+      /* A single paragraph longer than a chunk gets hard-split */
+      while (para.length > chunkSize) {
+        if (current) { chunks.push(current); current = ''; }
+        chunks.push(para.substring(0, chunkSize));
+        para = para.substring(chunkSize);
+      }
+      if (!current) {
+        current = para;
+      } else if (current.length + 2 + para.length <= chunkSize) {
+        current += '\n\n' + para;
+      } else {
+        chunks.push(current);
+        current = para;
+      }
+    }
+    if (current) chunks.push(current);
+    var truncated = false;
+    if (chunks.length > maxChunks) {
+      chunks = chunks.slice(0, maxChunks);
+      truncated = true;
+    }
+    return { chunks: chunks, truncated: truncated };
+  }
+
+  /* POST one request to the AI proxy; throws the server's real error message */
+  async function callAiProxy(fields) {
+    var formData = new FormData();
+    formData.append('action', 'tg_ai_proxy');
+    formData.append('nonce', tgAiConfig.nonce);
+    formData.append('tool', CONFIG.handler);
+    Object.keys(fields).forEach(function (k) {
+      formData.append('payload[' + k + ']', fields[k]);
+    });
+    var response = await fetch(tgAiConfig.ajaxUrl, { method: 'POST', body: formData });
+    var data = null;
+    try { data = await response.json(); } catch (e) { /* non-JSON error page */ }
+    if (!response.ok || !data || !data.success) {
+      var msg = (data && data.data && data.data.message)
+        ? data.data.message
+        : 'Translation service error (' + response.status + '). Please try again.';
+      throw new Error(msg);
+    }
+    return (data.data && data.data.result) ? String(data.data.result) : '';
+  }
 
   function getOptionsHTML(pageCount) {
     var langOpts = LANGUAGES.map(function (l) {
@@ -167,40 +221,34 @@
     }
 
     if (!extractedParts.length) {
-      throw new Error('No text found in this PDF. The file may contain only images or be a scanned document.');
+      throw new Error('No text found in this PDF — it appears to be scanned or image-only. Use the Image OCR tool (/tool/img-ocr/) to pull the text out of scanned pages first, then translate it here.');
     }
 
     var text = extractedParts.join('\n\n');
-    if (text.length > MAX_CHARS) {
-      text = text.substring(0, MAX_CHARS) +
-        '\n\n[Document truncated for translation. Total length: ' + text.length + ' characters]';
+    var targetLang = options.language + (options.style && options.style !== 'natural' ? ' (' + options.style + ' style)' : '');
+    var split = splitIntoChunks(text, CHUNK_SIZE, MAX_CHUNKS);
+    var chunks = split.chunks;
+
+    var parts = [];
+    for (var c = 0; c < chunks.length; c++) {
+      onProgress && onProgress(0.45 + (c / chunks.length) * 0.45,
+        chunks.length > 1
+          ? 'Translating part ' + (c + 1) + ' of ' + chunks.length + ' to ' + options.language + '...'
+          : 'Translating to ' + options.language + '...');
+      var part = await callAiProxy({
+        text: chunks[c],
+        language: targetLang,
+      });
+      if (part.trim()) parts.push(part.trim());
     }
 
-    onProgress && onProgress(0.5, 'Translating to ' + options.language + '...');
-
-    var formData = new FormData();
-    formData.append('action', 'tg_ai_proxy');
-    formData.append('nonce', tgAiConfig.nonce);
-    formData.append('tool', 'pdf-translate');
-    formData.append('payload[text]', text);
-    formData.append('payload[language]', options.language + (options.style && options.style !== 'natural' ? ' (' + options.style + ' style)' : ''));
-
-    var response = await fetch(tgAiConfig.ajaxUrl, { method: 'POST', body: formData });
-    if (!response.ok) {
-      var httpMsg = 'Translation service error (' + response.status + '). Please try again.';
-      try {
-        var errData = await response.json();
-        if (errData && errData.data && errData.data.message) httpMsg = errData.data.message;
-      } catch (pe) { /* keep generic message */ }
-      throw new Error(httpMsg);
-    }
-    var data = await response.json();
-    if (!data.success) {
-      throw new Error((data.data && data.data.message) ? data.data.message : 'Translation failed. Please try again.');
-    }
-
-    var translated = (data.data && data.data.result) ? String(data.data.result) : '';
+    var translated = parts.join('\n\n');
     if (!translated.trim()) throw new Error('AI returned an empty translation. Please try again.');
+    if (split.truncated) {
+      translated += '\n\n[Note: this document is very long — only the first ' +
+        MAX_CHUNKS + ' sections (~' + (CHUNK_SIZE * MAX_CHUNKS / 1000) +
+        'k characters) were translated.]';
+    }
 
     onProgress && onProgress(0.95, 'Displaying result...');
     showResult(translated);

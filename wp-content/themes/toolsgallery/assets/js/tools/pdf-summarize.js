@@ -11,7 +11,61 @@
     downloadName: 'summary.txt',
   };
 
-  var MAX_CHARS = 8000;
+  /* Long documents are processed in chunks instead of being truncated */
+  var CHUNK_SIZE = 6000;
+  var MAX_CHUNKS = 10;
+
+  /* Split text into ~chunkSize pieces on paragraph boundaries */
+  function splitIntoChunks(text, chunkSize, maxChunks) {
+    var paragraphs = text.split(/\n{2,}/);
+    var chunks = [];
+    var current = '';
+    for (var i = 0; i < paragraphs.length; i++) {
+      var para = paragraphs[i];
+      /* A single paragraph longer than a chunk gets hard-split */
+      while (para.length > chunkSize) {
+        if (current) { chunks.push(current); current = ''; }
+        chunks.push(para.substring(0, chunkSize));
+        para = para.substring(chunkSize);
+      }
+      if (!current) {
+        current = para;
+      } else if (current.length + 2 + para.length <= chunkSize) {
+        current += '\n\n' + para;
+      } else {
+        chunks.push(current);
+        current = para;
+      }
+    }
+    if (current) chunks.push(current);
+    var truncated = false;
+    if (chunks.length > maxChunks) {
+      chunks = chunks.slice(0, maxChunks);
+      truncated = true;
+    }
+    return { chunks: chunks, truncated: truncated };
+  }
+
+  /* POST one request to the AI proxy; throws the server's real error message */
+  async function callAiProxy(fields) {
+    var formData = new FormData();
+    formData.append('action', 'tg_ai_proxy');
+    formData.append('nonce', tgAiConfig.nonce);
+    formData.append('tool', CONFIG.handler);
+    Object.keys(fields).forEach(function (k) {
+      formData.append('payload[' + k + ']', fields[k]);
+    });
+    var response = await fetch(tgAiConfig.ajaxUrl, { method: 'POST', body: formData });
+    var data = null;
+    try { data = await response.json(); } catch (e) { /* non-JSON error page */ }
+    if (!response.ok || !data || !data.success) {
+      var msg = (data && data.data && data.data.message)
+        ? data.data.message
+        : 'Summarization service error (' + response.status + '). Please try again.';
+      throw new Error(msg);
+    }
+    return (data.data && data.data.result) ? String(data.data.result) : '';
+  }
 
   function getOptionsHTML(pageCount) {
     return '<div class="tg-opt-section">' +
@@ -140,42 +194,34 @@
 
     var fullText = textParts.join('\n\n');
     if (!fullText || fullText.trim().length < 50) {
-      throw new Error('Could not extract text from this PDF. The document may contain only images or be scanned. Text-based PDFs work best for summarization.');
+      throw new Error('Could not extract text from this PDF — it appears to be scanned or image-only. Use the Image OCR tool (/tool/img-ocr/) to pull the text out of scanned pages first, then summarize it here.');
     }
-
-    var text = fullText;
-    if (text.length > MAX_CHARS) {
-      text = text.substring(0, MAX_CHARS) +
-        '\n\n[Document truncated for summarization. Total length: ' + fullText.length + ' characters]';
-    }
-
-    onProgress && onProgress(0.5, 'Generating summary...');
 
     var payload = typeToPayload(options.type, options.language);
-    var formData = new FormData();
-    formData.append('action', 'tg_ai_proxy');
-    formData.append('nonce', tgAiConfig.nonce);
-    formData.append('tool', 'pdf-summarize');
-    formData.append('payload[text]', text);
-    formData.append('payload[format]', payload.format);
-    formData.append('payload[length]', payload.length);
+    var split = splitIntoChunks(fullText, CHUNK_SIZE, MAX_CHUNKS);
+    var chunks = split.chunks;
 
-    var response = await fetch(tgAiConfig.ajaxUrl, { method: 'POST', body: formData });
-    if (!response.ok) {
-      var httpMsg = 'Summarization service error (' + response.status + '). Please try again.';
-      try {
-        var errData = await response.json();
-        if (errData && errData.data && errData.data.message) httpMsg = errData.data.message;
-      } catch (pe) { /* keep generic message */ }
-      throw new Error(httpMsg);
-    }
-    var data = await response.json();
-    if (!data.success) {
-      throw new Error((data.data && data.data.message) ? data.data.message : 'Summarization failed. Please try again.');
+    var parts = [];
+    for (var c = 0; c < chunks.length; c++) {
+      onProgress && onProgress(0.45 + (c / chunks.length) * 0.45,
+        chunks.length > 1
+          ? 'Summarizing part ' + (c + 1) + ' of ' + chunks.length + '...'
+          : 'Generating summary...');
+      var part = await callAiProxy({
+        text: chunks[c],
+        format: payload.format,
+        length: payload.length,
+      });
+      if (part.trim()) parts.push(part.trim());
     }
 
-    var summary = (data.data && data.data.result) ? String(data.data.result) : '';
+    var summary = parts.join('\n\n');
     if (!summary.trim()) throw new Error('AI returned an empty summary. Please try again or use a different PDF.');
+    if (split.truncated) {
+      summary += '\n\n[Note: this document is very long — only the first ' +
+        MAX_CHUNKS + ' sections (~' + (CHUNK_SIZE * MAX_CHUNKS / 1000) +
+        'k characters) were summarized.]';
+    }
 
     onProgress && onProgress(0.95, 'Displaying summary...');
     showResult(summary);
