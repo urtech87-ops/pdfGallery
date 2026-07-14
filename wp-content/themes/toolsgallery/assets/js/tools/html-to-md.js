@@ -46,25 +46,12 @@
     };
   }
 
-  function loadScript(src) {
-    return new Promise(function (resolve, reject) {
-      var s = document.createElement('script');
-      s.src = src;
-      s.onload = resolve;
-      s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  }
-
   async function run(file, options, onProgress) {
     onProgress && onProgress(0.1, 'Reading HTML…');
     const html = await file.text();
 
-    if (typeof TurndownService === 'undefined') {
-      onProgress && onProgress(0.2, 'Loading converter…');
-      await loadScript('https://cdn.jsdelivr.net/npm/turndown@7.1.2/dist/turndown.umd.min.js');
-      if (typeof TurndownService === 'undefined') throw new Error('Turndown.js not loaded. Please refresh.');
-    }
+    // Turndown is enqueued server-side (COEP blocks runtime script injection)
+    if (typeof TurndownService === 'undefined') throw new Error('Converter failed to load. Please refresh.');
 
     onProgress && onProgress(0.4, 'Converting…');
     const td = new TurndownService({
