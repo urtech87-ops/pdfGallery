@@ -936,6 +936,9 @@ add_action('admin_head', 'tg_favicon', 1);
 add_action('wp_ajax_tg_ai_proxy', 'tg_ai_proxy_handler');
 add_action('wp_ajax_nopriv_tg_ai_proxy', 'tg_ai_proxy_handler');
 
+add_action('wp_ajax_tg_tts_proxy', 'tg_tts_proxy_handler');
+add_action('wp_ajax_nopriv_tg_tts_proxy', 'tg_tts_proxy_handler');
+
 add_action('wp_ajax_tg_url_to_pdf', 'tg_handle_url_to_pdf');
 add_action('wp_ajax_nopriv_tg_url_to_pdf', 'tg_handle_url_to_pdf');
 
@@ -1140,6 +1143,130 @@ function tg_call_openrouter($tool_key, $payload)
     return ['result' => $content];
 }
 
+/* =============================================
+   OPENAI TEXT-TO-SPEECH PROXY (tts-prep)
+   ============================================= */
+function tg_tts_proxy_handler()
+{
+    check_ajax_referer('tg_tool_nonce', 'nonce');
+
+    if (!defined('OPENAI_API_KEY') || !OPENAI_API_KEY) {
+        wp_send_json_error(['message' => 'Text-to-Speech is not configured yet (missing OPENAI_API_KEY). Please contact the site administrator.'], 500);
+    }
+
+    $ip_key = 'tg_tts_rate_' . md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '')));
+    $count = (int) get_transient($ip_key);
+    if ($count >= 10) {
+        wp_send_json_error(['message' => 'Rate limit reached. Try again in an hour.'], 429);
+    }
+    set_transient($ip_key, $count + 1, HOUR_IN_SECONDS);
+
+    $text = trim((string) wp_unslash($_POST['text'] ?? ''));
+    $text = wp_strip_all_tags($text);
+    if ($text === '') {
+        wp_send_json_error(['message' => 'Please enter some text to convert to speech.'], 400);
+    }
+    if (strlen($text) > 12000) {
+        wp_send_json_error(['message' => 'Text is too long (maximum 12,000 characters).'], 400);
+    }
+
+    $allowed_voices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'];
+    $voice = sanitize_text_field(wp_unslash($_POST['voice'] ?? 'alloy'));
+    if (!in_array($voice, $allowed_voices, true)) {
+        $voice = 'alloy';
+    }
+
+    $instructions = sanitize_textarea_field(wp_unslash($_POST['instructions'] ?? ''));
+    $instructions = substr($instructions, 0, 1000);
+
+    $speed = (float) ($_POST['speed'] ?? 1.0);
+    $speed = max(0.25, min(4.0, $speed));
+
+    // OpenAI TTS caps input at ~4096 chars per request — chunk long text on
+    // sentence boundaries and concatenate the MP3 bytes.
+    $chunks = tg_tts_split_text($text, 4000);
+    $audio = '';
+    foreach ($chunks as $chunk) {
+        $body = [
+            'model' => 'gpt-4o-mini-tts',
+            'input' => $chunk,
+            'voice' => $voice,
+            'speed' => $speed,
+            'response_format' => 'mp3',
+        ];
+        if ($instructions !== '') {
+            $body['instructions'] = $instructions;
+        }
+
+        $response = wp_remote_post('https://api.openai.com/v1/audio/speech', [
+            'timeout' => 120,
+            'headers' => [
+                'Authorization' => 'Bearer ' . OPENAI_API_KEY,
+                'Content-Type' => 'application/json',
+            ],
+            'body' => wp_json_encode($body),
+        ]);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => 'TTS request failed: ' . $response->get_error_message()], 500);
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $bytes = wp_remote_retrieve_body($response);
+
+        if ($code < 200 || $code >= 300) {
+            $data = json_decode($bytes, true);
+            $err = $data['error']['message'] ?? ('TTS provider returned HTTP ' . $code);
+            error_log('OpenAI TTS error: ' . $err);
+            wp_send_json_error(['message' => $err], 500);
+        }
+
+        $audio .= $bytes;
+    }
+
+    if ($audio === '') {
+        wp_send_json_error(['message' => 'TTS provider returned no audio. Please try again.'], 500);
+    }
+
+    wp_send_json_success([
+        'audio' => base64_encode($audio),
+        'mime' => 'audio/mpeg',
+    ]);
+}
+
+/* Split text into <= $max_len chunks, preferring sentence boundaries. */
+function tg_tts_split_text($text, $max_len)
+{
+    if (strlen($text) <= $max_len) {
+        return [$text];
+    }
+    $sentences = preg_split('/(?<=[.!?])\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+    $chunks = [];
+    $current = '';
+    foreach ($sentences as $sentence) {
+        // A single sentence longer than the cap gets hard-split.
+        while (strlen($sentence) > $max_len) {
+            if ($current !== '') {
+                $chunks[] = $current;
+                $current = '';
+            }
+            $chunks[] = substr($sentence, 0, $max_len);
+            $sentence = substr($sentence, $max_len);
+        }
+        $candidate = $current === '' ? $sentence : $current . ' ' . $sentence;
+        if (strlen($candidate) > $max_len) {
+            $chunks[] = $current;
+            $current = $sentence;
+        } else {
+            $current = $candidate;
+        }
+    }
+    if ($current !== '') {
+        $chunks[] = $current;
+    }
+    return $chunks;
+}
+
 function tg_get_tool_prompts()
 {
     return [
@@ -1156,132 +1283,132 @@ function tg_get_tool_prompts()
         'grammar-fixer' => [
             'max_tokens' => 2000,
             'system' => 'You are an expert proofreader and editor. Fix grammar, spelling, and punctuation errors. Return only the corrected text without explanations.',
-            'user_template' => "Fix all grammar, spelling, and punctuation errors in the following text. Return only the corrected text:\n\n{text}",
+            'user_template' => "Fix all grammar, spelling, and punctuation errors in the following text. Correction level: {level}. Return only the corrected text. {show_corrections}\n\nText:\n{text}",
         ],
         'paraphraser' => [
             'max_tokens' => 2000,
-            'system' => 'You are an expert writer. Paraphrase text while preserving the original meaning. Return only the paraphrased version.',
-            'user_template' => "Paraphrase the following text in a {tone} tone. Return only the paraphrased text:\n\n{text}",
+            'system' => 'You are an expert writer. Paraphrase text while preserving the original meaning. Return only the paraphrased text with no commentary. If more than one version is requested, number each version on its own line.',
+            'user_template' => "Paraphrase the following text in a {mode} style. Provide {count} version(s). Each version should be {length}:\n\n{text}",
         ],
         'ai-humanizer' => [
             'max_tokens' => 2000,
-            'system' => 'You are an expert writer. Rewrite AI-generated text to sound natural and human. Vary sentence length, use contractions, and add personality.',
-            'user_template' => "Rewrite the following AI-generated text to sound natural and human-written. Return only the rewritten text:\n\n{text}",
+            'system' => 'You are an expert writer. Rewrite AI-generated text to sound natural and human. Vary sentence length, use contractions, and add personality. Return only the rewritten text.',
+            'user_template' => "Rewrite the following AI-generated text to sound natural and human-written. Humanization level: {level}. Writing style: {style}. {additions}\n\nText:\n{text}",
         ],
         'summarizer' => [
             'max_tokens' => 1500,
-            'system' => 'You are an expert at summarizing content. Create clear, accurate summaries.',
-            'user_template' => "Summarize the following text in a {length} summary:\n\n{text}",
+            'system' => 'You are an expert at summarizing content. Create clear, accurate summaries. Return only the summary.',
+            'user_template' => "Summarize the following text as a {type} summary. Focus on: {focus}. Write the summary in {language}:\n\n{text}",
         ],
         'essay-writer' => [
             'max_tokens' => 3000,
             'system' => 'You are an expert academic writer. Write well-structured essays with clear introduction, body paragraphs, and conclusion.',
-            'user_template' => "Write a {length} {type} essay about the following topic. Use proper essay structure:\n\n{text}",
+            'user_template' => "Write a {type} essay of about {length} words on the following topic. Academic level: {level}. Tone: {tone}. Required structure elements: {structure}.\n\nTopic: {topic}",
         ],
         'article-writer' => [
             'max_tokens' => 3000,
             'system' => 'You are an expert content writer. Write engaging, well-structured articles.',
-            'user_template' => "Write a {length} article about: {text}",
+            'user_template' => "Write a {type} article of about {length} words about: {topic}. Target audience: {audience}. Tone: {tone}. Include: {includes}. SEO keywords to work in naturally: {keywords}.",
         ],
         'blog-post-generator' => [
             'max_tokens' => 3000,
             'system' => 'You are an expert blogger. Write engaging, SEO-friendly blog posts with proper headings and structure.',
-            'user_template' => "Write a blog post about: {text}",
+            'user_template' => "Write a {style} blog post of about {length} words about: {topic}. Blog niche: {niche}. SEO keywords to work in naturally: {keywords}. {cta_instruction} {meta_description}",
         ],
         'ai-translator' => [
             'max_tokens' => 3000,
-            'system' => 'You are a professional translator. Translate text accurately while preserving meaning and tone.',
-            'user_template' => "Translate the following text to {language}. Provide only the translation:\n\n{text}",
+            'system' => 'You are a professional translator. Translate text accurately while preserving meaning and tone. Provide only the translation, no commentary.',
+            'user_template' => "Translate the following text from {source} to {target}. Tone: {tone}. {preserve_formatting}\n\nText:\n{text}",
         ],
         'sentence-rewriter' => [
             'max_tokens' => 1000,
-            'system' => 'You are an expert editor. Rewrite sentences to improve clarity, tone, or style.',
-            'user_template' => "Rewrite the following text to be more {mode}. Return only the rewritten version:\n\n{text}",
+            'system' => 'You are an expert editor. Rewrite sentences to improve clarity, tone, or style. Output ONLY a numbered list ("1.", "2.", ...) with one rewritten alternative per number, no commentary.',
+            'user_template' => "Rewrite the following text. Goal: {goal}. Provide exactly {count} alternative rewrites. {keep_meaning}\n\nText:\n{text}",
         ],
         'plagiarism-checker' => [
             'max_tokens' => 1000,
-            'system' => 'You are an expert at detecting AI-generated and plagiarized content. Analyze text and report patterns.',
-            'user_template' => "Analyze the following text for signs of AI generation or plagiarism. Provide a detailed report:\n\n{text}",
+            'system' => 'You are an expert at detecting AI-generated and plagiarized content. Respond with ONLY a raw JSON object (no markdown, no code fences) with these keys: "originality" (integer 0-100), "ai_likelihood" (integer 0-100), "repeated_phrases" (array of strings), "assessment" (short paragraph string).',
+            'user_template' => "Analyze the following text for signs of AI generation or plagiarism. Check type: {type}.\n\nText:\n{text}",
         ],
         'cover-letter-generator' => [
             'max_tokens' => 1500,
             'system' => 'You are an expert career coach. Write professional, compelling cover letters.',
-            'user_template' => "Write a professional cover letter for: {text}",
+            'user_template' => "Write a {tone}, {length} cover letter for the position of {job_title} at {company}. Applicant name: {name}. Key skills and experience: {skills}. Why this company: {why_company}. Be sure to include: {includes}.",
         ],
         'resume-writer' => [
             'max_tokens' => 2000,
             'system' => 'You are an expert resume writer. Create professional, ATS-optimized resume content.',
-            'user_template' => "Write professional resume content for: {text}",
+            'user_template' => "Write professional, ATS-optimized resume content in a {style} style for: {name}, applying as {job_title}. Professional summary: {summary}. Work experience: {experience}. Education: {education}. Skills: {skills}. Languages: {languages}.",
         ],
         'email-writer' => [
             'max_tokens' => 1000,
-            'system' => 'You are an expert business writer. Write clear, professional emails.',
-            'user_template' => "Write a professional {type} email about: {text}",
+            'system' => 'You are an expert business writer. Begin the output with a line "Subject: <subject>", then the email body.',
+            'user_template' => "Write a {tone}, {length} {type} email. From: {sender}. To: {recipient}. Purpose and context: {context}. Be sure to include: {includes}.",
         ],
         'product-desc-writer' => [
             'max_tokens' => 1000,
             'system' => 'You are an expert copywriter. Write compelling product descriptions that convert.',
-            'user_template' => "Write a compelling product description for: {text}",
+            'user_template' => "Write a {tone}, {length} product description for \"{name}\" ({category}) optimized for {platform}. Key features: {features}. Target customer: {customer}. Be sure to include: {includes}.",
         ],
         'ad-copy-generator' => [
             'max_tokens' => 1000,
-            'system' => 'You are an expert advertising copywriter. Write compelling ad copy that drives clicks and conversions.',
-            'user_template' => "Write {platform} ad copy for: {text}",
+            'system' => 'You are an expert advertising copywriter. Write compelling ad copy that drives clicks and conversions. Structure the output in plain text using ONLY these section headers on their own lines (include only requested sections): HEADLINES, BODY COPY, CALL TO ACTION, DISPLAY URL. No markdown.',
+            'user_template' => "Write {platform} ad copy for: {product}. Campaign goal: {goal}. Target audience: {audience}. Unique selling point: {usp}. Tone: {tone}. Generate these sections: {generate}.",
         ],
         'social-caption-writer' => [
             'max_tokens' => 500,
-            'system' => 'You are a social media expert. Write engaging captions that drive engagement.',
-            'user_template' => "Write a {platform} caption for: {text}",
+            'system' => 'You are a social media expert. Write engaging captions that drive engagement. If more than one caption is requested, output a numbered list ("1.", "2.", ...) with one caption per number. No commentary.',
+            'user_template' => "Write exactly {count} {tone}, {length} {platform} caption(s) about: {topic}. Be sure to include: {includes}.",
         ],
         'hashtag-generator' => [
             'max_tokens' => 500,
-            'system' => 'You are a social media expert. Generate relevant, trending hashtags.',
-            'user_template' => "Generate {count} relevant hashtags for this {platform} post about: {text}",
+            'system' => 'You are a social media expert. Generate relevant, trending hashtags. Output ONLY one hashtag per line in the exact format "#hashtag SIZE" where SIZE is one of HUGE, LARGE, MEDIUM, or NICHE (its popularity tier). No commentary, numbering, or markdown.',
+            'user_template' => "Generate exactly {count} relevant hashtags for a {platform} post about: {topic}. Niche: {niche}. Popularity mix: {mix}.",
         ],
         'slogan-generator' => [
             'max_tokens' => 500,
-            'system' => 'You are an expert brand strategist and copywriter. Create memorable, catchy slogans.',
-            'user_template' => "Generate 10 creative slogans for: {text}",
+            'system' => 'You are an expert brand strategist and copywriter. Output ONLY a numbered list, one slogan per line, no commentary.',
+            'user_template' => "Generate exactly {count} {tone} slogans (each {length}) for the brand \"{brand}\". Product or service: {product}. Key value or USP: {value}.",
         ],
         'business-name-generator' => [
-            'max_tokens' => 500,
-            'system' => 'You are an expert brand consultant. Generate creative, memorable business names.',
-            'user_template' => "Generate 15 unique business names for a {industry} business. Include a short tagline for each: {text}",
+            'max_tokens' => 800,
+            'system' => 'You are an expert brand consultant. Generate creative, memorable business names. For each name output exactly two lines: "NAME: <name>" then "TAGLINE: <short tagline>", with a blank line between entries. No commentary, numbering, or markdown.',
+            'user_template' => "Generate exactly {count} unique business names for a {industry} business. Keywords to draw from: {keywords}. Naming style: {style}. Name length: {length}. Target market: {market}.",
         ],
         'story-generator' => [
             'max_tokens' => 3000,
             'system' => 'You are a creative fiction writer. Write engaging stories with compelling characters and plot.',
-            'user_template' => "Write a {genre} short story about: {text}",
+            'user_template' => "Write a {length} {genre} short story with a {tone} tone, told from {pov} point of view, about: {premise}. Setting: {setting}. Main character: {character}.",
         ],
         'poem-generator' => [
             'max_tokens' => 1000,
             'system' => 'You are an expert poet. Write beautiful, evocative poems in the requested style.',
-            'user_template' => "Write a {style} poem about: {text}",
+            'user_template' => "Write a {length} {style} poem with a {mood} mood about: {topic}. Occasion: {occasion}.",
         ],
         'lyrics-generator' => [
             'max_tokens' => 1500,
             'system' => 'You are an expert songwriter. Write creative, rhyming song lyrics with verses and chorus.',
-            'user_template' => "Write {genre} song lyrics about: {text}",
+            'user_template' => "Write {genre} song lyrics with a {mood} mood about: {topic}. Song structure: {structure}. Rhyme scheme: {rhyme}. Style influence: {artist_note}.",
         ],
         'faq-generator' => [
             'max_tokens' => 2000,
-            'system' => 'You are an expert content strategist. Generate comprehensive, realistic FAQs.',
-            'user_template' => "Generate {count} frequently asked questions with detailed answers for: {text}",
+            'system' => 'You are an expert content strategist. Generate realistic, non-repetitive FAQs. Output ONLY the FAQs, each as a line "Q: <question>" followed by a line "A: <answer>", with a blank line between items. No markdown, numbering, bullets, or headings.',
+            'user_template' => "Generate exactly {count} frequently asked questions about: {topic}. Focus area: {type}. Target audience level: {audience}. Answer length: {length}.",
         ],
         'meta-desc-generator' => [
             'max_tokens' => 500,
-            'system' => 'You are an SEO expert. Write compelling meta descriptions under 160 characters that improve click-through rates.',
-            'user_template' => "Write 5 SEO-optimized meta descriptions (under 160 chars each) for a page about: {text}",
+            'system' => 'You are an SEO expert. Write compelling meta descriptions under 160 characters that improve click-through rates. Output ONLY a numbered list ("1.", "2.", ...), one description per number, no commentary or markdown.',
+            'user_template' => "Write exactly {count} SEO-optimized meta descriptions (under 160 characters each) for a page titled \"{title}\". Page content summary: {summary}. Primary keyword: {keyword}. Secondary keywords: {secondary}. Call to action: {cta}.",
         ],
         'youtube-title-generator' => [
             'max_tokens' => 500,
-            'system' => 'You are a YouTube SEO expert. Generate click-worthy, SEO-optimized video titles.',
-            'user_template' => "Generate 10 compelling YouTube video titles for a video about: {text}",
+            'system' => 'You are a YouTube SEO expert. Generate click-worthy, SEO-optimized video titles. Output ONLY a numbered list ("1.", "2.", ...), one title per number, no commentary or markdown.',
+            'user_template' => "Generate exactly {count} compelling {style} YouTube titles for a {type} video about: {topic}. Target audience: {audience}. Keywords to include: {keywords}.",
         ],
         'youtube-desc-writer' => [
             'max_tokens' => 1000,
             'system' => 'You are a YouTube SEO expert. Write engaging, keyword-rich video descriptions.',
-            'user_template' => "Write an SEO-optimized YouTube description for a video about: {text}",
+            'user_template' => "Write an SEO-optimized YouTube description for a video titled \"{title}\". Video content: {topic}. Channel niche: {niche}. Keywords to include: {keywords}. Chapters/timestamps: {chapters}. Be sure to include: {includes}.",
         ],
         'word-counter' => [
             'max_tokens' => 200,
@@ -1297,6 +1424,16 @@ function tg_build_user_prompt($config, $payload)
 
     if (!is_array($payload) || empty($payload)) {
         return $template;
+    }
+
+    // Many tools send the primary input as topic/brand/context/etc. Normalize to `text`.
+    if (empty($payload['text'])) {
+        foreach (['topic', 'brand', 'context', 'keywords', 'subject', 'prompt', 'input', 'description', 'content'] as $alias) {
+            if (isset($payload[$alias]) && $payload[$alias] !== '') {
+                $payload['text'] = $payload[$alias];
+                break;
+            }
+        }
     }
 
     foreach ($payload as $key => $value) {
@@ -2221,7 +2358,7 @@ function tg_save_tool_meta_boxes($post_id)
    Runs once per $seed_version — bump it whenever this list changes. */
 add_action('init', 'tg_sync_tool_meta_defaults', 20);
 function tg_sync_tool_meta_defaults() {
-    $seed_version = '2026-07-13b';
+    $seed_version = '2026-07-14a';
     if (get_option('tg_tool_meta_seed') === $seed_version) return;
 
     $map = [
@@ -2231,6 +2368,8 @@ function tg_sync_tool_meta_defaults() {
         'base64-decoder' => ['_tg_tool_type' => 'data-input'],
         'url-encoder'    => ['_tg_tool_type' => 'data-input'],
         'hash-generator' => ['_tg_tool_type' => 'data-input'],
+        'lorem-ipsum-generator' => ['_tg_tool_type' => 'data-input'],
+        'password-generator'    => ['_tg_tool_type' => 'data-input'],
         'img-compress'   => ['_tg_multi_file' => 'true'],
         'img-convert'    => ['_tg_multi_file' => 'true'],
         'img-to-jpg'     => ['_tg_multi_file' => 'true'],
