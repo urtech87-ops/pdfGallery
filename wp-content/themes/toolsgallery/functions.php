@@ -255,12 +255,37 @@ function tg_enqueue_assets()
         ];
 
         if (isset($file_tool_files[$tg_handler])) {
+            $ft_deps = ['tg-pdf-tools'];
+
+            // COEP blocks runtime-injected cross-origin scripts, so converter
+            // libraries must be enqueued here rather than loaded from the tool JS.
+            if ($tg_handler === 'html-to-md') {
+                wp_enqueue_script(
+                    'turndown',
+                    'https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js',
+                    [],
+                    null,
+                    true
+                );
+                $ft_deps[] = 'turndown';
+            }
+            if ($tg_handler === 'md-to-html') {
+                wp_enqueue_script(
+                    'marked',
+                    'https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js',
+                    [],
+                    null,
+                    true
+                );
+                $ft_deps[] = 'marked';
+            }
+
             $ft_file_path = get_template_directory() . '/assets/js/tools/' . $file_tool_files[$tg_handler];
             $ft_handle = 'tg-tool-' . $tg_handler;
             wp_enqueue_script(
                 $ft_handle,
                 get_template_directory_uri() . '/assets/js/tools/' . $file_tool_files[$tg_handler],
-                ['tg-pdf-tools'],
+                $ft_deps,
                 file_exists($ft_file_path) ? filemtime($ft_file_path) : $ver,
                 true
             );
