@@ -1,3 +1,12 @@
+/**
+ * ToolsGallery — Text to Speech
+ * Handler: tts-prep
+ *
+ * Server-generated speech via the tg_tts_proxy AJAX action (OpenAI TTS,
+ * gpt-4o-mini-tts). Returns real MP3 audio: playable in-page and
+ * downloadable. Voice, vibe/emotion presets, custom instructions, tone
+ * and speed controls.
+ */
 (function () {
   'use strict';
 
@@ -17,11 +26,45 @@
   if (!document.getElementById('tg-tts-css')) {
     var ttsStyle = document.createElement('style');
     ttsStyle.id = 'tg-tts-css';
-    ttsStyle.textContent = '.tg-tts-controls{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}.tg-tts-ctrl-btn{padding:10px 20px;border:none;border-radius:var(--radius-md,8px);font-size:15px;cursor:pointer;font-weight:600;transition:all .2s}.tg-tts-play{background:var(--color-primary,#6366f1);color:#fff}.tg-tts-pause{background:#f59e0b;color:#fff}.tg-tts-stop{background:#ef4444;color:#fff}.tg-tts-ctrl-btn:hover{opacity:.9}.tg-tts-ctrl-btn:disabled{opacity:.4;cursor:not-allowed}.tg-tts-status{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;margin-top:10px}.tg-tts-status-ready{background:#f0fdf4;color:#16a34a}.tg-tts-status-speaking{background:#eff6ff;color:#2563eb}.tg-tts-status-paused{background:#fefce8;color:#ca8a04}.tg-tts-slider-row{display:flex;align-items:center;gap:12px;margin-bottom:6px}.tg-tts-slider{flex:1;accent-color:var(--color-primary,#6366f1)}.tg-tts-slider-val{font-size:13px;font-weight:600;color:var(--color-primary,#6366f1);min-width:70px}.tg-tts-char-count{font-size:12px;color:var(--color-gray-500,#6b7280);text-align:right;margin-top:4px}.tg-tts-info{background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--radius-md,8px);padding:12px;font-size:13px;color:#1e40af;margin-top:12px}.tg-tts-word-count{font-size:12px;color:var(--color-gray-500,#6b7280);margin-top:4px}';
+    ttsStyle.textContent = '.tg-tts-slider-row{display:flex;align-items:center;gap:12px;margin-bottom:6px}.tg-tts-slider{flex:1;accent-color:var(--color-primary,#6366f1)}.tg-tts-slider-val{font-size:13px;font-weight:600;color:var(--color-primary,#6366f1);min-width:110px}.tg-tts-char-count{font-size:12px;color:var(--color-gray-500,#6b7280);text-align:right;margin-top:4px}.tg-tts-word-count{font-size:12px;color:var(--color-gray-500,#6b7280);margin-top:4px}.tg-tts-loading{display:none;align-items:center;gap:10px;padding:14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--radius-md,8px);color:#1e40af;font-size:14px;font-weight:600}.tg-tts-loading.show{display:flex}.tg-tts-spinner{width:18px;height:18px;border:3px solid #bfdbfe;border-top-color:#2563eb;border-radius:50%;animation:tg-tts-spin .8s linear infinite}@keyframes tg-tts-spin{to{transform:rotate(360deg)}}.tg-tts-result{display:none;flex-direction:column;gap:12px;background:var(--color-gray-50,#f9fafb);border:1px solid var(--color-gray-200,#e5e7eb);border-radius:var(--radius-md,8px);padding:16px}.tg-tts-result.show{display:flex}.tg-tts-audio{width:100%}.tg-tts-download{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 24px;background:#16a34a;color:#fff;border:none;border-radius:var(--radius-md,8px);font-size:15px;font-weight:600;cursor:pointer;text-decoration:none;transition:opacity .2s}.tg-tts-download:hover{opacity:.9}';
     document.head.appendChild(ttsStyle);
   }
 
-  var MAX_CHARS = 5000;
+  var MAX_CHARS = 12000;
+
+  var VOICES = [
+    { id: 'alloy',   label: 'Alloy — neutral, balanced' },
+    { id: 'ash',     label: 'Ash — male, warm and clear' },
+    { id: 'ballad',  label: 'Ballad — male, British, expressive' },
+    { id: 'coral',   label: 'Coral — female, bright and upbeat' },
+    { id: 'echo',    label: 'Echo — male, calm and steady' },
+    { id: 'fable',   label: 'Fable — British, animated storyteller' },
+    { id: 'onyx',    label: 'Onyx — male, deep and authoritative' },
+    { id: 'nova',    label: 'Nova — female, friendly and energetic' },
+    { id: 'sage',    label: 'Sage — female, soft and gentle' },
+    { id: 'shimmer', label: 'Shimmer — female, crisp and clear' },
+    { id: 'verse',   label: 'Verse — male, versatile and expressive' }
+  ];
+
+  var VIBES = {
+    'Neutral':    '',
+    'Cheerful':   'Speak in a cheerful, upbeat, positive tone with a smile in your voice.',
+    'Calm':       'Speak in a calm, soothing, relaxed tone with gentle pacing.',
+    'Serious':    'Speak in a serious, measured, authoritative tone.',
+    'Excited':    'Speak with high energy and genuine excitement, enthusiastic delivery.',
+    'Storyteller': 'Narrate like a warm storyteller: expressive, engaging pacing, subtle dramatic pauses.',
+    'Newscaster': 'Speak like a professional news anchor: clear, confident, formal delivery.',
+    'Whisper':    'Speak in a soft whisper: hushed, intimate and quiet.'
+  };
+
+  var TONE_HINTS = {
+    1: 'Deliver it in a very soft, low-key, understated way.',
+    2: 'Deliver it in a slightly soft, relaxed way.',
+    3: '',
+    4: 'Deliver it with slightly elevated energy and emphasis.',
+    5: 'Deliver it with strong energy, bold emphasis and dynamic intonation.'
+  };
+  var TONE_LABELS = { 1: 'Very soft', 2: 'Soft', 3: 'Balanced', 4: 'Energetic', 5: 'Very energetic' };
 
   /* ── Render UI ── */
   box.innerHTML = '<div class="tg-ai5-form" id="tts-form">' +
@@ -34,53 +77,50 @@
     '</div>' +
 
     '<div>' +
-      '<label class="tg-ai5-label">Language Filter</label>' +
-      '<div class="tg-ai5-toggles" id="tts-lang-filter">' +
-        ['All','English','Spanish','French','German','Arabic','Chinese','Japanese','Portuguese','Russian'].map(function(l, i) {
-          return '<button type="button" class="tg-ai5-toggle' + (i === 0 ? ' active' : '') + '" data-lang="' + l + '">' + l + '</button>';
+      '<label class="tg-ai5-label">Voice</label>' +
+      '<select class="tg-ai5-select" id="tts-voice">' +
+        VOICES.map(function (v) { return '<option value="' + v.id + '">' + v.label + '</option>'; }).join('') +
+      '</select>' +
+    '</div>' +
+
+    '<div>' +
+      '<label class="tg-ai5-label">Vibe / Emotion</label>' +
+      '<div class="tg-ai5-toggles" id="tts-vibe">' +
+        Object.keys(VIBES).map(function (v, i) {
+          return '<button type="button" class="tg-ai5-toggle' + (i === 0 ? ' active' : '') + '" data-vibe="' + v + '">' + v + '</button>';
         }).join('') +
       '</div>' +
     '</div>' +
 
     '<div>' +
-      '<label class="tg-ai5-label">Voice</label>' +
-      '<select class="tg-ai5-select" id="tts-voice"><option>Loading voices...</option></select>' +
+      '<label class="tg-ai5-label">Custom instructions (optional)</label>' +
+      '<input type="text" class="tg-ai5-input" id="tts-custom" maxlength="300" placeholder="e.g. Speak with a slight French accent, pause before key points...">' +
     '</div>' +
 
-    '<div>' +
-      '<label class="tg-ai5-label">Speed</label>' +
-      '<div class="tg-tts-slider-row">' +
-        '<input type="range" class="tg-tts-slider" id="tts-rate" min="0.5" max="2" step="0.1" value="1">' +
-        '<span class="tg-tts-slider-val" id="tts-rate-val">Speed: 1.0×</span>' +
+    '<div class="tg-ai5-row">' +
+      '<div class="tg-ai5-col">' +
+        '<label class="tg-ai5-label">Tone</label>' +
+        '<div class="tg-tts-slider-row">' +
+          '<input type="range" class="tg-tts-slider" id="tts-tone" min="1" max="5" step="1" value="3">' +
+          '<span class="tg-tts-slider-val" id="tts-tone-val">Balanced</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="tg-ai5-col">' +
+        '<label class="tg-ai5-label">Speed</label>' +
+        '<div class="tg-tts-slider-row">' +
+          '<input type="range" class="tg-tts-slider" id="tts-rate" min="0.5" max="2" step="0.1" value="1">' +
+          '<span class="tg-tts-slider-val" id="tts-rate-val">1.0&times;</span>' +
+        '</div>' +
       '</div>' +
     '</div>' +
 
-    '<div>' +
-      '<label class="tg-ai5-label">Pitch</label>' +
-      '<div class="tg-tts-slider-row">' +
-        '<input type="range" class="tg-tts-slider" id="tts-pitch" min="0.5" max="2" step="0.1" value="1">' +
-        '<span class="tg-tts-slider-val" id="tts-pitch-val">Pitch: 1.0</span>' +
-      '</div>' +
-    '</div>' +
+    '<button type="button" class="tg-ai5-btn" id="tts-generate">Generate Speech</button>' +
 
-    '<div>' +
-      '<label class="tg-ai5-label">Volume</label>' +
-      '<div class="tg-tts-slider-row">' +
-        '<input type="range" class="tg-tts-slider" id="tts-volume" min="0" max="1" step="0.1" value="1">' +
-        '<span class="tg-tts-slider-val" id="tts-vol-val">Volume: 100%</span>' +
-      '</div>' +
-    '</div>' +
+    '<div class="tg-tts-loading" id="tts-loading"><span class="tg-tts-spinner"></span> Generating audio... this can take a few seconds.</div>' +
 
-    '<div class="tg-tts-controls">' +
-      '<button type="button" class="tg-tts-ctrl-btn tg-tts-play" id="tts-play">&#9654; Play</button>' +
-      '<button type="button" class="tg-tts-ctrl-btn tg-tts-pause" id="tts-pause" disabled>&#9646;&#9646; Pause</button>' +
-      '<button type="button" class="tg-tts-ctrl-btn tg-tts-stop" id="tts-stop" disabled>&#9646; Stop</button>' +
-    '</div>' +
-
-    '<div><span class="tg-tts-status tg-tts-status-ready" id="tts-status">&#9679; Ready</span></div>' +
-
-    '<div class="tg-tts-info">' +
-      'ℹ️ <strong>Audio download:</strong> Use your browser\'s built-in recording feature or system audio recorder to capture the speech output. Direct audio download is not available in all browsers.' +
+    '<div class="tg-tts-result" id="tts-result">' +
+      '<audio controls class="tg-tts-audio" id="tts-audio"></audio>' +
+      '<div><a class="tg-tts-download" id="tts-download" download="speech.mp3">&#11015; Download MP3</a></div>' +
     '</div>' +
 
     '<div class="tg-ai5-error" id="tts-error"></div>' +
@@ -88,178 +128,123 @@
   '</div>';
 
   /* ── Elements ── */
-  var textEl     = box.querySelector('#tts-text');
-  var charCount  = box.querySelector('#tts-char-count');
-  var wordCount  = box.querySelector('#tts-word-count');
-  var voiceEl    = box.querySelector('#tts-voice');
-  var rateEl     = box.querySelector('#tts-rate');
-  var rateVal    = box.querySelector('#tts-rate-val');
-  var pitchEl    = box.querySelector('#tts-pitch');
-  var pitchVal   = box.querySelector('#tts-pitch-val');
-  var volEl      = box.querySelector('#tts-volume');
-  var volVal     = box.querySelector('#tts-vol-val');
-  var playBtn    = box.querySelector('#tts-play');
-  var pauseBtn   = box.querySelector('#tts-pause');
-  var stopBtn    = box.querySelector('#tts-stop');
-  var statusEl   = box.querySelector('#tts-status');
-  var errorEl    = box.querySelector('#tts-error');
-  var langFilter = box.querySelector('#tts-lang-filter');
+  var textEl    = box.querySelector('#tts-text');
+  var charCount = box.querySelector('#tts-char-count');
+  var wordCount = box.querySelector('#tts-word-count');
+  var voiceEl   = box.querySelector('#tts-voice');
+  var vibeWrap  = box.querySelector('#tts-vibe');
+  var customEl  = box.querySelector('#tts-custom');
+  var toneEl    = box.querySelector('#tts-tone');
+  var toneVal   = box.querySelector('#tts-tone-val');
+  var rateEl    = box.querySelector('#tts-rate');
+  var rateVal   = box.querySelector('#tts-rate-val');
+  var genBtn    = box.querySelector('#tts-generate');
+  var loadingEl = box.querySelector('#tts-loading');
+  var resultEl  = box.querySelector('#tts-result');
+  var audioEl   = box.querySelector('#tts-audio');
+  var dlLink    = box.querySelector('#tts-download');
+  var errorEl   = box.querySelector('#tts-error');
 
-  var allVoices  = [];
-  var selectedLang = 'All';
-
-  /* ── Voice loading ── */
-  function populateVoices() {
-    allVoices = window.speechSynthesis.getVoices();
-    filterVoices();
-  }
-
-  function filterVoices() {
-    var filtered = allVoices;
-    if (selectedLang !== 'All') {
-      var langMap = {
-        'English': 'en', 'Spanish': 'es', 'French': 'fr', 'German': 'de',
-        'Arabic': 'ar', 'Chinese': 'zh', 'Japanese': 'ja', 'Portuguese': 'pt', 'Russian': 'ru'
-      };
-      var code = langMap[selectedLang] || selectedLang.toLowerCase();
-      filtered = allVoices.filter(function(v) { return v.lang.toLowerCase().indexOf(code) === 0; });
-    }
-
-    voiceEl.innerHTML = '';
-    if (!filtered.length) {
-      voiceEl.innerHTML = '<option value="">No voices available for this language</option>';
-      return;
-    }
-    filtered.forEach(function(v, i) {
-      var opt = document.createElement('option');
-      opt.value = i + '__' + v.name;
-      opt.textContent = v.name + ' (' + v.lang + ')';
-      voiceEl.appendChild(opt);
-    });
-  }
-
-  if (typeof speechSynthesis !== 'undefined') {
-    if (speechSynthesis.onvoiceschanged !== undefined) {
-      speechSynthesis.onvoiceschanged = populateVoices;
-    }
-    populateVoices();
-    setTimeout(populateVoices, 500);
-  } else {
-    voiceEl.innerHTML = '<option>Text-to-Speech not supported in this browser</option>';
-  }
-
-  /* ── Language filter toggles ── */
-  langFilter.addEventListener('click', function(e) {
-    var btn = e.target.closest('.tg-ai5-toggle');
-    if (!btn) return;
-    langFilter.querySelectorAll('.tg-ai5-toggle').forEach(function(b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-    selectedLang = btn.dataset.lang;
-    filterVoices();
-  });
+  var selectedVibe = 'Neutral';
+  var blobUrl = null;
 
   /* ── Text stats ── */
-  textEl.addEventListener('input', function() {
+  textEl.addEventListener('input', function () {
     var val = textEl.value;
     charCount.textContent = val.length;
     var wc = val.trim() ? val.trim().split(/\s+/).filter(Boolean).length : 0;
     wordCount.textContent = wc + ' word' + (wc !== 1 ? 's' : '');
   });
 
-  /* ── Sliders ── */
-  rateEl.addEventListener('input', function() { rateVal.textContent = 'Speed: ' + parseFloat(rateEl.value).toFixed(1) + '×'; });
-  pitchEl.addEventListener('input', function() { pitchVal.textContent = 'Pitch: ' + parseFloat(pitchEl.value).toFixed(1); });
-  volEl.addEventListener('input', function() { volVal.textContent = 'Volume: ' + Math.round(parseFloat(volEl.value) * 100) + '%'; });
+  /* ── Vibe toggles ── */
+  vibeWrap.addEventListener('click', function (e) {
+    var btn = e.target.closest('.tg-ai5-toggle');
+    if (!btn) return;
+    vibeWrap.querySelectorAll('.tg-ai5-toggle').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    selectedVibe = btn.dataset.vibe;
+  });
 
-  /* ── Status helper ── */
-  function setStatus(state) {
-    statusEl.className = 'tg-tts-status';
-    if (state === 'speaking') {
-      statusEl.classList.add('tg-tts-status-speaking');
-      statusEl.innerHTML = '&#9679; Speaking...';
-      playBtn.disabled = true;
-      pauseBtn.disabled = false;
-      stopBtn.disabled = false;
-    } else if (state === 'paused') {
-      statusEl.classList.add('tg-tts-status-paused');
-      statusEl.innerHTML = '&#9679; Paused';
-      playBtn.disabled = false;
-      pauseBtn.disabled = true;
-      stopBtn.disabled = false;
-    } else {
-      statusEl.classList.add('tg-tts-status-ready');
-      statusEl.innerHTML = '&#9679; Ready';
-      playBtn.disabled = false;
-      pauseBtn.disabled = true;
-      stopBtn.disabled = true;
-    }
-  }
+  /* ── Sliders ── */
+  toneEl.addEventListener('input', function () { toneVal.textContent = TONE_LABELS[toneEl.value] || 'Balanced'; });
+  rateEl.addEventListener('input', function () { rateVal.innerHTML = parseFloat(rateEl.value).toFixed(1) + '&times;'; });
 
   function showError(msg) {
     errorEl.textContent = msg;
     errorEl.classList.add('show');
-    setTimeout(function() { errorEl.classList.remove('show'); }, 5000);
   }
 
-  /* ── Playback ── */
-  function getSelectedVoice() {
-    var val = voiceEl.value;
-    if (!val || val === '') return null;
-    var idx = parseInt(val.split('__')[0], 10);
-    var filtered = allVoices;
-    if (selectedLang !== 'All') {
-      var langMap = { 'English': 'en', 'Spanish': 'es', 'French': 'fr', 'German': 'de', 'Arabic': 'ar', 'Chinese': 'zh', 'Japanese': 'ja', 'Portuguese': 'pt', 'Russian': 'ru' };
-      var code = langMap[selectedLang] || selectedLang.toLowerCase();
-      filtered = allVoices.filter(function(v) { return v.lang.toLowerCase().indexOf(code) === 0; });
-    }
-    return filtered[idx] || null;
+  function buildInstructions() {
+    var parts = [];
+    if (VIBES[selectedVibe]) parts.push(VIBES[selectedVibe]);
+    var toneHint = TONE_HINTS[toneEl.value];
+    if (toneHint) parts.push(toneHint);
+    var custom = customEl.value.trim();
+    if (custom) parts.push(custom);
+    return parts.join(' ');
   }
 
-  playBtn.addEventListener('click', function() {
-    if (typeof speechSynthesis === 'undefined') { showError('Text-to-Speech is not supported in this browser.'); return; }
+  function base64ToBlob(b64, mime) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime || 'audio/mpeg' });
+  }
+
+  /* ── Generate ── */
+  genBtn.addEventListener('click', function () {
     var text = textEl.value.trim();
-    if (!text) { showError('Please enter some text to speak.'); return; }
+    errorEl.classList.remove('show');
 
-    if (speechSynthesis.paused) {
-      speechSynthesis.resume();
-      setStatus('speaking');
-      return;
-    }
+    if (!text) { showError('Please enter some text to convert to speech.'); return; }
 
-    speechSynthesis.cancel();
+    genBtn.disabled = true;
+    loadingEl.classList.add('show');
+    resultEl.classList.remove('show');
 
-    var utterance = new SpeechSynthesisUtterance(text);
-    var voice = getSelectedVoice();
-    if (voice) utterance.voice = voice;
-    utterance.rate   = parseFloat(rateEl.value);
-    utterance.pitch  = parseFloat(pitchEl.value);
-    utterance.volume = parseFloat(volEl.value);
+    var formData = new URLSearchParams();
+    formData.append('action', 'tg_tts_proxy');
+    formData.append('nonce', (window.tgAiConfig && window.tgAiConfig.nonce) || (document.getElementById('tg_nonce') ? document.getElementById('tg_nonce').value : ''));
+    formData.append('text', text);
+    formData.append('voice', voiceEl.value);
+    formData.append('instructions', buildInstructions());
+    formData.append('speed', rateEl.value);
+    formData.append('format', 'mp3');
 
-    utterance.onstart = function() { setStatus('speaking'); };
-    utterance.onend   = function() { setStatus('ready'); };
-    utterance.onerror = function(e) { setStatus('ready'); showError('Speech error: ' + (e.error || 'unknown')); };
+    fetch((window.tgAiConfig && window.tgAiConfig.ajaxUrl) || '/wp-admin/admin-ajax.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString()
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      genBtn.disabled = false;
+      loadingEl.classList.remove('show');
 
-    speechSynthesis.speak(utterance);
+      if (!data.success) {
+        showError((data.data && data.data.message) || 'Speech generation failed. Please try again.');
+        return;
+      }
+      var b64 = data.data && data.data.audio;
+      if (!b64) {
+        showError('No audio was returned. Please try again.');
+        return;
+      }
+
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      var blob = base64ToBlob(b64, (data.data && data.data.mime) || 'audio/mpeg');
+      blobUrl = URL.createObjectURL(blob);
+
+      audioEl.src = blobUrl;
+      dlLink.href = blobUrl;
+      resultEl.classList.add('show');
+      audioEl.play().catch(function () { /* autoplay may be blocked — user can press play */ });
+    }).catch(function () {
+      genBtn.disabled = false;
+      loadingEl.classList.remove('show');
+      showError('Network error. Please try again.');
+    });
   });
-
-  pauseBtn.addEventListener('click', function() {
-    if (typeof speechSynthesis === 'undefined') return;
-    if (speechSynthesis.speaking && !speechSynthesis.paused) {
-      speechSynthesis.pause();
-      setStatus('paused');
-    }
-  });
-
-  stopBtn.addEventListener('click', function() {
-    if (typeof speechSynthesis === 'undefined') return;
-    speechSynthesis.cancel();
-    setStatus('ready');
-  });
-
-  /* ── Init state ── */
-  setStatus('ready');
 
   /* ── Register ── */
   window.TGTools = window.TGTools || {};
-  window.TGTools[HANDLER] = { init: function() {} };
+  window.TGTools[HANDLER] = { init: function () {} };
 })();
