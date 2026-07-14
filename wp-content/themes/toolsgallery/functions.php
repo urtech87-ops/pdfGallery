@@ -1299,6 +1299,16 @@ function tg_build_user_prompt($config, $payload)
         return $template;
     }
 
+    // Many tools send the primary input as topic/brand/context/etc. Normalize to `text`.
+    if (empty($payload['text'])) {
+        foreach (['topic', 'brand', 'context', 'keywords', 'subject', 'prompt', 'input', 'description', 'content'] as $alias) {
+            if (isset($payload[$alias]) && $payload[$alias] !== '') {
+                $payload['text'] = $payload[$alias];
+                break;
+            }
+        }
+    }
+
     foreach ($payload as $key => $value) {
         $clean = sanitize_textarea_field(wp_unslash($value));
         $template = str_replace('{' . $key . '}', $clean, $template);
