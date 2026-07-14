@@ -936,6 +936,9 @@ add_action('admin_head', 'tg_favicon', 1);
 add_action('wp_ajax_tg_ai_proxy', 'tg_ai_proxy_handler');
 add_action('wp_ajax_nopriv_tg_ai_proxy', 'tg_ai_proxy_handler');
 
+add_action('wp_ajax_tg_tts_proxy', 'tg_tts_proxy_handler');
+add_action('wp_ajax_nopriv_tg_tts_proxy', 'tg_tts_proxy_handler');
+
 add_action('wp_ajax_tg_url_to_pdf', 'tg_handle_url_to_pdf');
 add_action('wp_ajax_nopriv_tg_url_to_pdf', 'tg_handle_url_to_pdf');
 
@@ -1138,6 +1141,130 @@ function tg_call_openrouter($tool_key, $payload)
     }
 
     return ['result' => $content];
+}
+
+/* =============================================
+   OPENAI TEXT-TO-SPEECH PROXY (tts-prep)
+   ============================================= */
+function tg_tts_proxy_handler()
+{
+    check_ajax_referer('tg_tool_nonce', 'nonce');
+
+    if (!defined('OPENAI_API_KEY') || !OPENAI_API_KEY) {
+        wp_send_json_error(['message' => 'Text-to-Speech is not configured yet (missing OPENAI_API_KEY). Please contact the site administrator.'], 500);
+    }
+
+    $ip_key = 'tg_tts_rate_' . md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '')));
+    $count = (int) get_transient($ip_key);
+    if ($count >= 10) {
+        wp_send_json_error(['message' => 'Rate limit reached. Try again in an hour.'], 429);
+    }
+    set_transient($ip_key, $count + 1, HOUR_IN_SECONDS);
+
+    $text = trim((string) wp_unslash($_POST['text'] ?? ''));
+    $text = wp_strip_all_tags($text);
+    if ($text === '') {
+        wp_send_json_error(['message' => 'Please enter some text to convert to speech.'], 400);
+    }
+    if (strlen($text) > 12000) {
+        wp_send_json_error(['message' => 'Text is too long (maximum 12,000 characters).'], 400);
+    }
+
+    $allowed_voices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'];
+    $voice = sanitize_text_field(wp_unslash($_POST['voice'] ?? 'alloy'));
+    if (!in_array($voice, $allowed_voices, true)) {
+        $voice = 'alloy';
+    }
+
+    $instructions = sanitize_textarea_field(wp_unslash($_POST['instructions'] ?? ''));
+    $instructions = substr($instructions, 0, 1000);
+
+    $speed = (float) ($_POST['speed'] ?? 1.0);
+    $speed = max(0.25, min(4.0, $speed));
+
+    // OpenAI TTS caps input at ~4096 chars per request — chunk long text on
+    // sentence boundaries and concatenate the MP3 bytes.
+    $chunks = tg_tts_split_text($text, 4000);
+    $audio = '';
+    foreach ($chunks as $chunk) {
+        $body = [
+            'model' => 'gpt-4o-mini-tts',
+            'input' => $chunk,
+            'voice' => $voice,
+            'speed' => $speed,
+            'response_format' => 'mp3',
+        ];
+        if ($instructions !== '') {
+            $body['instructions'] = $instructions;
+        }
+
+        $response = wp_remote_post('https://api.openai.com/v1/audio/speech', [
+            'timeout' => 120,
+            'headers' => [
+                'Authorization' => 'Bearer ' . OPENAI_API_KEY,
+                'Content-Type' => 'application/json',
+            ],
+            'body' => wp_json_encode($body),
+        ]);
+
+        if (is_wp_error($response)) {
+            wp_send_json_error(['message' => 'TTS request failed: ' . $response->get_error_message()], 500);
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $bytes = wp_remote_retrieve_body($response);
+
+        if ($code < 200 || $code >= 300) {
+            $data = json_decode($bytes, true);
+            $err = $data['error']['message'] ?? ('TTS provider returned HTTP ' . $code);
+            error_log('OpenAI TTS error: ' . $err);
+            wp_send_json_error(['message' => $err], 500);
+        }
+
+        $audio .= $bytes;
+    }
+
+    if ($audio === '') {
+        wp_send_json_error(['message' => 'TTS provider returned no audio. Please try again.'], 500);
+    }
+
+    wp_send_json_success([
+        'audio' => base64_encode($audio),
+        'mime' => 'audio/mpeg',
+    ]);
+}
+
+/* Split text into <= $max_len chunks, preferring sentence boundaries. */
+function tg_tts_split_text($text, $max_len)
+{
+    if (strlen($text) <= $max_len) {
+        return [$text];
+    }
+    $sentences = preg_split('/(?<=[.!?])\s+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+    $chunks = [];
+    $current = '';
+    foreach ($sentences as $sentence) {
+        // A single sentence longer than the cap gets hard-split.
+        while (strlen($sentence) > $max_len) {
+            if ($current !== '') {
+                $chunks[] = $current;
+                $current = '';
+            }
+            $chunks[] = substr($sentence, 0, $max_len);
+            $sentence = substr($sentence, $max_len);
+        }
+        $candidate = $current === '' ? $sentence : $current . ' ' . $sentence;
+        if (strlen($candidate) > $max_len) {
+            $chunks[] = $current;
+            $current = $sentence;
+        } else {
+            $current = $candidate;
+        }
+    }
+    if ($current !== '') {
+        $chunks[] = $current;
+    }
+    return $chunks;
 }
 
 function tg_get_tool_prompts()
