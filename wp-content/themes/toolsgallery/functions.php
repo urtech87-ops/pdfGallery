@@ -1215,8 +1215,8 @@ function tg_get_tool_prompts()
         ],
         'email-writer' => [
             'max_tokens' => 1000,
-            'system' => 'You are an expert business writer. Write clear, professional emails.',
-            'user_template' => "Write a professional {type} email about: {text}",
+            'system' => 'You are an expert business writer. Begin the output with a line "Subject: <subject>", then the email body.',
+            'user_template' => "Write a {tone}, {length} {type} email. From: {sender}. To: {recipient}. Purpose and context: {context}. Be sure to include: {includes}.",
         ],
         'product-desc-writer' => [
             'max_tokens' => 1000,
@@ -1240,8 +1240,8 @@ function tg_get_tool_prompts()
         ],
         'slogan-generator' => [
             'max_tokens' => 500,
-            'system' => 'You are an expert brand strategist and copywriter. Create memorable, catchy slogans.',
-            'user_template' => "Generate 10 creative slogans for: {text}",
+            'system' => 'You are an expert brand strategist and copywriter. Output ONLY a numbered list, one slogan per line, no commentary.',
+            'user_template' => "Generate exactly {count} {tone} slogans (each {length}) for the brand \"{brand}\". Product or service: {product}. Key value or USP: {value}.",
         ],
         'business-name-generator' => [
             'max_tokens' => 500,
@@ -1265,8 +1265,8 @@ function tg_get_tool_prompts()
         ],
         'faq-generator' => [
             'max_tokens' => 2000,
-            'system' => 'You are an expert content strategist. Generate comprehensive, realistic FAQs.',
-            'user_template' => "Generate {count} frequently asked questions with detailed answers for: {text}",
+            'system' => 'You are an expert content strategist. Generate realistic, non-repetitive FAQs. Output ONLY the FAQs, each as a line "Q: <question>" followed by a line "A: <answer>", with a blank line between items. No markdown, numbering, bullets, or headings.',
+            'user_template' => "Generate exactly {count} frequently asked questions about: {topic}. Focus area: {type}. Target audience level: {audience}. Answer length: {length}.",
         ],
         'meta-desc-generator' => [
             'max_tokens' => 500,
