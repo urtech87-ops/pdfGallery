@@ -33,8 +33,8 @@
       var en = container.querySelector('#vt-end');
       var di = container.querySelector('#vt-dur-info');
       if (st && en && di && window.TGVideoUtil) {
-        var d = TGVideoUtil.parseTime(en.value) - TGVideoUtil.parseTime(st.value);
-        di.textContent = d > 0 ? 'Trimmed duration: ' + d + ' seconds' : '';
+        var d = Math.max(0, TGVideoUtil.parseTime(en.value) - TGVideoUtil.parseTime(st.value));
+        di.textContent = 'Trimmed duration: ' + d + ' seconds';
       }
     }
     var s = container.querySelector('#vt-start');
@@ -94,8 +94,12 @@
       onProgress && onProgress(0.08, 'Loading video file...');
       await U.writeFile(ffmpeg, inName, file);
 
-      var codec = precise ? ['-c:v', 'libx264', '-c:a', 'aac'] : ['-c', 'copy'];
-      var args = ['-i', inName, '-ss', U.toHHMMSS(startSec), '-to', U.toHHMMSS(endSec)].concat(codec).concat([outName]);
+      /* Input-seek (-ss before -i) plus an explicit duration (-t) trims
+         the exact selected range; output-seeking with -to is unreliable
+         in ffmpeg.wasm. Raw seconds keep the timestamps precise. */
+      var durSec = endSec - startSec;
+      var codec = precise ? ['-c:v', 'libx264', '-c:a', 'aac', '-preset', 'veryfast'] : ['-c', 'copy'];
+      var args = ['-ss', String(startSec), '-i', inName, '-t', String(durSec)].concat(codec).concat([outName]);
 
       onProgress && onProgress(0.15, 'Trimming video...');
       await U.exec(ffmpeg, args);

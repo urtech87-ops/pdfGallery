@@ -1,13 +1,17 @@
+/**
+ * ToolsGallery — Lorem Ipsum Generator
+ * Handler: lorem-ipsum-generator
+ * Input type: data (no file upload) — self-contained init() tool.
+ */
 (function () {
   'use strict';
 
-  var HANDLER = 'lorem-ipsum-generator';
+  var CONFIG = { handler: 'lorem-ipsum-generator', inputType: 'data' };
+
   window.TGTools = window.TGTools || {};
 
-  var box = document.querySelector('.tg-tool-box[data-handler="' + HANDLER + '"]');
-  if (!box) return;
-
-  if (!document.getElementById('tg-ai5-css')) {
+  function injectCSS() {
+    if (document.getElementById('tg-ai5-css')) return;
     var style = document.createElement('style');
     style.id = 'tg-ai5-css';
     style.textContent = [
@@ -73,36 +77,44 @@
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
-  function makeSentence(wordPool, minWords, maxWords) {
+  /* Returns a nextWord() function for the chosen lorem type.
+     Classic walks the canonical word list in order (traditional passage feel);
+     Random Latin picks latin words at random; Business/Tech pick from their banks. */
+  function makeWordSource(type) {
+    if (type === 'Classic') {
+      var idx = 0;
+      return function () {
+        var w = WORDS.classic[idx % WORDS.classic.length];
+        idx++;
+        return w;
+      };
+    }
+    var pool = WORDS.classic;
+    if (type === 'Business') pool = WORDS.business;
+    if (type === 'Tech') pool = WORDS.tech;
+    return function () { return pick(pool); };
+  }
+
+  function makeSentence(nextWord, minWords, maxWords) {
     var len = minWords + Math.floor(Math.random() * (maxWords - minWords + 1));
     var words = [];
     for (var i = 0; i < len; i++) {
-      words.push(pick(wordPool));
+      words.push(nextWord());
     }
     return capitalize(words.join(' ')) + '.';
   }
 
-  function makeParagraph(wordPool, minSent, maxSent) {
+  function makeParagraph(nextWord, minSent, maxSent) {
     var count = minSent + Math.floor(Math.random() * (maxSent - minSent + 1));
     var sentences = [];
     for (var i = 0; i < count; i++) {
-      sentences.push(makeSentence(wordPool, 5, 15));
+      sentences.push(makeSentence(nextWord, 5, 15));
     }
     return sentences.join(' ');
   }
 
-  function getWordPool(type) {
-    if (type === 'Business') return WORDS.business;
-    if (type === 'Tech') return WORDS.tech;
-    if (type === 'Random Latin') {
-      // Shuffle classic
-      return WORDS.classic.slice().sort(function () { return Math.random() - 0.5; });
-    }
-    return WORDS.classic;
-  }
-
   function generateText(opts) {
-    var pool = getWordPool(opts.type);
+    var nextWord = makeWordSource(opts.type);
     var result = '';
     var startLorem = opts.startLorem;
     var htmlTag = opts.htmlTag; // 'none', 'p', 'div'
@@ -119,10 +131,10 @@
         var para;
         if (i === 0 && startLorem && opts.type === 'Classic') {
           // First paragraph starts with classic Lorem ipsum
-          var rest = makeParagraph(pool, 2, 5);
+          var rest = makeParagraph(nextWord, 2, 5);
           para = CLASSIC_START + ' ' + rest;
         } else {
-          para = makeParagraph(pool, 3, 7);
+          para = makeParagraph(nextWord, 3, 7);
         }
         paragraphs.push(wrapTag(para));
       }
@@ -134,7 +146,7 @@
         words = words.concat(['Lorem', 'ipsum', 'dolor', 'sit', 'amet,']);
       }
       while (words.length < opts.amount) {
-        words.push(pick(pool));
+        words.push(nextWord());
       }
       result = words.slice(0, opts.amount).join(' ');
 
@@ -144,7 +156,7 @@
         sentences.push(CLASSIC_START);
       }
       while (sentences.length < opts.amount) {
-        sentences.push(makeSentence(pool, 5, 15));
+        sentences.push(makeSentence(nextWord, 5, 15));
       }
       sentences = sentences.slice(0, opts.amount);
       result = htmlTag === 'none' ? sentences.join(' ') : sentences.map(wrapTag).join('\n');
@@ -155,7 +167,7 @@
         raw = CLASSIC_START + ' ';
       }
       while (raw.length < opts.amount) {
-        raw += makeSentence(pool, 5, 10) + ' ';
+        raw += makeSentence(nextWord, 5, 10) + ' ';
       }
       result = raw.slice(0, opts.amount);
     }
@@ -163,222 +175,190 @@
     return result;
   }
 
-  // ---- Build form ----
-  var form = document.createElement('div');
-  form.className = 'tg-ai5-form';
+  function init(box) {
+    injectCSS();
 
-  // Mode + amount row
-  var modeRow = document.createElement('div');
-  modeRow.className = 'tg-ai5-row';
+    var container = box.querySelector('.tg-options') || box;
+    if (container !== box) container.hidden = false;
 
-  var modeCol = document.createElement('div');
-  modeCol.className = 'tg-ai5-col';
-  var modeLabel = document.createElement('label');
-  modeLabel.className = 'tg-ai5-label';
-  modeLabel.textContent = 'Generate';
-  var modeSelect = document.createElement('select');
-  modeSelect.className = 'tg-ai5-select';
-  ['Paragraphs', 'Words', 'Sentences', 'Bytes'].forEach(function (m) {
-    var opt = document.createElement('option');
-    opt.value = m;
-    opt.textContent = m;
-    modeSelect.appendChild(opt);
-  });
-  modeCol.appendChild(modeLabel);
-  modeCol.appendChild(modeSelect);
+    // ---- Build form ----
+    var form = document.createElement('div');
+    form.className = 'tg-ai5-form';
 
-  var amountCol = document.createElement('div');
-  amountCol.className = 'tg-ai5-col';
-  var amountLabel = document.createElement('label');
-  amountLabel.className = 'tg-ai5-label';
-  amountLabel.textContent = 'Amount';
-  var amountInput = document.createElement('input');
-  amountInput.type = 'number';
-  amountInput.className = 'tg-ai5-input';
-  amountInput.value = '5';
-  amountInput.min = '1';
-  amountCol.appendChild(amountLabel);
-  amountCol.appendChild(amountInput);
+    // Mode + amount row
+    var modeRow = document.createElement('div');
+    modeRow.className = 'tg-ai5-row';
 
-  modeRow.appendChild(modeCol);
-  modeRow.appendChild(amountCol);
-  form.appendChild(modeRow);
+    var modeCol = document.createElement('div');
+    modeCol.className = 'tg-ai5-col';
+    var modeLabel = document.createElement('label');
+    modeLabel.className = 'tg-ai5-label';
+    modeLabel.textContent = 'Generate';
+    var modeSelect = document.createElement('select');
+    modeSelect.className = 'tg-ai5-select';
+    ['Paragraphs', 'Words', 'Sentences', 'Bytes'].forEach(function (m) {
+      var opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      modeSelect.appendChild(opt);
+    });
+    modeCol.appendChild(modeLabel);
+    modeCol.appendChild(modeSelect);
 
-  modeSelect.addEventListener('change', function () {
-    var defaults = { Paragraphs: 5, Words: 100, Sentences: 10, Bytes: 500 };
-    amountInput.value = defaults[modeSelect.value] || 5;
+    var amountCol = document.createElement('div');
+    amountCol.className = 'tg-ai5-col';
+    var amountLabel = document.createElement('label');
+    amountLabel.className = 'tg-ai5-label';
+    amountLabel.textContent = 'Amount';
+    var amountInput = document.createElement('input');
+    amountInput.type = 'number';
+    amountInput.className = 'tg-ai5-input';
+    amountInput.value = '5';
+    amountInput.min = '1';
+    amountCol.appendChild(amountLabel);
+    amountCol.appendChild(amountInput);
+
+    modeRow.appendChild(modeCol);
+    modeRow.appendChild(amountCol);
+    form.appendChild(modeRow);
+
+    modeSelect.addEventListener('change', function () {
+      var defaults = { Paragraphs: 5, Words: 100, Sentences: 10, Bytes: 500 };
+      amountInput.value = defaults[modeSelect.value] || 5;
+      generate();
+    });
+
+    function makeToggleGroup(items, defaultVal) {
+      var wrap = document.createElement('div');
+      wrap.className = 'tg-ai5-toggles';
+      items.forEach(function (o) {
+        var label = typeof o === 'string' ? o : o.label;
+        var value = typeof o === 'string' ? o : o.value;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'tg-ai5-toggle' + (value === defaultVal ? ' active' : '');
+        btn.textContent = label;
+        btn.dataset.value = value;
+        btn.addEventListener('click', function () {
+          wrap.querySelectorAll('.tg-ai5-toggle').forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          generate();
+        });
+        wrap.appendChild(btn);
+      });
+      wrap.getValue = function () {
+        var a = wrap.querySelector('.tg-ai5-toggle.active');
+        return a ? a.dataset.value : defaultVal;
+      };
+      return wrap;
+    }
+
+    // Lorem type
+    var typeLabel = document.createElement('label');
+    typeLabel.className = 'tg-ai5-label';
+    typeLabel.textContent = 'Lorem type';
+    var typeToggle = makeToggleGroup(['Classic', 'Random Latin', 'Business', 'Tech'], 'Classic');
+    var typeWrap = document.createElement('div');
+    typeWrap.appendChild(typeLabel);
+    typeWrap.appendChild(typeToggle);
+    form.appendChild(typeWrap);
+
+    // Start with Lorem ipsum
+    var startLabel = document.createElement('label');
+    startLabel.className = 'tg-ai5-label';
+    startLabel.textContent = 'Start with "Lorem ipsum..."';
+    var startToggle = makeToggleGroup(['Yes', 'No'], 'Yes');
+    var startWrap = document.createElement('div');
+    startWrap.appendChild(startLabel);
+    startWrap.appendChild(startToggle);
+    form.appendChild(startWrap);
+
+    // HTML tags
+    var htmlLabel = document.createElement('label');
+    htmlLabel.className = 'tg-ai5-label';
+    htmlLabel.textContent = 'HTML tags';
+    var htmlToggle = makeToggleGroup(
+      [{ label: 'None', value: 'none' }, { label: '<p> tags', value: 'p' }, { label: '<div> tags', value: 'div' }],
+      'none'
+    );
+    var htmlWrap = document.createElement('div');
+    htmlWrap.appendChild(htmlLabel);
+    htmlWrap.appendChild(htmlToggle);
+    form.appendChild(htmlWrap);
+
+    // Button
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tg-ai5-btn';
+    btn.textContent = 'Generate';
+    btn.addEventListener('click', generate);
+    form.appendChild(btn);
+
+    // Output textarea
+    var outputTA = document.createElement('textarea');
+    outputTA.className = 'tg-ai5-textarea';
+    outputTA.style.minHeight = '220px';
+    outputTA.readOnly = false;
+    form.appendChild(outputTA);
+
+    // Stats
+    var statsDiv = document.createElement('div');
+    statsDiv.className = 'tg-ai5-meta';
+    form.appendChild(statsDiv);
+
+    // Actions
+    var actionsDiv = document.createElement('div');
+    actionsDiv.className = 'tg-ai5-actions';
+
+    var copyBtn = document.createElement('button');
+    copyBtn.className = 'tg-ai5-action-btn';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', function () {
+      navigator.clipboard.writeText(outputTA.value).then(function () {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
+      });
+    });
+
+    var clearBtn = document.createElement('button');
+    clearBtn.className = 'tg-ai5-action-btn';
+    clearBtn.textContent = 'Clear';
+    clearBtn.addEventListener('click', function () {
+      outputTA.value = '';
+      statsDiv.textContent = '';
+    });
+
+    var regenBtn = document.createElement('button');
+    regenBtn.className = 'tg-ai5-action-btn';
+    regenBtn.textContent = 'Regenerate';
+    regenBtn.addEventListener('click', generate);
+
+    actionsDiv.appendChild(copyBtn);
+    actionsDiv.appendChild(clearBtn);
+    actionsDiv.appendChild(regenBtn);
+    form.appendChild(actionsDiv);
+
+    container.appendChild(form);
+
+    amountInput.addEventListener('input', generate);
+
+    function generate() {
+      var amount = parseInt(amountInput.value, 10) || 1;
+      var text = generateText({
+        mode: modeSelect.value,
+        amount: amount,
+        type: typeToggle.getValue(),
+        startLorem: startToggle.getValue() === 'Yes',
+        htmlTag: htmlToggle.getValue()
+      });
+      outputTA.value = text;
+      var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      var chars = text.length;
+      statsDiv.textContent = words + ' words, ' + chars + ' characters';
+    }
+
     generate();
-  });
-
-  // Lorem type
-  var typeLabel = document.createElement('label');
-  typeLabel.className = 'tg-ai5-label';
-  typeLabel.textContent = 'Lorem type';
-  var typeToggle = (function () {
-    var wrap = document.createElement('div');
-    wrap.className = 'tg-ai5-toggles';
-    var opts = ['Classic', 'Random Latin', 'Business', 'Tech'];
-    var current = 'Classic';
-    opts.forEach(function (o) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'tg-ai5-toggle' + (o === current ? ' active' : '');
-      btn.textContent = o;
-      btn.dataset.value = o;
-      btn.addEventListener('click', function () {
-        wrap.querySelectorAll('.tg-ai5-toggle').forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        current = o;
-        generate();
-      });
-      wrap.appendChild(btn);
-    });
-    wrap.getValue = function () {
-      var a = wrap.querySelector('.tg-ai5-toggle.active');
-      return a ? a.dataset.value : current;
-    };
-    return wrap;
-  })();
-  var typeWrap = document.createElement('div');
-  typeWrap.appendChild(typeLabel);
-  typeWrap.appendChild(typeToggle);
-  form.appendChild(typeWrap);
-
-  // Start with Lorem ipsum
-  var startLabel = document.createElement('label');
-  startLabel.className = 'tg-ai5-label';
-  startLabel.textContent = 'Start with "Lorem ipsum..."';
-  var startToggle = (function () {
-    var wrap = document.createElement('div');
-    wrap.className = 'tg-ai5-toggles';
-    ['Yes', 'No'].forEach(function (o) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'tg-ai5-toggle' + (o === 'Yes' ? ' active' : '');
-      btn.textContent = o;
-      btn.dataset.value = o;
-      btn.addEventListener('click', function () {
-        wrap.querySelectorAll('.tg-ai5-toggle').forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        generate();
-      });
-      wrap.appendChild(btn);
-    });
-    wrap.getValue = function () {
-      var a = wrap.querySelector('.tg-ai5-toggle.active');
-      return a ? a.dataset.value : 'Yes';
-    };
-    return wrap;
-  })();
-  var startWrap = document.createElement('div');
-  startWrap.appendChild(startLabel);
-  startWrap.appendChild(startToggle);
-  form.appendChild(startWrap);
-
-  // HTML tags
-  var htmlLabel = document.createElement('label');
-  htmlLabel.className = 'tg-ai5-label';
-  htmlLabel.textContent = 'HTML tags';
-  var htmlToggle = (function () {
-    var wrap = document.createElement('div');
-    wrap.className = 'tg-ai5-toggles';
-    var opts = [{ label: 'None', value: 'none' }, { label: '<p> tags', value: 'p' }, { label: '<div> tags', value: 'div' }];
-    opts.forEach(function (o) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'tg-ai5-toggle' + (o.value === 'none' ? ' active' : '');
-      btn.textContent = o.label;
-      btn.dataset.value = o.value;
-      btn.addEventListener('click', function () {
-        wrap.querySelectorAll('.tg-ai5-toggle').forEach(function (b) { b.classList.remove('active'); });
-        btn.classList.add('active');
-        generate();
-      });
-      wrap.appendChild(btn);
-    });
-    wrap.getValue = function () {
-      var a = wrap.querySelector('.tg-ai5-toggle.active');
-      return a ? a.dataset.value : 'none';
-    };
-    return wrap;
-  })();
-  var htmlWrap = document.createElement('div');
-  htmlWrap.appendChild(htmlLabel);
-  htmlWrap.appendChild(htmlToggle);
-  form.appendChild(htmlWrap);
-
-  // Button
-  var btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'tg-ai5-btn';
-  btn.textContent = 'Generate';
-  btn.addEventListener('click', generate);
-  form.appendChild(btn);
-
-  // Output textarea
-  var outputTA = document.createElement('textarea');
-  outputTA.className = 'tg-ai5-textarea';
-  outputTA.style.minHeight = '220px';
-  outputTA.readOnly = false;
-  form.appendChild(outputTA);
-
-  // Stats
-  var statsDiv = document.createElement('div');
-  statsDiv.className = 'tg-ai5-meta';
-  form.appendChild(statsDiv);
-
-  // Actions
-  var actionsDiv = document.createElement('div');
-  actionsDiv.className = 'tg-ai5-actions';
-
-  var copyBtn = document.createElement('button');
-  copyBtn.className = 'tg-ai5-action-btn';
-  copyBtn.textContent = 'Copy';
-  copyBtn.addEventListener('click', function () {
-    navigator.clipboard.writeText(outputTA.value).then(function () {
-      copyBtn.textContent = 'Copied!';
-      setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
-    });
-  });
-
-  var clearBtn = document.createElement('button');
-  clearBtn.className = 'tg-ai5-action-btn';
-  clearBtn.textContent = 'Clear';
-  clearBtn.addEventListener('click', function () {
-    outputTA.value = '';
-    statsDiv.textContent = '';
-  });
-
-  var regenBtn = document.createElement('button');
-  regenBtn.className = 'tg-ai5-action-btn';
-  regenBtn.textContent = 'Regenerate';
-  regenBtn.addEventListener('click', generate);
-
-  actionsDiv.appendChild(copyBtn);
-  actionsDiv.appendChild(clearBtn);
-  actionsDiv.appendChild(regenBtn);
-  form.appendChild(actionsDiv);
-
-  box.appendChild(form);
-
-  amountInput.addEventListener('input', generate);
-
-  function generate() {
-    var amount = parseInt(amountInput.value, 10) || 1;
-    var text = generateText({
-      mode: modeSelect.value,
-      amount: amount,
-      type: typeToggle.getValue(),
-      startLorem: startToggle.getValue() === 'Yes',
-      htmlTag: htmlToggle.getValue()
-    });
-    outputTA.value = text;
-    var words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    var chars = text.length;
-    statsDiv.textContent = words + ' words, ' + chars + ' characters';
   }
 
-  generate();
-
-  window.TGTools[HANDLER] = { box: box, generate: generate };
+  window.TGTools[CONFIG.handler] = { init: init, CONFIG: CONFIG };
 })();

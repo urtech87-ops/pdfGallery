@@ -67,7 +67,7 @@
         btn.textContent = '⬇';
         btn.title = 'Download';
         btn.type = 'button';
-        btn.style.cssText = 'position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:3px;cursor:pointer;padding:2px 5px;font-size:12px';
+        btn.style.cssText = 'position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:3px;cursor:pointer;padding:4px 8px;font-size:16px';
         btn.addEventListener('click', function () {
           var a = document.createElement('a');
           a.href = url;
@@ -107,14 +107,33 @@
     var player = document.getElementById('vss-player');
     if (player && !player.src) onFileReady(file);
 
-    onProgress && onProgress(0.3, 'Capturing frame...');
-    var fmt = options.format || 'png';
-    var blob = await captureFrame(player, fmt, options.quality || 0.9);
-    onProgress && onProgress(1, 'Done!');
-
     var base = U ? U.stripExt(file.name) : 'video';
-    var ext = fmt === 'jpeg' ? 'jpg' : fmt;
-    return { blob: blob, filename: base + '-screenshot.' + ext };
+
+    if (_shots.length === 0) {
+      onProgress && onProgress(0.3, 'Capturing frame...');
+      var fmt = options.format || 'png';
+      var blob = await captureFrame(player, fmt, options.quality || 0.9);
+      onProgress && onProgress(1, 'Done!');
+      var ext = fmt === 'jpeg' ? 'jpg' : fmt;
+      return { blob: blob, filename: base + '-screenshot.' + ext };
+    }
+
+    if (_shots.length === 1) {
+      onProgress && onProgress(1, 'Done!');
+      var shot = _shots[0];
+      var singleExt = shot.fmt === 'jpeg' ? 'jpg' : shot.fmt;
+      return { blob: shot.blob, filename: base + '-screenshot.' + singleExt };
+    }
+
+    if (!window.JSZip) throw new Error('ZIP library not loaded. Please refresh the page.');
+    onProgress && onProgress(0.3, 'Packing ' + _shots.length + ' frames...');
+    var zip = new window.JSZip();
+    _shots.forEach(function (s, i) {
+      zip.file('screenshot-' + (i + 1) + '.' + s.fmt, s.blob);
+    });
+    var zipBlob = await zip.generateAsync({ type: 'blob' });
+    onProgress && onProgress(1, 'Done!');
+    return { blob: zipBlob, filename: base + '-screenshots.zip' };
   }
 
   window.TGTools = window.TGTools || {};

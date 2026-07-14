@@ -1,13 +1,11 @@
 (function () {
   'use strict';
 
-  var HANDLER = 'password-generator';
+  var CONFIG = { handler: 'password-generator', inputType: 'data' };
   window.TGTools = window.TGTools || {};
 
-  var box = document.querySelector('.tg-tool-box[data-handler="' + HANDLER + '"]');
-  if (!box) return;
-
-  if (!document.getElementById('tg-ai5-css')) {
+  function injectCSS() {
+    if (document.getElementById('tg-ai5-css')) return;
     var style = document.createElement('style');
     style.id = 'tg-ai5-css';
     style.textContent = [
@@ -120,6 +118,12 @@
     }
     return { password: pwd, poolSize: pool.length };
   }
+
+  function init(box) {
+  injectCSS();
+
+  var container = box.querySelector('.tg-options') || box;
+  if (container !== box) container.hidden = false;
 
   // Build form
   var form = document.createElement('div');
@@ -272,7 +276,7 @@
   strengthDiv.appendChild(bar);
   form.appendChild(strengthDiv);
 
-  box.appendChild(form);
+  container.appendChild(form);
 
   function generate() {
     var memorable = memToggle.getValue() === 'yes';
@@ -359,6 +363,7 @@
 
   // Generate on load
   generate();
+  }
 
-  window.TGTools[HANDLER] = { box: box, generate: generate };
+  window.TGTools[CONFIG.handler] = { init: init, CONFIG: CONFIG };
 })();
