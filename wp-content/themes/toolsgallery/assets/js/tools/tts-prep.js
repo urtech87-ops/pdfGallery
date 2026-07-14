@@ -2,10 +2,10 @@
  * ToolsGallery — Text to Speech
  * Handler: tts-prep
  *
- * Server-generated speech via the tg_tts_proxy AJAX action (OpenAI TTS,
- * gpt-4o-mini-tts). Returns real MP3 audio: playable in-page and
- * downloadable. Voice, vibe/emotion presets, custom instructions, tone
- * and speed controls.
+ * Server-generated speech via the tg_tts_proxy AJAX action (OpenRouter
+ * /audio/speech, model TG_TTS_MODEL). Returns real MP3 audio: playable
+ * in-page and downloadable. Voice, vibe/emotion presets, custom
+ * instructions, tone and speed controls.
  */
 (function () {
   'use strict';

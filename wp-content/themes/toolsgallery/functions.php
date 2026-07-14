@@ -17,6 +17,16 @@ if (!defined('TG_AI_MODEL')) {
 }
 
 /* =============================================
+   TTS MODEL — OpenRouter /audio/speech slug
+   TTS slugs are dated and change; confirm the current one on
+   openrouter.ai/models (filtered to speech output). Override in
+   wp-config.php by defining TG_TTS_MODEL before the theme loads.
+   ============================================= */
+if (!defined('TG_TTS_MODEL')) {
+    define('TG_TTS_MODEL', 'openai/gpt-4o-mini-tts-2025-12-15');
+}
+
+/* =============================================
    THEME SETUP
    ============================================= */
 function tg_setup()
@@ -1144,14 +1154,14 @@ function tg_call_openrouter($tool_key, $payload)
 }
 
 /* =============================================
-   OPENAI TEXT-TO-SPEECH PROXY (tts-prep)
+   TEXT-TO-SPEECH PROXY (tts-prep) — OpenRouter /audio/speech
    ============================================= */
 function tg_tts_proxy_handler()
 {
     check_ajax_referer('tg_tool_nonce', 'nonce');
 
-    if (!defined('OPENAI_API_KEY') || !OPENAI_API_KEY) {
-        wp_send_json_error(['message' => 'Text-to-Speech is not configured yet (missing OPENAI_API_KEY). Please contact the site administrator.'], 500);
+    if (!defined('OPENROUTER_API_KEY') || !OPENROUTER_API_KEY) {
+        wp_send_json_error(['message' => 'Text-to-Speech is not configured yet (missing OPENROUTER_API_KEY). Please contact the site administrator.'], 500);
     }
 
     $ip_key = 'tg_tts_rate_' . md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '')));
@@ -1180,29 +1190,37 @@ function tg_tts_proxy_handler()
     $instructions = substr($instructions, 0, 1000);
 
     $speed = (float) ($_POST['speed'] ?? 1.0);
-    $speed = max(0.25, min(4.0, $speed));
+    $speed = max(0.5, min(2.0, $speed));
 
-    // OpenAI TTS caps input at ~4096 chars per request — chunk long text on
-    // sentence boundaries and concatenate the MP3 bytes.
+    // The TTS endpoint caps input at ~4096 chars per request — chunk long
+    // text on sentence boundaries and concatenate the MP3 bytes.
     $chunks = tg_tts_split_text($text, 4000);
     $audio = '';
     foreach ($chunks as $chunk) {
         $body = [
-            'model' => 'gpt-4o-mini-tts',
+            'model' => TG_TTS_MODEL,
             'input' => $chunk,
             'voice' => $voice,
             'speed' => $speed,
             'response_format' => 'mp3',
         ];
         if ($instructions !== '') {
-            $body['instructions'] = $instructions;
+            // Via OpenRouter, OpenAI's `instructions` field must go under
+            // provider.options.openai — not top-level.
+            $body['provider'] = [
+                'options' => [
+                    'openai' => ['instructions' => $instructions],
+                ],
+            ];
         }
 
-        $response = wp_remote_post('https://api.openai.com/v1/audio/speech', [
+        $response = wp_remote_post('https://openrouter.ai/api/v1/audio/speech', [
             'timeout' => 120,
             'headers' => [
-                'Authorization' => 'Bearer ' . OPENAI_API_KEY,
+                'Authorization' => 'Bearer ' . OPENROUTER_API_KEY,
                 'Content-Type' => 'application/json',
+                'HTTP-Referer' => home_url(),
+                'X-Title' => get_bloginfo('name'),
             ],
             'body' => wp_json_encode($body),
         ]);
@@ -1212,12 +1230,14 @@ function tg_tts_proxy_handler()
         }
 
         $code = wp_remote_retrieve_response_code($response);
+        // On HTTP 200 the body is raw audio bytes (audio/mpeg), NOT JSON —
+        // only non-2xx responses carry a JSON error payload.
         $bytes = wp_remote_retrieve_body($response);
 
         if ($code < 200 || $code >= 300) {
             $data = json_decode($bytes, true);
             $err = $data['error']['message'] ?? ('TTS provider returned HTTP ' . $code);
-            error_log('OpenAI TTS error: ' . $err);
+            error_log('OpenRouter TTS error: ' . $err);
             wp_send_json_error(['message' => $err], 500);
         }
 
