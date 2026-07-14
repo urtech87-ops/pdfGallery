@@ -3,8 +3,9 @@
  * Handler: tts-prep
  *
  * Server-generated speech via the tg_tts_proxy AJAX action (OpenRouter
- * /audio/speech, model TG_TTS_MODEL). Returns real audio (MP3, or WAV when
- * the provider sends raw PCM): playable in-page and downloadable.
+ * /audio/speech, model TG_TTS_MODEL). The server picks the format per model
+ * (MP3 for OpenAI; WAV-wrapped PCM for Gemini) and reports mime + ext in the
+ * JSON response: playable in-page and downloadable.
  *
  * Model-aware UI: OpenAI TTS models use the `instructions` field plus a
  * speed parameter; Gemini TTS models use their own voice list and are
@@ -159,7 +160,7 @@
 
     '<div class="tg-tts-result" id="tts-result">' +
       '<audio controls class="tg-tts-audio" id="tts-audio"></audio>' +
-      '<div><a class="tg-tts-download" id="tts-download" download="speech.mp3">&#11015; Download MP3</a></div>' +
+      '<div><a class="tg-tts-download" id="tts-download" download="speech">&#11015; Download Audio</a></div>' +
     '</div>' +
 
     '<div class="tg-ai5-error" id="tts-error"></div>' +
@@ -240,7 +241,7 @@
     var bin = atob(b64);
     var bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new Blob([bytes], { type: mime || 'audio/mpeg' });
+    return new Blob([bytes], { type: mime });
   }
 
   /* ── Generate ── */
@@ -261,7 +262,6 @@
     formData.append('voice', voiceEl.value);
     formData.append('instructions', buildInstructions());
     formData.append('speed', rateEl.value);
-    formData.append('format', 'mp3');
 
     fetch((window.tgAiConfig && window.tgAiConfig.ajaxUrl) || '/wp-admin/admin-ajax.php', {
       method: 'POST',
@@ -282,16 +282,17 @@
       }
 
       if (blobUrl) URL.revokeObjectURL(blobUrl);
-      var blob = base64ToBlob(b64, (data.data && data.data.mime) || 'audio/mpeg');
+      var mime = data.data.mime || 'audio/wav';
+      var blob = base64ToBlob(b64, mime);
       blobUrl = URL.createObjectURL(blob);
 
-      // The server reports 'mp3' or 'wav' (wav when the provider returned
-      // raw PCM that got wrapped) — name the download to match.
-      var fmt = (data.data && data.data.format) || 'mp3';
+      // The server reports the audio type it produced ('wav' for Gemini's
+      // WAV-wrapped PCM, 'mp3' for OpenAI) — name the download to match.
+      var ext = data.data.ext || data.data.format || 'wav';
       audioEl.src = blobUrl;
       dlLink.href = blobUrl;
-      dlLink.download = 'speech.' + fmt;
-      dlLink.innerHTML = '&#11015; Download ' + fmt.toUpperCase();
+      dlLink.download = 'speech.' + ext;
+      dlLink.innerHTML = '&#11015; Download ' + ext.toUpperCase();
       resultEl.classList.add('show');
       audioEl.play().catch(function () { /* autoplay may be blocked — user can press play */ });
     }).catch(function () {

@@ -1201,7 +1201,11 @@ function tg_tts_proxy_handler()
     // text on sentence boundaries and concatenate the audio bytes.
     $chunks = tg_tts_split_text($text, 4000);
     $audio = '';
-    $got_pcm = false;
+    // Gemini TTS only supports response_format "pcm" (it errors on "mp3"),
+    // so the Gemini path always returns raw PCM that gets WAV-wrapped below.
+    $got_pcm = $is_gemini;
+    $pcm_rate = 24000;
+    $pcm_channels = 1;
     foreach ($chunks as $chunk) {
         if ($is_gemini) {
             // Gemini TTS has no `instructions` field and ignores `speed`.
@@ -1212,7 +1216,7 @@ function tg_tts_proxy_handler()
                 'model' => TG_TTS_MODEL,
                 'input' => $instructions !== '' ? $instructions . ' ' . $chunk : $chunk,
                 'voice' => $voice,
-                'response_format' => 'mp3',
+                'response_format' => 'pcm',
             ];
         } else {
             $body = [
@@ -1260,12 +1264,18 @@ function tg_tts_proxy_handler()
             wp_send_json_error(['message' => $err], 500);
         }
 
-        // Some providers (Gemini) may return raw PCM even when mp3 was
-        // requested. Raw PCM chunks concatenate cleanly; the WAV header is
-        // added once at the end.
+        // Raw PCM chunks concatenate cleanly; the WAV header is added once
+        // at the end. The Content-Type may carry the stream parameters
+        // (e.g. "audio/pcm;rate=24000;channels=1") — honor them when present.
         $ctype = strtolower((string) wp_remote_retrieve_header($response, 'content-type'));
         if (strpos($ctype, 'pcm') !== false || strpos($ctype, 'l16') !== false) {
             $got_pcm = true;
+        }
+        if (preg_match('/rate=(\d+)/', $ctype, $m)) {
+            $pcm_rate = (int) $m[1];
+        }
+        if (preg_match('/channels=(\d+)/', $ctype, $m)) {
+            $pcm_channels = (int) $m[1];
         }
 
         $audio .= $bytes;
@@ -1276,9 +1286,9 @@ function tg_tts_proxy_handler()
     }
 
     if ($got_pcm) {
-        // Gemini PCM is 24kHz, 16-bit, mono — wrap in a WAV header so the
-        // browser <audio> element can play it.
-        $audio = tg_tts_pcm_to_wav($audio, 24000, 1, 16);
+        // Wrap the raw 16-bit PCM in a WAV header so the browser <audio>
+        // element can play it (Gemini default: 24kHz mono).
+        $audio = tg_tts_pcm_to_wav($audio, $pcm_rate, $pcm_channels, 16);
         $mime = 'audio/wav';
         $format = 'wav';
     } else {
@@ -1290,6 +1300,7 @@ function tg_tts_proxy_handler()
         'audio' => base64_encode($audio),
         'mime' => $mime,
         'format' => $format,
+        'ext' => $format,
     ]);
 }
 
