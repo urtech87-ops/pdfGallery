@@ -23,7 +23,7 @@ if (!defined('TG_AI_MODEL')) {
    wp-config.php by defining TG_TTS_MODEL before the theme loads.
    ============================================= */
 if (!defined('TG_TTS_MODEL')) {
-    define('TG_TTS_MODEL', 'openai/gpt-4o-mini-tts-2025-12-15');
+    define('TG_TTS_MODEL', 'google/gemini-3.1-flash-tts-preview');
 }
 
 /* =============================================
@@ -545,6 +545,7 @@ function tg_enqueue_assets()
             'toolKey' => $tg_handler,
             'actionLabel' => get_post_meta(get_the_ID(), '_tg_action_label', true) ?: __('Run Tool', 'toolsgallery'),
             'removebgConfigured' => (defined('REMOVEBG_API_KEY') && REMOVEBG_API_KEY) ? 1 : 0,
+            'ttsModel' => TG_TTS_MODEL,
         ]);
     }
 
@@ -1180,10 +1181,14 @@ function tg_tts_proxy_handler()
         wp_send_json_error(['message' => 'Text is too long (maximum 12,000 characters).'], 400);
     }
 
-    $allowed_voices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'];
-    $voice = sanitize_text_field(wp_unslash($_POST['voice'] ?? 'alloy'));
+    $is_gemini = (stripos(TG_TTS_MODEL, 'gemini') !== false);
+
+    $openai_voices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'];
+    $gemini_voices = ['Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus'];
+    $allowed_voices = $is_gemini ? $gemini_voices : $openai_voices;
+    $voice = sanitize_text_field(wp_unslash($_POST['voice'] ?? ''));
     if (!in_array($voice, $allowed_voices, true)) {
-        $voice = 'alloy';
+        $voice = $is_gemini ? 'Zephyr' : 'alloy';
     }
 
     $instructions = sanitize_textarea_field(wp_unslash($_POST['instructions'] ?? ''));
@@ -1193,25 +1198,39 @@ function tg_tts_proxy_handler()
     $speed = max(0.5, min(2.0, $speed));
 
     // The TTS endpoint caps input at ~4096 chars per request — chunk long
-    // text on sentence boundaries and concatenate the MP3 bytes.
+    // text on sentence boundaries and concatenate the audio bytes.
     $chunks = tg_tts_split_text($text, 4000);
     $audio = '';
+    $got_pcm = false;
     foreach ($chunks as $chunk) {
-        $body = [
-            'model' => TG_TTS_MODEL,
-            'input' => $chunk,
-            'voice' => $voice,
-            'speed' => $speed,
-            'response_format' => 'mp3',
-        ];
-        if ($instructions !== '') {
-            // Via OpenRouter, OpenAI's `instructions` field must go under
-            // provider.options.openai — not top-level.
-            $body['provider'] = [
-                'options' => [
-                    'openai' => ['instructions' => $instructions],
-                ],
+        if ($is_gemini) {
+            // Gemini TTS has no `instructions` field and ignores `speed`.
+            // Emotion/vibe is steered through the prompt itself: prepend the
+            // style directive (which may carry inline tags like [whispers])
+            // to every chunk so delivery stays consistent across chunks.
+            $body = [
+                'model' => TG_TTS_MODEL,
+                'input' => $instructions !== '' ? $instructions . ' ' . $chunk : $chunk,
+                'voice' => $voice,
+                'response_format' => 'mp3',
             ];
+        } else {
+            $body = [
+                'model' => TG_TTS_MODEL,
+                'input' => $chunk,
+                'voice' => $voice,
+                'speed' => $speed,
+                'response_format' => 'mp3',
+            ];
+            if ($instructions !== '') {
+                // Via OpenRouter, OpenAI's `instructions` field must go under
+                // provider.options.openai — not top-level.
+                $body['provider'] = [
+                    'options' => [
+                        'openai' => ['instructions' => $instructions],
+                    ],
+                ];
+            }
         }
 
         $response = wp_remote_post('https://openrouter.ai/api/v1/audio/speech', [
@@ -1230,7 +1249,7 @@ function tg_tts_proxy_handler()
         }
 
         $code = wp_remote_retrieve_response_code($response);
-        // On HTTP 200 the body is raw audio bytes (audio/mpeg), NOT JSON —
+        // On HTTP 200 the body is raw audio bytes, NOT JSON —
         // only non-2xx responses carry a JSON error payload.
         $bytes = wp_remote_retrieve_body($response);
 
@@ -1241,6 +1260,14 @@ function tg_tts_proxy_handler()
             wp_send_json_error(['message' => $err], 500);
         }
 
+        // Some providers (Gemini) may return raw PCM even when mp3 was
+        // requested. Raw PCM chunks concatenate cleanly; the WAV header is
+        // added once at the end.
+        $ctype = strtolower((string) wp_remote_retrieve_header($response, 'content-type'));
+        if (strpos($ctype, 'pcm') !== false || strpos($ctype, 'l16') !== false) {
+            $got_pcm = true;
+        }
+
         $audio .= $bytes;
     }
 
@@ -1248,10 +1275,40 @@ function tg_tts_proxy_handler()
         wp_send_json_error(['message' => 'TTS provider returned no audio. Please try again.'], 500);
     }
 
+    if ($got_pcm) {
+        // Gemini PCM is 24kHz, 16-bit, mono — wrap in a WAV header so the
+        // browser <audio> element can play it.
+        $audio = tg_tts_pcm_to_wav($audio, 24000, 1, 16);
+        $mime = 'audio/wav';
+        $format = 'wav';
+    } else {
+        $mime = 'audio/mpeg';
+        $format = 'mp3';
+    }
+
     wp_send_json_success([
         'audio' => base64_encode($audio),
-        'mime' => 'audio/mpeg',
+        'mime' => $mime,
+        'format' => $format,
     ]);
+}
+
+/* Wrap raw little-endian PCM samples in a standard RIFF/WAV header. */
+function tg_tts_pcm_to_wav($pcm, $sample_rate, $channels, $bits)
+{
+    $data_len = strlen($pcm);
+    $block_align = $channels * ($bits / 8);
+    $byte_rate = $sample_rate * $block_align;
+    return 'RIFF' . pack('V', 36 + $data_len) . 'WAVE'
+        . 'fmt ' . pack('V', 16)
+        . pack('v', 1)              // PCM format
+        . pack('v', $channels)
+        . pack('V', $sample_rate)
+        . pack('V', $byte_rate)
+        . pack('v', $block_align)
+        . pack('v', $bits)
+        . 'data' . pack('V', $data_len)
+        . $pcm;
 }
 
 /* Split text into <= $max_len chunks, preferring sentence boundaries. */

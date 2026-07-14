@@ -3,9 +3,13 @@
  * Handler: tts-prep
  *
  * Server-generated speech via the tg_tts_proxy AJAX action (OpenRouter
- * /audio/speech, model TG_TTS_MODEL). Returns real MP3 audio: playable
- * in-page and downloadable. Voice, vibe/emotion presets, custom
- * instructions, tone and speed controls.
+ * /audio/speech, model TG_TTS_MODEL). Returns real audio (MP3, or WAV when
+ * the provider sends raw PCM): playable in-page and downloadable.
+ *
+ * Model-aware UI: OpenAI TTS models use the `instructions` field plus a
+ * speed parameter; Gemini TTS models use their own voice list and are
+ * steered by prepending a style directive (with inline tags like
+ * [whispers]) to the text — speed is not supported, so the slider hides.
  */
 (function () {
   'use strict';
@@ -32,7 +36,10 @@
 
   var MAX_CHARS = 12000;
 
-  var VOICES = [
+  var TTS_MODEL = (window.tgAiConfig && window.tgAiConfig.ttsModel) || 'google/gemini-3.1-flash-tts-preview';
+  var IS_GEMINI = /gemini/i.test(TTS_MODEL);
+
+  var OPENAI_VOICES = [
     { id: 'alloy',   label: 'Alloy — neutral, balanced' },
     { id: 'ash',     label: 'Ash — male, warm and clear' },
     { id: 'ballad',  label: 'Ballad — male, British, expressive' },
@@ -46,7 +53,21 @@
     { id: 'verse',   label: 'Verse — male, versatile and expressive' }
   ];
 
-  var VIBES = {
+  var GEMINI_VOICES = [
+    { id: 'Zephyr', label: 'Zephyr — female, bright' },
+    { id: 'Puck',   label: 'Puck — male, upbeat' },
+    { id: 'Charon', label: 'Charon — male, deep and informative' },
+    { id: 'Kore',   label: 'Kore — female, firm and confident' },
+    { id: 'Fenrir', label: 'Fenrir — male, excitable and energetic' },
+    { id: 'Aoede',  label: 'Aoede — female, breezy and natural' },
+    { id: 'Leda',   label: 'Leda — female, youthful' },
+    { id: 'Orus',   label: 'Orus — male, firm and mature' }
+  ];
+
+  var VOICES = IS_GEMINI ? GEMINI_VOICES : OPENAI_VOICES;
+
+  // OpenAI models take these via the `instructions` field.
+  var OPENAI_VIBES = {
     'Neutral':    '',
     'Cheerful':   'Speak in a cheerful, upbeat, positive tone with a smile in your voice.',
     'Calm':       'Speak in a calm, soothing, relaxed tone with gentle pacing.',
@@ -56,6 +77,23 @@
     'Newscaster': 'Speak like a professional news anchor: clear, confident, formal delivery.',
     'Whisper':    'Speak in a soft whisper: hushed, intimate and quiet.'
   };
+
+  // Gemini has no instructions field — these directives are prepended to the
+  // text itself (Gemini is prompt-steerable, with inline tags like
+  // [whispers] and [excited]). The trailing colon cues the model that the
+  // spoken content follows.
+  var GEMINI_VIBES = {
+    'Neutral':    '',
+    'Cheerful':   'Say this in a cheerful, upbeat tone:',
+    'Calm':       'Say this in a calm, soothing tone with gentle pacing:',
+    'Serious':    'Say this in a serious, measured, authoritative tone:',
+    'Excited':    '[excited] Say this with high energy and genuine enthusiasm:',
+    'Storyteller': 'Narrate this like a warm, expressive storyteller with subtle dramatic pauses:',
+    'Newscaster': 'Read this like a professional news anchor — clear, confident and formal:',
+    'Whisper':    '[whispers] Say this in a soft, hushed whisper:'
+  };
+
+  var VIBES = IS_GEMINI ? GEMINI_VIBES : OPENAI_VIBES;
 
   var TONE_HINTS = {
     1: 'Deliver it in a very soft, low-key, understated way.',
@@ -105,7 +143,8 @@
           '<span class="tg-tts-slider-val" id="tts-tone-val">Balanced</span>' +
         '</div>' +
       '</div>' +
-      '<div class="tg-ai5-col">' +
+      // Gemini TTS has no speed parameter — hide the slider for it.
+      '<div class="tg-ai5-col" id="tts-speed-col"' + (IS_GEMINI ? ' style="display:none"' : '') + '>' +
         '<label class="tg-ai5-label">Speed</label>' +
         '<div class="tg-tts-slider-row">' +
           '<input type="range" class="tg-tts-slider" id="tts-rate" min="0.5" max="2" step="0.1" value="1">' +
@@ -175,11 +214,24 @@
   }
 
   function buildInstructions() {
+    var toneHint = TONE_HINTS[toneEl.value];
+    var custom = customEl.value.trim();
+
+    if (IS_GEMINI) {
+      // Build a style directive the server prepends to the text. The
+      // colon-terminated vibe goes LAST so it directly cues the spoken
+      // content; tone/custom hints read as extra sentences before it.
+      var lead = [];
+      if (toneHint) lead.push(toneHint);
+      if (custom) lead.push(custom);
+      var vibe = VIBES[selectedVibe];
+      if (!vibe && lead.length) vibe = 'Read the following text accordingly:';
+      return (lead.join(' ') + ' ' + (vibe || '')).trim();
+    }
+
     var parts = [];
     if (VIBES[selectedVibe]) parts.push(VIBES[selectedVibe]);
-    var toneHint = TONE_HINTS[toneEl.value];
     if (toneHint) parts.push(toneHint);
-    var custom = customEl.value.trim();
     if (custom) parts.push(custom);
     return parts.join(' ');
   }
@@ -233,8 +285,13 @@
       var blob = base64ToBlob(b64, (data.data && data.data.mime) || 'audio/mpeg');
       blobUrl = URL.createObjectURL(blob);
 
+      // The server reports 'mp3' or 'wav' (wav when the provider returned
+      // raw PCM that got wrapped) — name the download to match.
+      var fmt = (data.data && data.data.format) || 'mp3';
       audioEl.src = blobUrl;
       dlLink.href = blobUrl;
+      dlLink.download = 'speech.' + fmt;
+      dlLink.innerHTML = '&#11015; Download ' + fmt.toUpperCase();
       resultEl.classList.add('show');
       audioEl.play().catch(function () { /* autoplay may be blocked — user can press play */ });
     }).catch(function () {
