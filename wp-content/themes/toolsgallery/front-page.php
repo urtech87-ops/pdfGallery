@@ -104,6 +104,110 @@
   </div>
 </section>
 
+<!-- Popular Tools (filterable) -->
+<section class="tg-section tg-popular-tools" aria-labelledby="popular-tools-heading">
+  <div class="tg-container">
+    <div class="tg-section__header">
+      <div class="tg-section__tag"><?php esc_html_e('POPULAR', 'toolsgallery'); ?></div>
+      <h2 class="tg-section__title" id="popular-tools-heading"><?php esc_html_e('Our Most Popular Tools', 'toolsgallery'); ?></h2>
+      <p class="tg-section__desc"><?php esc_html_e('The tools people use most — filter by category and jump straight in.', 'toolsgallery'); ?></p>
+    </div>
+
+    <?php
+    // Curated list. 's' is the tool handler/slug, 'c' the category slug, 'cl' the label shown on the card.
+    $tg_popular = [
+      ['t' => 'Merge PDF',          's' => 'merge-pdf',        'c' => 'pdf-tools',     'cl' => 'PDF',       'd' => 'Combine PDFs into one file.'],
+      ['t' => 'Compress PDF',       's' => 'compress-pdf',     'c' => 'pdf-tools',     'cl' => 'PDF',       'd' => 'Shrink PDF size.'],
+      ['t' => 'PDF to Word',        's' => 'pdf-to-word',      'c' => 'pdf-tools',     'cl' => 'PDF',       'd' => 'Convert PDF to editable Word.'],
+      ['t' => 'Background Remover', 's' => 'img-remove-bg',    'c' => 'image-tools',   'cl' => 'Image',     'd' => 'Remove image backgrounds.'],
+      ['t' => 'Compress Image',     's' => 'img-compress',     'c' => 'image-tools',   'cl' => 'Image',     'd' => 'Reduce image file size.'],
+      ['t' => 'Resize Image',       's' => 'img-resize',       'c' => 'image-tools',   'cl' => 'Image',     'd' => 'Resize to any dimension.'],
+      ['t' => 'Essay Writer',       's' => 'essay-writer',     'c' => 'ai-tools',      'cl' => 'AI Write',  'd' => 'Write essays with AI.'],
+      ['t' => 'Grammar Fixer',      's' => 'grammar-fixer',    'c' => 'ai-tools',      'cl' => 'AI Write',  'd' => 'Fix grammar instantly.'],
+      ['t' => 'Paraphraser',        's' => 'paraphraser',      'c' => 'ai-tools',      'cl' => 'AI Write',  'd' => 'Reword any text.'],
+      ['t' => 'Trim Video',         's' => 'trim-video',       'c' => 'video-tools',   'cl' => 'Video',     'd' => 'Cut a clip from a video.'],
+      ['t' => 'Compress Video',     's' => 'video-compressor', 'c' => 'video-tools',   'cl' => 'Video',     'd' => 'Reduce video size.'],
+      ['t' => 'Excel to CSV',       's' => 'excel-to-csv',     'c' => 'file-tools',    'cl' => 'Converter', 'd' => 'Convert Excel to CSV.'],
+      ['t' => 'HTML to Markdown',   's' => 'html-to-md',       'c' => 'file-tools',    'cl' => 'Converter', 'd' => 'Convert HTML to Markdown.'],
+      ['t' => 'Color Picker',       's' => 'color-picker',     'c' => 'utility-tools', 'cl' => 'Other',     'd' => 'Pick colors + get hex/rgb.'],
+      ['t' => 'Unit Converter',     's' => 'unit-converter',   'c' => 'utility-tools', 'cl' => 'Other',     'd' => 'Convert units fast.'],
+    ];
+
+    // Resolve real permalinks by handler where the CPT post exists; fall back to /tool/<slug>/.
+    $tg_pop_links = [];
+    $tg_pop_posts = get_posts([
+      'post_type'      => 'tg_tool',
+      'posts_per_page' => -1,
+      'no_found_rows'  => true,
+      'meta_query'     => [[ // phpcs:ignore WordPress.DB.SlowDBQuery
+        'key'     => '_tg_handler',
+        'value'   => wp_list_pluck($tg_popular, 's'),
+        'compare' => 'IN',
+      ]],
+    ]);
+    foreach ($tg_pop_posts as $tg_pop_post) {
+      $tg_pop_links[get_post_meta($tg_pop_post->ID, '_tg_handler', true)] = get_permalink($tg_pop_post);
+    }
+
+    $tg_filters = [
+      'all'           => __('All', 'toolsgallery'),
+      'pdf-tools'     => __('PDF', 'toolsgallery'),
+      'image-tools'   => __('Image', 'toolsgallery'),
+      'ai-tools'      => __('AI Write', 'toolsgallery'),
+      'video-tools'   => __('Video', 'toolsgallery'),
+      'file-tools'    => __('Converter', 'toolsgallery'),
+      'utility-tools' => __('Other', 'toolsgallery'),
+    ];
+    ?>
+
+    <div class="tg-filter-bar" role="group" aria-label="<?php esc_attr_e('Filter popular tools by category', 'toolsgallery'); ?>">
+      <?php foreach ($tg_filters as $tg_f_slug => $tg_f_label) : ?>
+        <button type="button" class="tg-filter-btn<?php echo $tg_f_slug === 'all' ? ' active' : ''; ?>"
+                data-filter="<?php echo esc_attr($tg_f_slug); ?>"
+                aria-pressed="<?php echo $tg_f_slug === 'all' ? 'true' : 'false'; ?>">
+          <?php echo esc_html($tg_f_label); ?>
+        </button>
+      <?php endforeach; ?>
+    </div>
+
+    <div class="tg-tools-grid tg-popular-grid">
+      <?php foreach ($tg_popular as $item) :
+        $item_url = $tg_pop_links[$item['s']] ?? home_url('/tool/' . $item['s'] . '/');
+      ?>
+        <a class="tg-tool-card" href="<?php echo esc_url($item_url); ?>" data-category="<?php echo esc_attr($item['c']); ?>">
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($item['s'], $item['c']); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
+          <div class="tg-tool-card__title"><?php echo esc_html($item['t']); ?></div>
+          <div class="tg-tool-card__desc"><?php echo esc_html($item['d']); ?></div>
+          <span class="tg-tool-card__cat"><?php echo esc_html($item['cl']); ?></span>
+        </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var section = document.querySelector('.tg-popular-tools');
+    if (!section) return;
+    var bar = section.querySelector('.tg-filter-bar');
+    var cards = section.querySelectorAll('.tg-popular-grid .tg-tool-card');
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('.tg-filter-btn');
+      if (!btn) return;
+      bar.querySelectorAll('.tg-filter-btn').forEach(function (b) {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+      var filter = btn.dataset.filter;
+      cards.forEach(function (card) {
+        card.classList.toggle('is-hidden', filter !== 'all' && card.dataset.category !== filter);
+      });
+    });
+  })();
+  </script>
+</section>
+
 <!-- PDF Tools Section -->
 <section class="tg-section" aria-labelledby="pdf-tools-heading">
   <div class="tg-container">
