@@ -212,7 +212,6 @@ get_header();
       <div class="tg-tools-grid tg-tools-grid--featured">
         <?php foreach ($section['all'] as $post) :
           // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
-          $icon_svg = tg_tool_icon_svg($post->ID);
           $excerpt  = $post->post_excerpt ?: wp_trim_words(wp_strip_all_tags($post->post_content), 20, '…');
         ?>
         <?php $post_handler = get_post_meta($post->ID, '_tg_handler', true); ?>
@@ -220,8 +219,8 @@ get_header();
            data-tool-handler="<?php echo esc_attr($post_handler); ?>"
            data-tool-category="<?php echo esc_attr($slug); ?>">
           <span class="tg-tool-card__badge tg-tool-card__badge--green"><?php esc_html_e('FREE', 'toolsgallery'); ?></span>
-          <div class="tg-tool-card__svg tg-tool-icon" aria-hidden="true">
-            <?php echo $icon_svg; // phpcs:ignore WordPress.Security.EscapeOutput — sanitized SVG or our own SVG ?>
+          <div class="tg-tool-card__icon" aria-hidden="true">
+            <?php echo tg_get_tool_icon($post_handler ?: $post->post_name, $slug); // phpcs:ignore WordPress.Security.EscapeOutput ?>
           </div>
           <h3 class="tg-tool-card__title"><?php echo esc_html($post->post_title); ?></h3>
           <p class="tg-tool-card__desc"><?php echo esc_html(wp_trim_words(wp_strip_all_tags($excerpt), 14, '…')); ?></p>

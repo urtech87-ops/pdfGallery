@@ -104,6 +104,110 @@
   </div>
 </section>
 
+<!-- Popular Tools (filterable) -->
+<section class="tg-section tg-popular-tools" aria-labelledby="popular-tools-heading">
+  <div class="tg-container">
+    <div class="tg-section__header">
+      <div class="tg-section__tag"><?php esc_html_e('POPULAR', 'toolsgallery'); ?></div>
+      <h2 class="tg-section__title" id="popular-tools-heading"><?php esc_html_e('Our Most Popular Tools', 'toolsgallery'); ?></h2>
+      <p class="tg-section__desc"><?php esc_html_e('The tools people use most — filter by category and jump straight in.', 'toolsgallery'); ?></p>
+    </div>
+
+    <?php
+    // Curated list. 's' is the tool handler/slug, 'c' the category slug, 'cl' the label shown on the card.
+    $tg_popular = [
+      ['t' => 'Merge PDF',          's' => 'merge-pdf',        'c' => 'pdf-tools',     'cl' => 'PDF',       'd' => 'Combine PDFs into one file.'],
+      ['t' => 'Compress PDF',       's' => 'compress-pdf',     'c' => 'pdf-tools',     'cl' => 'PDF',       'd' => 'Shrink PDF size.'],
+      ['t' => 'PDF to Word',        's' => 'pdf-to-word',      'c' => 'pdf-tools',     'cl' => 'PDF',       'd' => 'Convert PDF to editable Word.'],
+      ['t' => 'Background Remover', 's' => 'img-remove-bg',    'c' => 'image-tools',   'cl' => 'Image',     'd' => 'Remove image backgrounds.'],
+      ['t' => 'Compress Image',     's' => 'img-compress',     'c' => 'image-tools',   'cl' => 'Image',     'd' => 'Reduce image file size.'],
+      ['t' => 'Resize Image',       's' => 'img-resize',       'c' => 'image-tools',   'cl' => 'Image',     'd' => 'Resize to any dimension.'],
+      ['t' => 'Essay Writer',       's' => 'essay-writer',     'c' => 'ai-tools',      'cl' => 'AI Write',  'd' => 'Write essays with AI.'],
+      ['t' => 'Grammar Fixer',      's' => 'grammar-fixer',    'c' => 'ai-tools',      'cl' => 'AI Write',  'd' => 'Fix grammar instantly.'],
+      ['t' => 'Paraphraser',        's' => 'paraphraser',      'c' => 'ai-tools',      'cl' => 'AI Write',  'd' => 'Reword any text.'],
+      ['t' => 'Trim Video',         's' => 'trim-video',       'c' => 'video-tools',   'cl' => 'Video',     'd' => 'Cut a clip from a video.'],
+      ['t' => 'Compress Video',     's' => 'video-compressor', 'c' => 'video-tools',   'cl' => 'Video',     'd' => 'Reduce video size.'],
+      ['t' => 'Excel to CSV',       's' => 'excel-to-csv',     'c' => 'file-tools',    'cl' => 'Converter', 'd' => 'Convert Excel to CSV.'],
+      ['t' => 'HTML to Markdown',   's' => 'html-to-md',       'c' => 'file-tools',    'cl' => 'Converter', 'd' => 'Convert HTML to Markdown.'],
+      ['t' => 'Color Picker',       's' => 'color-picker',     'c' => 'utility-tools', 'cl' => 'Other',     'd' => 'Pick colors + get hex/rgb.'],
+      ['t' => 'Unit Converter',     's' => 'unit-converter',   'c' => 'utility-tools', 'cl' => 'Other',     'd' => 'Convert units fast.'],
+    ];
+
+    // Resolve real permalinks by handler where the CPT post exists; fall back to /tool/<slug>/.
+    $tg_pop_links = [];
+    $tg_pop_posts = get_posts([
+      'post_type'      => 'tg_tool',
+      'posts_per_page' => -1,
+      'no_found_rows'  => true,
+      'meta_query'     => [[ // phpcs:ignore WordPress.DB.SlowDBQuery
+        'key'     => '_tg_handler',
+        'value'   => wp_list_pluck($tg_popular, 's'),
+        'compare' => 'IN',
+      ]],
+    ]);
+    foreach ($tg_pop_posts as $tg_pop_post) {
+      $tg_pop_links[get_post_meta($tg_pop_post->ID, '_tg_handler', true)] = get_permalink($tg_pop_post);
+    }
+
+    $tg_filters = [
+      'all'           => __('All', 'toolsgallery'),
+      'pdf-tools'     => __('PDF', 'toolsgallery'),
+      'image-tools'   => __('Image', 'toolsgallery'),
+      'ai-tools'      => __('AI Write', 'toolsgallery'),
+      'video-tools'   => __('Video', 'toolsgallery'),
+      'file-tools'    => __('Converter', 'toolsgallery'),
+      'utility-tools' => __('Other', 'toolsgallery'),
+    ];
+    ?>
+
+    <div class="tg-filter-bar" role="group" aria-label="<?php esc_attr_e('Filter popular tools by category', 'toolsgallery'); ?>">
+      <?php foreach ($tg_filters as $tg_f_slug => $tg_f_label) : ?>
+        <button type="button" class="tg-filter-btn<?php echo $tg_f_slug === 'all' ? ' active' : ''; ?>"
+                data-filter="<?php echo esc_attr($tg_f_slug); ?>"
+                aria-pressed="<?php echo $tg_f_slug === 'all' ? 'true' : 'false'; ?>">
+          <?php echo esc_html($tg_f_label); ?>
+        </button>
+      <?php endforeach; ?>
+    </div>
+
+    <div class="tg-tools-grid tg-popular-grid">
+      <?php foreach ($tg_popular as $item) :
+        $item_url = $tg_pop_links[$item['s']] ?? home_url('/tool/' . $item['s'] . '/');
+      ?>
+        <a class="tg-tool-card" href="<?php echo esc_url($item_url); ?>" data-category="<?php echo esc_attr($item['c']); ?>">
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($item['s'], $item['c']); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
+          <div class="tg-tool-card__title"><?php echo esc_html($item['t']); ?></div>
+          <div class="tg-tool-card__desc"><?php echo esc_html($item['d']); ?></div>
+          <span class="tg-tool-card__cat"><?php echo esc_html($item['cl']); ?></span>
+        </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var section = document.querySelector('.tg-popular-tools');
+    if (!section) return;
+    var bar = section.querySelector('.tg-filter-bar');
+    var cards = section.querySelectorAll('.tg-popular-grid .tg-tool-card');
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('.tg-filter-btn');
+      if (!btn) return;
+      bar.querySelectorAll('.tg-filter-btn').forEach(function (b) {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+      var filter = btn.dataset.filter;
+      cards.forEach(function (card) {
+        card.classList.toggle('is-hidden', filter !== 'all' && card.dataset.category !== filter);
+      });
+    });
+  })();
+  </script>
+</section>
+
 <!-- PDF Tools Section -->
 <section class="tg-section" aria-labelledby="pdf-tools-heading">
   <div class="tg-container">
@@ -138,7 +242,7 @@
       ?>
         <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
-            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '📄'); ?>
+            <?php echo tg_get_tool_icon(get_post_meta(get_the_ID(), '_tg_handler', true) ?: get_post()->post_name, 'pdf-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
           </div>
           <div class="tg-tool-card__title"><?php the_title(); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
@@ -151,7 +255,7 @@
         foreach ($pdf_tools as $t) :
       ?>
         <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>" data-tool-handler="<?php echo esc_attr($t['slug']); ?>">
-          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($t['slug'], 'pdf-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
@@ -199,7 +303,7 @@
       ?>
         <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
-            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '🖼️'); ?>
+            <?php echo tg_get_tool_icon(get_post_meta(get_the_ID(), '_tg_handler', true) ?: get_post()->post_name, 'image-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
           </div>
           <div class="tg-tool-card__title"><?php the_title(); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
@@ -212,7 +316,7 @@
         foreach ($image_tools_static as $t) :
       ?>
         <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>" data-tool-handler="<?php echo esc_attr($t['slug']); ?>">
-          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($t['slug'], 'image-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
@@ -250,7 +354,7 @@
       ?>
         <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
-            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '✍️'); ?>
+            <?php echo tg_get_tool_icon(get_post_meta(get_the_ID(), '_tg_handler', true) ?: get_post()->post_name, 'ai-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
           </div>
           <div class="tg-tool-card__title"><?php the_title(); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
@@ -261,17 +365,17 @@
         wp_reset_postdata();
       else :
         $ai_placeholders = [
-          ['title' => 'Grammar Fixer',      'desc' => 'Fix grammar and spelling errors instantly.',    'icon' => '✏️'],
-          ['title' => 'Paraphraser',         'desc' => 'Rewrite any text in a fresh, clear style.',    'icon' => '🔄'],
-          ['title' => 'Article Writer',      'desc' => 'Generate full articles from a simple prompt.', 'icon' => '📰'],
-          ['title' => 'Content Summarizer',  'desc' => 'Summarize long content into key points.',      'icon' => '📋'],
-          ['title' => 'AI Humanizer',        'desc' => 'Make AI-generated text sound more human.',     'icon' => '🤖'],
-          ['title' => 'Essay Writer',        'desc' => 'Write structured essays on any topic fast.',   'icon' => '📝'],
+          ['title' => 'Grammar Fixer',      'desc' => 'Fix grammar and spelling errors instantly.',    'slug' => 'grammar-fixer'],
+          ['title' => 'Paraphraser',         'desc' => 'Rewrite any text in a fresh, clear style.',    'slug' => 'paraphraser'],
+          ['title' => 'Article Writer',      'desc' => 'Generate full articles from a simple prompt.', 'slug' => 'article-writer'],
+          ['title' => 'Content Summarizer',  'desc' => 'Summarize long content into key points.',      'slug' => 'summarizer'],
+          ['title' => 'AI Humanizer',        'desc' => 'Make AI-generated text sound more human.',     'slug' => 'ai-humanizer'],
+          ['title' => 'Essay Writer',        'desc' => 'Write structured essays on any topic fast.',   'slug' => 'essay-writer'],
         ];
         foreach ($ai_placeholders as $t) :
       ?>
         <div class="tg-tool-card">
-          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($t['slug'], 'ai-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('FREE', 'toolsgallery'); ?></span>
@@ -318,7 +422,7 @@
       ?>
         <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
-            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '🎬'); ?>
+            <?php echo tg_get_tool_icon(get_post_meta(get_the_ID(), '_tg_handler', true) ?: get_post()->post_name, 'video-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
           </div>
           <div class="tg-tool-card__title"><?php the_title(); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
@@ -331,7 +435,7 @@
         foreach ($video_tools_static as $t) :
       ?>
         <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>" data-tool-handler="<?php echo esc_attr($t['slug']); ?>">
-          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($t['slug'], 'video-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
@@ -384,36 +488,51 @@
 <!-- SEO Content Section -->
 <section class="tg-section tg-seo-content" aria-labelledby="seo-heading">
   <div class="tg-container">
+    <div class="tg-seo-content__inner">
 
-    <h2 id="seo-heading">Free Online Tools &mdash; No Download, No Signup, No Cost</h2>
+      <h2 id="seo-heading">Free Online Tools &mdash; No Download, No Signup, No Cost</h2>
 
-    <p>Tool Acadmy is a free collection of 150+ browser-based tools for everyday digital tasks. Whether you are a student who needs to compress a PDF before uploading an assignment, a freelancer editing product photos, a marketer writing social media captions with AI, or a developer converting JSON to CSV &mdash; we have a free tool for that.</p>
+      <p>Tool Acadmy is a free collection of 150+ browser-based tools for everyday digital tasks. Whether you are a student who needs to compress a PDF before uploading an assignment, a freelancer editing product photos, a marketer writing social media captions with AI, or a developer converting JSON to CSV &mdash; we have a free tool for that.</p>
 
-    <p>Every tool on Tool Acadmy runs directly in your web browser. That means no software to download, no account to create, and no files sent to our servers. Your documents, images, and videos stay private on your device the entire time.</p>
+      <p>Every tool on Tool Acadmy runs directly in your web browser. That means no software to download, no account to create, and no files sent to our servers. Your documents, images, and videos stay private on your device the entire time.</p>
 
-    <h3>Why Tool Acadmy is Different</h3>
+      <h3>Why Tool Acadmy is Different</h3>
 
-    <p>Most online tool sites either charge monthly fees, add watermarks to your output, or make you sign up before you can use anything. Tool Acadmy does none of those things. Every tool is free, every download is clean, and you can start immediately without entering an email address.</p>
+      <p>Most online tool sites either charge monthly fees, add watermarks to your output, or make you sign up before you can use anything. Tool Acadmy does none of those things. Every tool is free, every download is clean, and you can start immediately without entering an email address.</p>
 
-    <h3>What Types of Tools Are Available?</h3>
+      <h3>What Types of Tools Are Available?</h3>
 
-    <p>Tool Acadmy currently offers tools in six categories:</p>
+      <p>Tool Acadmy currently offers tools in six categories:</p>
 
-    <ul>
-      <li><a href="<?php echo esc_url(home_url('/tools/pdf-tools/')); ?>"><strong>PDF Tools</strong></a> &mdash; Merge, split, compress, convert, edit, protect and manipulate PDF files. 29 free PDF tools in total.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/image-tools/')); ?>"><strong>Image Tools</strong></a> &mdash; Compress, resize, crop, convert, remove backgrounds, add watermarks and more. 40 free image tools.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/ai-tools/')); ?>"><strong>AI Writing Tools</strong></a> &mdash; Grammar checker, paraphraser, summarizer, essay writer, email generator and more. 30 free AI tools.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/video-tools/')); ?>"><strong>Video Tools</strong></a> &mdash; Compress, convert, trim, add subtitles and extract audio from videos. 25 free video tools.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/file-tools/')); ?>"><strong>File Converter Tools</strong></a> &mdash; Excel to CSV, JSON to XML, Markdown to HTML, Base64 encoding and more. 15 free file tools.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/utility-tools/')); ?>"><strong>Utility Tools</strong></a> &mdash; Color picker, unit converter, countdown timer, random number generator and more. 10 free utility tools.</li>
-    </ul>
+      <?php
+      $tg_seo_cats = [
+        ['slug' => 'pdf-tools',     'name' => 'PDF Tools',            'desc' => 'Merge, split, compress, convert, edit, protect and manipulate PDF files. 29 free PDF tools in total.'],
+        ['slug' => 'image-tools',   'name' => 'Image Tools',          'desc' => 'Compress, resize, crop, convert, remove backgrounds, add watermarks and more. 40 free image tools.'],
+        ['slug' => 'ai-tools',      'name' => 'AI Writing Tools',     'desc' => 'Grammar checker, paraphraser, summarizer, essay writer, email generator and more. 30 free AI tools.'],
+        ['slug' => 'video-tools',   'name' => 'Video Tools',          'desc' => 'Compress, convert, trim, add subtitles and extract audio from videos. 25 free video tools.'],
+        ['slug' => 'file-tools',    'name' => 'File Converter Tools', 'desc' => 'Excel to CSV, JSON to XML, Markdown to HTML, Base64 encoding and more. 15 free file tools.'],
+        ['slug' => 'utility-tools', 'name' => 'Utility Tools',        'desc' => 'Color picker, unit converter, countdown timer, random number generator and more. 10 free utility tools.'],
+      ];
+      ?>
+      <div class="tg-seo-cats-grid">
+        <?php foreach ($tg_seo_cats as $tg_seo_cat) : ?>
+          <a class="tg-seo-cat-card" href="<?php echo esc_url(home_url('/tools/' . $tg_seo_cat['slug'] . '/')); ?>">
+            <span class="tg-seo-cat-card__icon" aria-hidden="true"><?php echo tg_get_category_icon($tg_seo_cat['slug']); // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+            <span class="tg-seo-cat-card__body">
+              <strong class="tg-seo-cat-card__name"><?php echo esc_html($tg_seo_cat['name']); ?></strong>
+              <span class="tg-seo-cat-card__desc"><?php echo esc_html($tg_seo_cat['desc']); ?></span>
+            </span>
+          </a>
+        <?php endforeach; ?>
+      </div>
 
-    <h3>How It Works</h3>
+      <h3>How It Works</h3>
 
-    <p>Using any Tool Acadmy tool takes three steps: choose the tool you need, upload your file or enter your text, and get your result. Most tools complete in under 10 seconds. Video tools may take longer due to the processing requirements of video files.</p>
+      <p>Using any Tool Acadmy tool takes three steps: choose the tool you need, upload your file or enter your text, and get your result. Most tools complete in under 10 seconds. Video tools may take longer due to the processing requirements of video files.</p>
 
-    <p>Tool Acadmy is built using modern web technologies including WebAssembly (for video processing), PDF-lib and PDF.js (for PDF tools), the Canvas API (for image tools), and OpenRouter AI (for writing tools). This combination allows professional-grade results entirely in your browser.</p>
+      <p>Tool Acadmy is built using modern web technologies including WebAssembly (for video processing), PDF-lib and PDF.js (for PDF tools), the Canvas API (for image tools), and OpenRouter AI (for writing tools). This combination allows professional-grade results entirely in your browser.</p>
 
+    </div>
   </div>
 </section>
 
