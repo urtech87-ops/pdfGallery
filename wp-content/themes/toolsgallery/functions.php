@@ -27,6 +27,19 @@ if (!defined('TG_TTS_MODEL')) {
 }
 
 /* =============================================
+   AI USAGE CAPS — site-wide daily cost backstop
+   Protects the OpenRouter account from bots/abuse. Per-IP hourly
+   limits are set at the call sites in the proxy handlers; these
+   caps bound total spend per UTC day. Override in wp-config.php.
+   ============================================= */
+if (!defined('TG_AI_DAILY_CAP')) {
+    define('TG_AI_DAILY_CAP', 2000);
+}
+if (!defined('TG_TTS_DAILY_CAP')) {
+    define('TG_TTS_DAILY_CAP', 300);
+}
+
+/* =============================================
    THEME SETUP
    ============================================= */
 function tg_setup()
@@ -1063,6 +1076,59 @@ function tg_handle_url_to_pdf()
     wp_send_json_success(['html' => $html, 'url' => $url]);
 }
 
+function tg_get_client_ip()
+{
+    // Cloudflare gives the true visitor IP here; trust it only if present.
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        $ip = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP']));
+    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        // First entry is the original client.
+        $parts = explode(',', sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR'])));
+        $ip = trim($parts[0]);
+    } else {
+        $ip = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? ''));
+    }
+    return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : 'unknown';
+}
+
+function tg_check_rate_limit($prefix, $max, $window = HOUR_IN_SECONDS)
+{
+    if (current_user_can('manage_options')) {
+        return true;   // admins exempt (our own testing)
+    }
+    $key  = $prefix . md5(tg_get_client_ip());
+    $data = get_transient($key);
+    $now  = time();
+    if (!is_array($data) || empty($data['reset']) || $data['reset'] <= $now) {
+        $data = ['count' => 0, 'reset' => $now + $window];   // start a fresh window
+    }
+    if ($data['count'] >= $max) {
+        $mins = max(1, (int) ceil(($data['reset'] - $now) / 60));
+        wp_send_json_error([
+            'message' => sprintf('You have reached the free usage limit (%d per hour). Please try again in %d minute%s.', $max, $mins, $mins === 1 ? '' : 's'),
+        ], 429);
+    }
+    $data['count']++;
+    // Keep the ORIGINAL window — do not extend the TTL on each request.
+    set_transient($key, $data, max(60, $data['reset'] - $now));
+    return true;
+}
+
+function tg_check_daily_cap($prefix, $cap)
+{
+    if (current_user_can('manage_options')) {
+        return true;   // admins exempt (our own testing)
+    }
+    $day_key = $prefix . gmdate('Y-m-d');
+    $day = (int) get_transient($day_key);
+    if ($day >= $cap) {
+        wp_send_json_error(['message' => 'Daily capacity reached. Please try again tomorrow.'], 429);
+    }
+    // Date-keyed, so a refreshed TTL never stretches the window past the day.
+    set_transient($day_key, $day + 1, DAY_IN_SECONDS);
+    return true;
+}
+
 function tg_ai_proxy_handler()
 {
     check_ajax_referer('tg_tool_nonce', 'nonce');
@@ -1074,12 +1140,8 @@ function tg_ai_proxy_handler()
     $tool = sanitize_text_field(wp_unslash($_POST['tool'] ?? ''));
     $payload = isset($_POST['payload']) && is_array($_POST['payload']) ? $_POST['payload'] : [];
 
-    $ip_key = 'tg_rate_' . md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '')));
-    $count = (int) get_transient($ip_key);
-    if ($count >= 10) {
-        wp_send_json_error(['message' => 'Rate limit reached. Try again in an hour.'], 429);
-    }
-    set_transient($ip_key, $count + 1, HOUR_IN_SECONDS);
+    tg_check_rate_limit('tg_rate_', 30);
+    tg_check_daily_cap('tg_ai_daily_', TG_AI_DAILY_CAP);
 
     $result = tg_call_openrouter($tool, $payload);
     if (isset($result['error'])) {
@@ -1189,12 +1251,8 @@ function tg_tts_proxy_handler()
         wp_send_json_error(['message' => 'Text-to-Speech is not configured yet (missing OPENROUTER_API_KEY). Please contact the site administrator.'], 500);
     }
 
-    $ip_key = 'tg_tts_rate_' . md5(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'] ?? '')));
-    $count = (int) get_transient($ip_key);
-    if ($count >= 10) {
-        wp_send_json_error(['message' => 'Rate limit reached. Try again in an hour.'], 429);
-    }
-    set_transient($ip_key, $count + 1, HOUR_IN_SECONDS);
+    tg_check_rate_limit('tg_tts_rate_', 15);
+    tg_check_daily_cap('tg_tts_daily_', TG_TTS_DAILY_CAP);
 
     $text = trim((string) wp_unslash($_POST['text'] ?? ''));
     $text = wp_strip_all_tags($text);
