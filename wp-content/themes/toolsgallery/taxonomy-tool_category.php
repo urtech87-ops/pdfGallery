@@ -99,7 +99,8 @@ $schema = [
   <?php
   $cat_seo = [
     'pdf-tools' => [
-      'intro' => 'PDF files are everywhere — from contracts and invoices to reports and ebooks. Our free PDF tools help you work with PDF documents without paying for expensive software like Adobe Acrobat. Every tool runs directly in your browser, which means your sensitive documents never leave your device.',
+      'intro' => 'PDF files are everywhere — from contracts and invoices to reports and ebooks. Our free PDF tools help you work with PDF documents without paying for expensive software like Adobe Acrobat. Most tools run directly in your browser, so your sensitive documents never leave your device — the AI-powered Summarize and Translate tools send your document\'s text to our AI provider to generate results.',
+      'cta'   => 'Most PDF Tools run entirely in your browser and your files never leave your device. The AI-powered tools (Summarize PDF, Translate PDF) send your document\'s text to our AI provider to generate results.',
       'uses'  => [
         'Merge multiple PDFs into a single document for easier sharing and organization',
         'Compress large PDF files before emailing them to stay within attachment limits',
@@ -110,13 +111,14 @@ $schema = [
       ],
       'faq_extra' => [
         ['q' => 'Are these PDF tools really free?', 'a' => 'Yes. All PDF tools on Tool Acadmy are completely free to use with no limits, no watermarks, and no account required.'],
-        ['q' => 'Is my PDF safe when I use these tools?', 'a' => 'Absolutely. All PDF processing happens locally in your browser using PDF-lib and PDF.js. Your files are never uploaded to any server.'],
+        ['q' => 'Is my PDF safe when I use these tools?', 'a' => 'Yes. Standard PDF processing happens locally in your browser using PDF-lib and PDF.js, so those files are never uploaded to any server. The AI-powered Summarize and Translate tools are the exception: they send your document\'s extracted text to our AI provider to generate results.'],
       ],
     ],
     'image-tools' => [
       'intro' => 'Whether you need to compress photos for a website, remove a background for an e-commerce store, or convert images between formats, our free image tools handle it all directly in your browser. No plugins, no subscriptions, and no quality loss from server-side compression.',
+      'cta'   => 'Image Tools run in your browser and your files never leave your device. (Background Remover may use a third-party API when enabled.)',
       'uses'  => [
-        'Compress JPG and PNG images to reduce file size without visible quality loss',
+        'Compress JPG and PNG images to reduce file size with control over quality',
         'Remove backgrounds from product photos for Amazon, Shopify, or social media',
         'Resize images to exact pixel dimensions for social media, websites, or email',
         'Convert images between JPG, PNG, WebP, AVIF, and other formats instantly',
@@ -128,7 +130,8 @@ $schema = [
       ],
     ],
     'ai-tools' => [
-      'intro' => 'Our AI writing tools use advanced language models to help you write better content faster. From fixing grammar mistakes to generating entire articles, these tools save hours of writing time. All AI tools are free and require no account — just type and get results.',
+      'intro' => 'Our AI writing tools use advanced language models to help you write better content faster. From fixing grammar mistakes to generating entire articles, these tools save hours of writing time. All AI tools are free and require no account — just type and get results. Note that the text you submit is sent to our AI provider for processing.',
+      'cta'   => 'All AI Writing Tools are free and require no account. Text you submit is sent to our AI provider (OpenRouter) to generate results — don\'t paste confidential information.',
       'uses'  => [
         'Fix grammar and spelling errors in emails, essays, and documents instantly',
         'Paraphrase text to improve readability or adapt content for a new audience',
@@ -138,7 +141,7 @@ $schema = [
         'Create professional cover letters and resumes tailored to specific jobs',
       ],
       'faq_extra' => [
-        ['q' => 'Which AI model powers these tools?', 'a' => 'Our AI tools use OpenRouter to access models including GPT-4o and Google Gemini Flash depending on the specific task.'],
+        ['q' => 'Which AI model powers these tools?', 'a' => 'All AI writing tools are powered by Google\'s Gemini 2.5 Flash model, accessed through OpenRouter.'],
         ['q' => 'Is the AI output accurate?', 'a' => 'AI tools can make mistakes. Always review AI-generated content before publishing or submitting it. Use the results as a starting point, not a final product.'],
       ],
     ],
@@ -153,7 +156,7 @@ $schema = [
         'Create animated GIFs from short video clips for social media',
       ],
       'faq_extra' => [
-        ['q' => 'Why do video tools take longer to process?', 'a' => 'Video tools use FFmpeg.wasm, a WebAssembly port of FFmpeg that runs in your browser. The first load downloads about 30MB. Processing time depends on file size and your device speed.'],
+        ['q' => 'Why do video tools take longer to process?', 'a' => 'Video tools use FFmpeg.wasm, a WebAssembly port of FFmpeg that runs in your browser. The first load downloads about 25MB. Processing time depends on file size and your device speed.'],
       ],
     ],
     'file-tools' => [
@@ -176,7 +179,7 @@ $schema = [
         'Pick any color and instantly get the HEX, RGB, HSL, and CMYK codes',
         'Generate beautiful color palettes for design projects',
         'Set countdown timers for productivity and the Pomodoro technique',
-        'Convert between hundreds of units across 12 measurement categories',
+        'Convert between dozens of units across 12 measurement categories',
         'Convert text between uppercase, lowercase, camelCase, and more',
         'Generate cryptographically secure random numbers for any purpose',
       ],
@@ -228,7 +231,7 @@ $schema = [
       <?php endif; ?>
 
       <div class="tg-category-cta-bar">
-        <p>All <?php echo esc_html($term_name); ?> are free, browser-based, and require no account. Your files never leave your device.</p>
+        <p><?php echo esc_html($cat_content['cta'] ?? sprintf('All %s are free, browser-based, and require no account. Your files never leave your device.', $term_name)); ?></p>
         <p><a href="<?php echo esc_url(home_url('/tools/')); ?>"><?php esc_html_e('Browse all free online tools &rarr;', 'toolsgallery'); ?></a></p>
       </div>
 
