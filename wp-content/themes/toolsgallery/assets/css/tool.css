@@ -873,59 +873,7 @@
   margin: 0;
 }
 
-/* -----------------------------------------------
-   FAQ accordion — <details>/<summary>
------------------------------------------------ */
-.tg-faq-accordion {
-  display: flex;
-  flex-direction: column;
-}
-
-.tg-faq-item {
-  border-bottom: 1px solid var(--color-gray-200);
-}
-
-.tg-faq-item:first-child { border-top: 1px solid var(--color-gray-200); }
-
-.tg-faq-question {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 0;
-  cursor: pointer;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--color-gray-900);
-  list-style: none;
-  user-select: none;
-}
-
-.tg-faq-question::-webkit-details-marker { display: none; }
-
-.tg-faq-chevron {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  color: var(--color-primary);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23F97316' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-size: contain;
-  transition: transform var(--transition);
-}
-
-.tg-faq-item[open] .tg-faq-chevron {
-  transform: rotate(180deg);
-}
-
-.tg-faq-answer {
-  padding: 0 0 1rem;
-  font-size: 0.9375rem;
-  color: var(--color-gray-700);
-  line-height: 1.7;
-}
-
-.tg-faq-answer p { margin: 0; }
+/* FAQ accordion styles live in main.css (native <details>[open]) so they apply site-wide. */
 
 /* -----------------------------------------------
    Related tools grid — 3-column

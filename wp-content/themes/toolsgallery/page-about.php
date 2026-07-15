@@ -80,40 +80,40 @@ get_header();
 
 <div class="tg-faq-accordion">
 
-<div class="tg-faq-item">
-<button class="tg-faq-question">Is Tool Acadmy really free? <span class="tg-faq-icon">+</span></button>
+<details class="tg-faq-item">
+<summary class="tg-faq-question">Is Tool Acadmy really free? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
 <p>Yes — all 150+ tools on Tool Acadmy are completely free to use with no hidden costs, no subscription fees, and no premium tiers. We are supported by non-intrusive advertising.</p>
 </div>
-</div>
+</details>
 
-<div class="tg-faq-item">
-<button class="tg-faq-question">Do I need to create an account? <span class="tg-faq-icon">+</span></button>
+<details class="tg-faq-item">
+<summary class="tg-faq-question">Do I need to create an account? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
 <p>No. Tool Acadmy requires no signup, no account creation, and no email address. Simply visit any tool and start using it immediately.</p>
 </div>
-</div>
+</details>
 
-<div class="tg-faq-item">
-<button class="tg-faq-question">Are my files safe and private? <span class="tg-faq-icon">+</span></button>
+<details class="tg-faq-item">
+<summary class="tg-faq-question">Are my files safe and private? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
 <p>Yes. All file processing happens locally in your browser. Your files never leave your device and are never uploaded to any server. We have no access to your files at any time.</p>
 </div>
-</div>
+</details>
 
-<div class="tg-faq-item">
-<button class="tg-faq-question">What browsers are supported? <span class="tg-faq-icon">+</span></button>
+<details class="tg-faq-item">
+<summary class="tg-faq-question">What browsers are supported? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
 <p>Tool Acadmy works in all modern browsers including Google Chrome, Mozilla Firefox, Microsoft Edge, Safari, and Opera. We recommend Chrome for the best experience with video tools.</p>
 </div>
-</div>
+</details>
 
-<div class="tg-faq-item">
-<button class="tg-faq-question">How do I contact Tool Acadmy? <span class="tg-faq-icon">+</span></button>
+<details class="tg-faq-item">
+<summary class="tg-faq-question">How do I contact Tool Acadmy? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
 <p>You can reach us via our <a href="/contact/">Contact page</a>. We respond to all inquiries within 24-48 hours. For bug reports, please include the tool name and a description of the issue.</p>
 </div>
-</div>
+</details>
 
 </div>
 </section>

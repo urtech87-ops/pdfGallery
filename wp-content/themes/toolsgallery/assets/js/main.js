@@ -47,42 +47,7 @@
     });
   }());
 
-  /* --- FAQ accordion (legacy .tg-faq__item) --- */
-  var faqItems = document.querySelectorAll('.tg-faq__item');
-  faqItems.forEach(function (item) {
-    var btn = item.querySelector('.tg-faq__question');
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      var isOpen = item.classList.contains('is-open');
-      faqItems.forEach(function (i) { i.classList.remove('is-open'); });
-      if (!isOpen) item.classList.add('is-open');
-    });
-  });
-
-  /* --- FAQ accordion (.tg-faq-item) — max-height animation --- */
-  var tgFaqItems = document.querySelectorAll('.tg-faq-item');
-  tgFaqItems.forEach(function (item) {
-    var question = item.querySelector('.tg-faq-question');
-    var icon     = item.querySelector('.tg-faq-icon');
-    if (!question) return;
-    if (icon && !icon.textContent.trim()) icon.textContent = '+';
-    question.addEventListener('click', function () {
-      var isOpen = item.classList.contains('tg-faq-open');
-      // Close all
-      tgFaqItems.forEach(function (other) {
-        var otherIcon = other.querySelector('.tg-faq-icon');
-        other.classList.remove('tg-faq-open');
-        if (otherIcon && !other.classList.contains('tg-faq-open')) {
-          otherIcon.textContent = '+';
-        }
-      });
-      // Open clicked if was closed
-      if (!isOpen) {
-        item.classList.add('tg-faq-open');
-        if (icon) icon.textContent = '+'; // CSS rotate handles visual
-      }
-    });
-  });
+  /* FAQ accordions use native <details>[open] — no JS needed; styling lives in main.css. */
 
   /* --- Search field enhancements (Cmd+K, suggestions, clear) --- */
   var searchInput = document.getElementById('tg-search-input');
