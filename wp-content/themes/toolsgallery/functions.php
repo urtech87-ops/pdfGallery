@@ -2589,7 +2589,7 @@ function tg_save_tool_meta_boxes($post_id)
    Runs once per $seed_version — bump it whenever this list changes. */
 add_action('init', 'tg_sync_tool_meta_defaults', 20);
 function tg_sync_tool_meta_defaults() {
-    $seed_version = '2026-07-14a';
+    $seed_version = '2026-07-15a';
     if (get_option('tg_tool_meta_seed') === $seed_version) return;
 
     $map = [
