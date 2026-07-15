@@ -7,6 +7,8 @@
   var box = document.querySelector('.tg-tool-box[data-handler="' + HANDLER + '"]');
   if (!box) return;
 
+  box.innerHTML = ''; /* remove generic AI scaffolding — this tool owns its UI */
+
   // Inject common CSS once
   if (!document.getElementById('tg-ai5-css')) {
     var style = document.createElement('style');
