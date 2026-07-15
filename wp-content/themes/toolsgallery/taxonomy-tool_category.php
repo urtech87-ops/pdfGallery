@@ -82,10 +82,10 @@ $schema = [
   <?php if (!empty($tools)) : ?>
     <div class="tg-tools-grid">
       <?php foreach ($tools as $tool) :
-        $icon = get_post_meta($tool->ID, '_tg_icon', true) ?: '🔧';
+        $tool_slug = get_post_meta($tool->ID, '_tg_handler', true) ?: $tool->post_name;
       ?>
         <a class="tg-tool-card" href="<?php echo esc_url(get_permalink($tool->ID)); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta($tool->ID, '_tg_handler', true)); ?>">
-          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($icon); ?></div>
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($tool_slug, $term ? $term->slug : ''); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($tool->post_title); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(wp_trim_words($tool->post_excerpt, 12, '…')); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>

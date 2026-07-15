@@ -68,9 +68,8 @@ function tg_enqueue_assets()
     wp_enqueue_script('tg-theme', get_template_directory_uri() . '/assets/js/theme.js', [], $ver, false);
     wp_enqueue_script('tg-main', get_template_directory_uri() . '/assets/js/main.js', ['tg-theme'], $ver, true);
 
-    // Tool icons & background animations
-    wp_enqueue_script('tg-tool-icons', get_template_directory_uri() . '/assets/js/tool-icons.js', [], $ver, true);
-    wp_enqueue_script('tg-unique-icons', get_template_directory_uri() . '/assets/js/tool-icons-unique.js', [], '1.0', true);
+    // Background animations — tool card icons are now server-rendered via tg_get_tool_icon(),
+    // so the old client-side icon scripts (tool-icons.js / tool-icons-unique.js) are no longer enqueued.
     wp_enqueue_script('tg-bg-animations', get_template_directory_uri() . '/assets/js/bg-animations.js', ['tg-theme'], $ver, true);
 
     if (is_page('tools')) {
@@ -2037,6 +2036,67 @@ function tg_get_category_icon($slug)
         'utility-tools' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>',
     ];
     return $icons[$slug] ?? $icons['pdf-tools'];
+}
+
+/* =============================================
+   TOOL CARD ICON
+   ============================================= */
+/* Returns a colored rounded-square SVG icon for a tool card.
+   Color comes from the tool category; the glyph from a keyword in the slug. */
+function tg_get_tool_icon($slug = '', $category_slug = '') {
+    $colors = [
+        'pdf-tools'     => '#F4511E',
+        'image-tools'   => '#3B82F6',
+        'ai-tools'      => '#8B5CF6',
+        'video-tools'   => '#EC4899',
+        'file-tools'    => '#10B981',
+        'utility-tools' => '#64748B',
+    ];
+    $color = $colors[$category_slug] ?? '#F97316';
+
+    // Feather-style white glyph paths, keyed by an operation keyword found in the slug.
+    $glyphs = [
+        'merge'     => '<path d="M8 3v5l-4 4M16 3v5l4 4M12 12v9"/>',
+        'split'     => '<path d="M8 21V8l-4 4M16 21V8l4 4M12 3v9"/>',
+        'compress'  => '<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7"/>',
+        'convert'   => '<path d="M4 4v6h6M20 20v-6h-6M20 8a8 8 0 00-14-3M4 16a8 8 0 0014 3"/>',
+        'to-'       => '<path d="M4 4v6h6M20 20v-6h-6M20 8a8 8 0 00-14-3M4 16a8 8 0 0014 3"/>',
+        'edit'      => '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/>',
+        'rotate'    => '<path d="M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/>',
+        'crop'      => '<path d="M6 2v14a2 2 0 002 2h14M18 22V8a2 2 0 00-2-2H2"/>',
+        'resize'    => '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+        'remove'    => '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14H6L5 6"/>',
+        'watermark' => '<path d="M12 2l3 6 6 .5-4.5 4 1.5 6-6-3.5L6 18l1.5-6L3 8l6-.5z"/>',
+        'sign'      => '<path d="M3 17c3 0 3-6 6-6s3 6 6 6 3-3 6-3M3 21h18"/>',
+        'protect'   => '<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/>',
+        'lock'      => '<path d="M5 11h14v10H5zM8 11V7a4 4 0 018 0v4"/>',
+        'unlock'    => '<path d="M5 11h14v10H5zM8 11V7a4 4 0 019-1"/>',
+        'qr'        => '<path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2z"/>',
+        'chart'     => '<path d="M3 3v18h18M8 17V9M13 17V5M18 17v-6"/>',
+        'collage'   => '<path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z"/>',
+        'translate' => '<path d="M12 2a10 10 0 100 20 10 10 0 000-20M2 12h20M12 2a15 15 0 010 20 15 15 0 010-20"/>',
+        'summarize' => '<path d="M4 6h16M4 10h16M4 14h10M4 18h10"/>',
+        'writer'    => '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/>',
+        'grammar'   => '<path d="M4 7V5h16v2M9 19h6M12 5v14"/>',
+    ];
+    $glyphDefaults = [
+        'pdf-tools'     => '<path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9zM13 2v7h7"/>',
+        'image-tools'   => '<path d="M3 3h18v18H3zM3 15l5-5 4 4 3-3 6 6"/>',
+        'ai-tools'      => '<path d="M12 2 2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>',
+        'video-tools'   => '<path d="M23 7l-7 5 7 5V7zM1 5h15v14H1z"/>',
+        'file-tools'    => '<path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9zM13 2v7h7"/>',
+        'utility-tools' => '<path d="M14.7 6.3a4 4 0 01-5 5L4 17v3h3l5.7-5.7a4 4 0 015-5z"/>',
+    ];
+
+    $glyph = $glyphDefaults[$category_slug] ?? $glyphDefaults['pdf-tools'];
+    foreach ($glyphs as $kw => $path) {
+        if (strpos($slug, $kw) !== false) { $glyph = $path; break; }
+    }
+
+    return '<span class="tg-tool-icon" style="--tg-ic:' . esc_attr($color) . '">'
+         . '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" '
+         . 'stroke-linecap="round" stroke-linejoin="round" width="26" height="26">'
+         . $glyph . '</svg></span>';
 }
 
 /* =============================================

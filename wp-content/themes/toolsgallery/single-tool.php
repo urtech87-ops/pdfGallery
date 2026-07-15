@@ -274,9 +274,11 @@ while ( have_posts() ) :
                         <h2><?php esc_html_e( 'Related Tools', 'toolsgallery' ); ?></h2>
                         <div class="tg-related-grid">
                             <?php foreach ( $related_posts as $rt ) :
-                                $rt_icon = get_post_meta( $rt->ID, '_tg_icon', true ) ?: '🔧'; ?>
+                                $rt_terms = get_the_terms( $rt->ID, 'tool_category' );
+                                $rt_cat   = ( $rt_terms && ! is_wp_error( $rt_terms ) ) ? $rt_terms[0]->slug : '';
+                                $rt_slug  = get_post_meta( $rt->ID, '_tg_handler', true ) ?: $rt->post_name; ?>
                                 <a href="<?php echo esc_url( get_permalink( $rt ) ); ?>" class="tg-related-card">
-                                    <span class="tg-related-card__icon" aria-hidden="true"><?php echo esc_html( $rt_icon ); ?></span>
+                                    <span class="tg-related-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon( $rt_slug, $rt_cat ); // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
                                     <span class="tg-related-card__name"><?php echo esc_html( $rt->post_title ); ?></span>
                                 </a>
                             <?php endforeach; ?>
@@ -308,10 +310,12 @@ while ( have_posts() ) :
                         'order'          => 'ASC',
                     ] );
                     foreach ( $popular as $pt ) :
-                        $pt_icon = get_post_meta( $pt->ID, '_tg_icon', true ) ?: '🔧'; ?>
+                        $pt_terms = get_the_terms( $pt->ID, 'tool_category' );
+                        $pt_cat   = ( $pt_terms && ! is_wp_error( $pt_terms ) ) ? $pt_terms[0]->slug : '';
+                        $pt_slug  = get_post_meta( $pt->ID, '_tg_handler', true ) ?: $pt->post_name; ?>
                         <li>
                             <a href="<?php echo esc_url( get_permalink( $pt ) ); ?>" class="tg-sidebar-tool-link">
-                                <span aria-hidden="true"><?php echo esc_html( $pt_icon ); ?></span>
+                                <span aria-hidden="true"><?php echo tg_get_tool_icon( $pt_slug, $pt_cat ); // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
                                 <?php echo esc_html( $pt->post_title ); ?>
                             </a>
                         </li>

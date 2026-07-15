@@ -708,6 +708,22 @@ footer .tg-logo {
   font-size: 1.5rem;
 }
 
+/* Colored SVG tool icon (tg_get_tool_icon) — category color + operation glyph */
+.tg-tool-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 52px; height: 52px; border-radius: 14px;
+  background: var(--tg-ic, #F97316);
+  box-shadow: 0 4px 10px rgba(0,0,0,.08);
+}
+.tg-tool-card__icon { line-height: 0; }  /* remove old emoji spacing */
+.tg-tool-card__icon:has(.tg-tool-icon) { background: transparent; }
+
+/* Compact contexts: related-tool cards and the sidebar popular list */
+.tg-related-card__icon .tg-tool-icon { width: 40px; height: 40px; border-radius: 11px; }
+.tg-related-card__icon .tg-tool-icon svg { width: 20px; height: 20px; }
+.tg-sidebar-tool-link .tg-tool-icon { width: 26px; height: 26px; border-radius: 8px; box-shadow: none; }
+.tg-sidebar-tool-link .tg-tool-icon svg { width: 15px; height: 15px; }
+
 .tg-tool-card__title {
   font-size: 0.9375rem;
   font-weight: 600;

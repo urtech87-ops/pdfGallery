@@ -138,7 +138,7 @@
       ?>
         <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
-            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '📄'); ?>
+            <?php echo tg_get_tool_icon(get_post_meta(get_the_ID(), '_tg_handler', true) ?: get_post()->post_name, 'pdf-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
           </div>
           <div class="tg-tool-card__title"><?php the_title(); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
@@ -151,7 +151,7 @@
         foreach ($pdf_tools as $t) :
       ?>
         <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>" data-tool-handler="<?php echo esc_attr($t['slug']); ?>">
-          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($t['slug'], 'pdf-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
@@ -199,7 +199,7 @@
       ?>
         <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
-            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '🖼️'); ?>
+            <?php echo tg_get_tool_icon(get_post_meta(get_the_ID(), '_tg_handler', true) ?: get_post()->post_name, 'image-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
           </div>
           <div class="tg-tool-card__title"><?php the_title(); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
@@ -212,7 +212,7 @@
         foreach ($image_tools_static as $t) :
       ?>
         <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>" data-tool-handler="<?php echo esc_attr($t['slug']); ?>">
-          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($t['slug'], 'image-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
@@ -250,7 +250,7 @@
       ?>
         <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
-            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '✍️'); ?>
+            <?php echo tg_get_tool_icon(get_post_meta(get_the_ID(), '_tg_handler', true) ?: get_post()->post_name, 'ai-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
           </div>
           <div class="tg-tool-card__title"><?php the_title(); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
@@ -261,17 +261,17 @@
         wp_reset_postdata();
       else :
         $ai_placeholders = [
-          ['title' => 'Grammar Fixer',      'desc' => 'Fix grammar and spelling errors instantly.',    'icon' => '✏️'],
-          ['title' => 'Paraphraser',         'desc' => 'Rewrite any text in a fresh, clear style.',    'icon' => '🔄'],
-          ['title' => 'Article Writer',      'desc' => 'Generate full articles from a simple prompt.', 'icon' => '📰'],
-          ['title' => 'Content Summarizer',  'desc' => 'Summarize long content into key points.',      'icon' => '📋'],
-          ['title' => 'AI Humanizer',        'desc' => 'Make AI-generated text sound more human.',     'icon' => '🤖'],
-          ['title' => 'Essay Writer',        'desc' => 'Write structured essays on any topic fast.',   'icon' => '📝'],
+          ['title' => 'Grammar Fixer',      'desc' => 'Fix grammar and spelling errors instantly.',    'slug' => 'grammar-fixer'],
+          ['title' => 'Paraphraser',         'desc' => 'Rewrite any text in a fresh, clear style.',    'slug' => 'paraphraser'],
+          ['title' => 'Article Writer',      'desc' => 'Generate full articles from a simple prompt.', 'slug' => 'article-writer'],
+          ['title' => 'Content Summarizer',  'desc' => 'Summarize long content into key points.',      'slug' => 'summarizer'],
+          ['title' => 'AI Humanizer',        'desc' => 'Make AI-generated text sound more human.',     'slug' => 'ai-humanizer'],
+          ['title' => 'Essay Writer',        'desc' => 'Write structured essays on any topic fast.',   'slug' => 'essay-writer'],
         ];
         foreach ($ai_placeholders as $t) :
       ?>
         <div class="tg-tool-card">
-          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($t['slug'], 'ai-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('FREE', 'toolsgallery'); ?></span>
@@ -318,7 +318,7 @@
       ?>
         <a class="tg-tool-card" href="<?php the_permalink(); ?>" data-tool-handler="<?php echo esc_attr(get_post_meta(get_the_ID(), '_tg_handler', true)); ?>">
           <div class="tg-tool-card__icon" aria-hidden="true">
-            <?php echo esc_html(get_post_meta(get_the_ID(), '_tg_icon', true) ?: '🎬'); ?>
+            <?php echo tg_get_tool_icon(get_post_meta(get_the_ID(), '_tg_handler', true) ?: get_post()->post_name, 'video-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
           </div>
           <div class="tg-tool-card__title"><?php the_title(); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html(tg_get_the_excerpt_safe(12)); ?></div>
@@ -331,7 +331,7 @@
         foreach ($video_tools_static as $t) :
       ?>
         <a class="tg-tool-card" href="<?php echo esc_url(home_url('/tool/' . $t['slug'] . '/')); ?>" data-tool-handler="<?php echo esc_attr($t['slug']); ?>">
-          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo esc_html($t['icon']); ?></div>
+          <div class="tg-tool-card__icon" aria-hidden="true"><?php echo tg_get_tool_icon($t['slug'], 'video-tools'); // phpcs:ignore WordPress.Security.EscapeOutput ?></div>
           <div class="tg-tool-card__title"><?php echo esc_html($t['title']); ?></div>
           <div class="tg-tool-card__desc"><?php echo esc_html($t['desc']); ?></div>
           <span class="tg-tool-card__badge"><?php esc_html_e('Free', 'toolsgallery'); ?></span>
