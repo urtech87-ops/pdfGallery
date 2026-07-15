@@ -488,36 +488,51 @@
 <!-- SEO Content Section -->
 <section class="tg-section tg-seo-content" aria-labelledby="seo-heading">
   <div class="tg-container">
+    <div class="tg-seo-content__inner">
 
-    <h2 id="seo-heading">Free Online Tools &mdash; No Download, No Signup, No Cost</h2>
+      <h2 id="seo-heading">Free Online Tools &mdash; No Download, No Signup, No Cost</h2>
 
-    <p>Tool Acadmy is a free collection of 150+ browser-based tools for everyday digital tasks. Whether you are a student who needs to compress a PDF before uploading an assignment, a freelancer editing product photos, a marketer writing social media captions with AI, or a developer converting JSON to CSV &mdash; we have a free tool for that.</p>
+      <p>Tool Acadmy is a free collection of 150+ browser-based tools for everyday digital tasks. Whether you are a student who needs to compress a PDF before uploading an assignment, a freelancer editing product photos, a marketer writing social media captions with AI, or a developer converting JSON to CSV &mdash; we have a free tool for that.</p>
 
-    <p>Every tool on Tool Acadmy runs directly in your web browser. That means no software to download, no account to create, and no files sent to our servers. Your documents, images, and videos stay private on your device the entire time.</p>
+      <p>Every tool on Tool Acadmy runs directly in your web browser. That means no software to download, no account to create, and no files sent to our servers. Your documents, images, and videos stay private on your device the entire time.</p>
 
-    <h3>Why Tool Acadmy is Different</h3>
+      <h3>Why Tool Acadmy is Different</h3>
 
-    <p>Most online tool sites either charge monthly fees, add watermarks to your output, or make you sign up before you can use anything. Tool Acadmy does none of those things. Every tool is free, every download is clean, and you can start immediately without entering an email address.</p>
+      <p>Most online tool sites either charge monthly fees, add watermarks to your output, or make you sign up before you can use anything. Tool Acadmy does none of those things. Every tool is free, every download is clean, and you can start immediately without entering an email address.</p>
 
-    <h3>What Types of Tools Are Available?</h3>
+      <h3>What Types of Tools Are Available?</h3>
 
-    <p>Tool Acadmy currently offers tools in six categories:</p>
+      <p>Tool Acadmy currently offers tools in six categories:</p>
 
-    <ul>
-      <li><a href="<?php echo esc_url(home_url('/tools/pdf-tools/')); ?>"><strong>PDF Tools</strong></a> &mdash; Merge, split, compress, convert, edit, protect and manipulate PDF files. 29 free PDF tools in total.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/image-tools/')); ?>"><strong>Image Tools</strong></a> &mdash; Compress, resize, crop, convert, remove backgrounds, add watermarks and more. 40 free image tools.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/ai-tools/')); ?>"><strong>AI Writing Tools</strong></a> &mdash; Grammar checker, paraphraser, summarizer, essay writer, email generator and more. 30 free AI tools.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/video-tools/')); ?>"><strong>Video Tools</strong></a> &mdash; Compress, convert, trim, add subtitles and extract audio from videos. 25 free video tools.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/file-tools/')); ?>"><strong>File Converter Tools</strong></a> &mdash; Excel to CSV, JSON to XML, Markdown to HTML, Base64 encoding and more. 15 free file tools.</li>
-      <li><a href="<?php echo esc_url(home_url('/tools/utility-tools/')); ?>"><strong>Utility Tools</strong></a> &mdash; Color picker, unit converter, countdown timer, random number generator and more. 10 free utility tools.</li>
-    </ul>
+      <?php
+      $tg_seo_cats = [
+        ['slug' => 'pdf-tools',     'name' => 'PDF Tools',            'desc' => 'Merge, split, compress, convert, edit, protect and manipulate PDF files. 29 free PDF tools in total.'],
+        ['slug' => 'image-tools',   'name' => 'Image Tools',          'desc' => 'Compress, resize, crop, convert, remove backgrounds, add watermarks and more. 40 free image tools.'],
+        ['slug' => 'ai-tools',      'name' => 'AI Writing Tools',     'desc' => 'Grammar checker, paraphraser, summarizer, essay writer, email generator and more. 30 free AI tools.'],
+        ['slug' => 'video-tools',   'name' => 'Video Tools',          'desc' => 'Compress, convert, trim, add subtitles and extract audio from videos. 25 free video tools.'],
+        ['slug' => 'file-tools',    'name' => 'File Converter Tools', 'desc' => 'Excel to CSV, JSON to XML, Markdown to HTML, Base64 encoding and more. 15 free file tools.'],
+        ['slug' => 'utility-tools', 'name' => 'Utility Tools',        'desc' => 'Color picker, unit converter, countdown timer, random number generator and more. 10 free utility tools.'],
+      ];
+      ?>
+      <div class="tg-seo-cats-grid">
+        <?php foreach ($tg_seo_cats as $tg_seo_cat) : ?>
+          <a class="tg-seo-cat-card" href="<?php echo esc_url(home_url('/tools/' . $tg_seo_cat['slug'] . '/')); ?>">
+            <span class="tg-seo-cat-card__icon" aria-hidden="true"><?php echo tg_get_category_icon($tg_seo_cat['slug']); // phpcs:ignore WordPress.Security.EscapeOutput ?></span>
+            <span class="tg-seo-cat-card__body">
+              <strong class="tg-seo-cat-card__name"><?php echo esc_html($tg_seo_cat['name']); ?></strong>
+              <span class="tg-seo-cat-card__desc"><?php echo esc_html($tg_seo_cat['desc']); ?></span>
+            </span>
+          </a>
+        <?php endforeach; ?>
+      </div>
 
-    <h3>How It Works</h3>
+      <h3>How It Works</h3>
 
-    <p>Using any Tool Acadmy tool takes three steps: choose the tool you need, upload your file or enter your text, and get your result. Most tools complete in under 10 seconds. Video tools may take longer due to the processing requirements of video files.</p>
+      <p>Using any Tool Acadmy tool takes three steps: choose the tool you need, upload your file or enter your text, and get your result. Most tools complete in under 10 seconds. Video tools may take longer due to the processing requirements of video files.</p>
 
-    <p>Tool Acadmy is built using modern web technologies including WebAssembly (for video processing), PDF-lib and PDF.js (for PDF tools), the Canvas API (for image tools), and OpenRouter AI (for writing tools). This combination allows professional-grade results entirely in your browser.</p>
+      <p>Tool Acadmy is built using modern web technologies including WebAssembly (for video processing), PDF-lib and PDF.js (for PDF tools), the Canvas API (for image tools), and OpenRouter AI (for writing tools). This combination allows professional-grade results entirely in your browser.</p>
 
+    </div>
   </div>
 </section>
 

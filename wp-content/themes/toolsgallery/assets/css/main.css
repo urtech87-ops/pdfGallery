@@ -1823,12 +1823,92 @@ footer .tg-logo {
 /* SEO Content Section (F1) */
 .tg-seo-content {
   background: var(--color-bg-alt, #f8f9fa);
-  padding: 3rem 0;
+  padding: 4rem 0;
 }
-.tg-seo-content h2 { margin-bottom: 1rem; }
-.tg-seo-content h3 { margin-top: 1.5rem; margin-bottom: 0.5rem; }
+.tg-seo-content__inner {
+  max-width: 880px;
+  margin: 0 auto;
+}
+.tg-seo-content h2 {
+  font-size: clamp(1.4rem, 2.6vw, 1.75rem);
+  letter-spacing: -0.01em;
+  margin-bottom: 1.25rem;
+  color: var(--color-text, #0F0F0F);
+}
+.tg-seo-content h3 {
+  font-size: 1.15rem;
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--color-text, #0F0F0F);
+}
+.tg-seo-content p {
+  line-height: 1.75;
+  margin-bottom: 1rem;
+  color: var(--color-text-muted, #4B5563);
+}
 .tg-seo-content ul { margin: 0.5rem 0 1rem 1.25rem; }
 .tg-seo-content ul li { margin-bottom: 0.35rem; }
+
+/* Category cards inside the SEO section */
+.tg-seo-cats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin: 1.25rem 0 0.5rem;
+}
+.tg-seo-cat-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+  border-radius: 12px;
+  background: var(--bg-card, #fff);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.tg-seo-cat-card:hover {
+  border-color: var(--color-primary, #F97316);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.07);
+  transform: translateY(-2px);
+}
+.tg-seo-cat-card__icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-light, #FFF7ED);
+  color: var(--color-primary, #F97316);
+}
+.tg-seo-cat-card__name {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 2px;
+  color: var(--color-text, #0F0F0F);
+}
+.tg-seo-cat-card__desc {
+  display: block;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text-muted, #6B7280);
+}
+
+[data-theme="dark"] .tg-seo-cat-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme="dark"] .tg-seo-cat-card:hover {
+  border-color: var(--color-primary, #F97316);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+[data-theme="dark"] .tg-seo-cat-card__icon {
+  background: rgba(249, 115, 22, 0.15);
+}
 
 /* Blog Card Grid */
 .tg-blog-grid {
