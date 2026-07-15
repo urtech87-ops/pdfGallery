@@ -368,7 +368,7 @@ h1, h2, h3, h4, h5, h6 {
   background: transparent;
 }
 
-[data-theme="dark"] .tg-faq-item.tg-faq-open .tg-faq-question {
+[data-theme="dark"] .tg-faq-item[open] .tg-faq-question {
   color: #F97316;
 }
 

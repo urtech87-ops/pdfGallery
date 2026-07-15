@@ -81,41 +81,41 @@ get_header();
             <h2>Frequently Asked Questions</h2>
             <div class="tg-faq-accordion">
 
-                <div class="tg-faq-item">
-                    <button class="tg-faq-question">How quickly will I get a response? <span
-                            class="tg-faq-icon">+</span></button>
+                <details class="tg-faq-item">
+                    <summary class="tg-faq-question">How quickly will I get a response? <span
+                            class="tg-faq-chevron" aria-hidden="true"></span></summary>
                     <div class="tg-faq-answer">
                         <p>We aim to respond to all messages within 24-48 business hours. For urgent bug reports that
                             affect multiple tools, we prioritize faster responses.</p>
                     </div>
-                </div>
+                </details>
 
-                <div class="tg-faq-item">
-                    <button class="tg-faq-question">How do I report a broken tool? <span
-                            class="tg-faq-icon">+</span></button>
+                <details class="tg-faq-item">
+                    <summary class="tg-faq-question">How do I report a broken tool? <span
+                            class="tg-faq-chevron" aria-hidden="true"></span></summary>
                     <div class="tg-faq-answer">
                         <p>Select "Bug Report" from the Subject dropdown, then describe which tool is affected, what you
                             were trying to do, and what error message or behavior you saw. Include your browser name and
                             version if possible.</p>
                     </div>
-                </div>
+                </details>
 
-                <div class="tg-faq-item">
-                    <button class="tg-faq-question">Can I request a new tool? <span
-                            class="tg-faq-icon">+</span></button>
+                <details class="tg-faq-item">
+                    <summary class="tg-faq-question">Can I request a new tool? <span
+                            class="tg-faq-chevron" aria-hidden="true"></span></summary>
                     <div class="tg-faq-answer">
                         <p>Absolutely. Select "Feature Request" from the Subject dropdown and describe the tool you
                             would like to see. We review all requests and prioritize the most popular ones.</p>
                     </div>
-                </div>
+                </details>
 
-                <div class="tg-faq-item">
-                    <button class="tg-faq-question">Do you offer API access? <span class="tg-faq-icon">+</span></button>
+                <details class="tg-faq-item">
+                    <summary class="tg-faq-question">Do you offer API access? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
                     <div class="tg-faq-answer">
                         <p>We do not currently offer public API access. For business or enterprise inquiries please
                             select "Business Inquiry" in the contact form.</p>
                     </div>
-                </div>
+                </details>
 
             </div>
         </section>
