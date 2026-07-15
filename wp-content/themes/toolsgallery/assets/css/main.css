@@ -1910,6 +1910,24 @@ footer .tg-logo {
   background: rgba(249, 115, 22, 0.15);
 }
 
+/* CTA bar at the end of the category SEO section */
+.tg-category-cta-bar {
+  margin-top: 2rem;
+  padding: 1.25rem;
+  background: var(--color-primary-light, #fff7ed);
+  border-radius: 12px;
+}
+.tg-category-cta-bar p {
+  margin: 0 0 0.5rem;
+}
+.tg-category-cta-bar p:last-child {
+  margin-bottom: 0;
+}
+
+[data-theme="dark"] .tg-category-cta-bar {
+  background: rgba(249, 115, 22, 0.12);
+}
+
 /* Blog Card Grid */
 .tg-blog-grid {
   display: grid;

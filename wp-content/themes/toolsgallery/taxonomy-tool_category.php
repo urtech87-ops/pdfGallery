@@ -96,7 +96,6 @@ $schema = [
     <p><?php esc_html_e('No tools found in this category.', 'toolsgallery'); ?></p>
   <?php endif; ?>
 
-  <!-- Category SEO text — rich per-category content -->
   <?php
   $cat_seo = [
     'pdf-tools' => [
@@ -190,26 +189,29 @@ $schema = [
   $cat_content = $cat_seo[$term ? $term->slug : ''] ?? null;
   ?>
 
-  <?php if ($cat_content) : ?>
-  <section class="tg-category-seo-content" style="margin-top:3rem;">
+</div>
 
-    <div class="tg-category-intro-text">
-      <h2>Free <?php echo esc_html($term_name); ?> &mdash; No Signup Required</h2>
+<!-- Category SEO text — rich per-category content -->
+<?php if ($cat_content) : ?>
+<section class="tg-section tg-seo-content" aria-labelledby="cat-seo-heading">
+  <div class="tg-container">
+    <div class="tg-seo-content__inner">
+
+      <h2 id="cat-seo-heading">Free <?php echo esc_html($term_name); ?> &mdash; No Signup Required</h2>
+
       <p><?php echo esc_html($cat_content['intro']); ?></p>
-    </div>
 
-    <div class="tg-category-uses" style="margin-top:1.5rem;">
       <h3>What You Can Do With Our Free <?php echo esc_html($term_name); ?>:</h3>
+
       <ul class="tg-benefits-list">
         <?php foreach ($cat_content['uses'] as $use) : ?>
           <li><?php echo esc_html($use); ?></li>
         <?php endforeach; ?>
       </ul>
-    </div>
 
-    <?php if (!empty($cat_content['faq_extra'])) : ?>
-    <div class="tg-category-faq" style="margin-top:2rem;">
+      <?php if (!empty($cat_content['faq_extra'])) : ?>
       <h3>Common Questions</h3>
+
       <div class="tg-faq-accordion">
         <?php foreach ($cat_content['faq_extra'] as $faq) : ?>
         <details class="tg-faq-item">
@@ -223,28 +225,31 @@ $schema = [
         </details>
         <?php endforeach; ?>
       </div>
-    </div>
-    <?php endif; ?>
+      <?php endif; ?>
 
-    <div class="tg-category-cta-bar" style="margin-top:2rem;padding:1.25rem;background:var(--color-primary-light,#fff7ed);border-radius:8px;">
-      <p>All <?php echo esc_html($term_name); ?> are free, browser-based, and require no account. Your files never leave your device.</p>
+      <div class="tg-category-cta-bar">
+        <p>All <?php echo esc_html($term_name); ?> are free, browser-based, and require no account. Your files never leave your device.</p>
+        <p><a href="<?php echo esc_url(home_url('/tools/')); ?>"><?php esc_html_e('Browse all free online tools &rarr;', 'toolsgallery'); ?></a></p>
+      </div>
+
+    </div>
+  </div>
+</section>
+<?php else : ?>
+<section class="tg-section tg-seo-content" aria-labelledby="cat-seo-heading">
+  <div class="tg-container">
+    <div class="tg-seo-content__inner">
+      <h2 id="cat-seo-heading"><?php echo esc_html('Free ' . $term_name . ' — No Signup Required'); ?></h2>
+      <p>
+        <?php printf(
+            esc_html__('Tool Acadmy\'s free %s work entirely in your browser. No software to install, no account to create, and your files never leave your device. Fast, private, and always free.', 'toolsgallery'),
+            esc_html(strtolower($term_name))
+        ); ?>
+      </p>
       <p><a href="<?php echo esc_url(home_url('/tools/')); ?>"><?php esc_html_e('Browse all free online tools &rarr;', 'toolsgallery'); ?></a></p>
     </div>
-
-  </section>
-  <?php else : ?>
-  <section class="tg-seo-content" style="margin-top:3rem;">
-    <h2><?php echo esc_html('Free ' . $term_name . ' — No Signup Required'); ?></h2>
-    <p>
-      <?php printf(
-          esc_html__('Tool Acadmy\'s free %s work entirely in your browser. No software to install, no account to create, and your files never leave your device. Fast, private, and always free.', 'toolsgallery'),
-          esc_html(strtolower($term_name))
-      ); ?>
-    </p>
-    <p><a href="<?php echo esc_url(home_url('/tools/')); ?>"><?php esc_html_e('Browse all free online tools &rarr;', 'toolsgallery'); ?></a></p>
-  </section>
-  <?php endif; ?>
-
-</div>
+  </div>
+</section>
+<?php endif; ?>
 
 <?php get_footer(); ?>
