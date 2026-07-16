@@ -193,8 +193,6 @@ function tg_enqueue_assets()
             'lyrics-generator' => 'lyrics-generator.js',
             'business-name-generator' => 'business-name-generator.js',
             'slogan-generator' => 'slogan-generator.js',
-            'password-generator' => 'password-generator.js',
-            'lorem-ipsum-generator' => 'lorem-ipsum-generator.js',
             'tts-prep' => 'tts-prep.js',
         ];
 
@@ -215,6 +213,33 @@ function tg_enqueue_assets()
                 true
             );
         }
+        /* =============================================
+           Client-side data generators — pure browser
+           tools with no AI calls, so they must not
+           depend on tg-ai-tool-runner. Appending them to
+           $tool_runner_deps loads them BEFORE
+           tool-runner.js (same pattern as image tools)
+           so window.TGTools has the handler registered
+           when the data-input dispatcher runs.
+           ============================================= */
+        $data_gen_files = [
+            'password-generator' => 'password-generator.js',
+            'lorem-ipsum-generator' => 'lorem-ipsum-generator.js',
+        ];
+
+        if (isset($data_gen_files[$tg_handler])) {
+            $dg_handle = 'tg-tool-' . $tg_handler;
+            $dg_file_path = get_template_directory() . '/assets/js/tools/' . $data_gen_files[$tg_handler];
+            wp_enqueue_script(
+                $dg_handle,
+                get_template_directory_uri() . '/assets/js/tools/' . $data_gen_files[$tg_handler],
+                [],
+                file_exists($dg_file_path) ? filemtime($dg_file_path) : $ver,
+                true
+            );
+            $tool_runner_deps[] = $dg_handle;
+        }
+
         /* =============================================
            Phase 8 — Utility Tools
            ============================================= */

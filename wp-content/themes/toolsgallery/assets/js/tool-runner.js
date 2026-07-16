@@ -181,7 +181,7 @@
      DATA-INPUT TOOL BOX (Phase 4 — Chart Maker, QR Code)
      No file upload; button always enabled.
   ----------------------------------------------- */
-  (function () {
+  function tgInitDataInputBox() {
     var diBox = document.querySelector('.tg-tool-box[data-tool-type="data-input"]');
     if (!diBox) return;
 
@@ -223,33 +223,9 @@
 
     if (diActionBtn) {
       diActionBtn.addEventListener('click', function () {
-        if (!window.TGTools || !window.TGTools[diHandler]) return;
-        var diTool2 = window.TGTools[diHandler];
-        var opts = diTool2.getOptions ? diTool2.getOptions(diOptionsEl) : {};
-
-        diActionBtn.hidden = true;
-        if (diProgressEl) { diProgressEl.hidden = true; if (diProgressBar) diProgressBar.style.width = '0%'; }
-        if (diResultEl)   diResultEl.hidden = true;
-        if (diErrorBanner) diErrorBanner.hidden = true;
-        tgShowLoading(diBox, 'Processing...');
-
-        diTool2.run(null, opts, function (pct, msg) {
-          if (diProgressBar) diProgressBar.style.width = (pct * 100) + '%';
-          var lbl = diProgressEl ? diProgressEl.querySelector('.tg-progress-label') : null;
-          if (lbl && msg) lbl.textContent = msg;
-          tgUpdateLoading(diBox, pct, msg);
-        }).then(function (result) {
-          if (diProgressEl) diProgressEl.hidden = true;
-          tgHideLoading(diBox);
-          if (diBlobUrl) URL.revokeObjectURL(diBlobUrl);
-          diBlobUrl = URL.createObjectURL(result.blob);
-          diFilename = result.filename || 'output';
-          if (diResultEl) diResultEl.hidden = false;
-          if (diSuccessBanner) diSuccessBanner.hidden = false;
-          if (diErrorBanner)   diErrorBanner.hidden = true;
-          if (diDownloadBtn)   diDownloadBtn.hidden = false;
-          diActionBtn.hidden = false;
-        }).catch(function (e) {
+        /* Shared failure path: always clears the loader so an error can
+           never leave "Processing..." on screen forever. */
+        var diShowError = function (msg) {
           if (diProgressEl) diProgressEl.hidden = true;
           tgHideLoading(diBox);
           diActionBtn.hidden = false;
@@ -258,9 +234,46 @@
           if (diErrorBanner) {
             diErrorBanner.hidden = false;
             var em = diErrorBanner.querySelector('.tg-error-msg');
-            if (em) em.textContent = e && e.message ? e.message : 'An error occurred.';
+            if (em) em.textContent = msg;
           }
-        });
+        };
+
+        var diTool2 = window.TGTools && window.TGTools[diHandler];
+        if (!diTool2 || typeof diTool2.run !== 'function') {
+          diShowError('This tool failed to load. Please refresh the page.');
+          return;
+        }
+
+        diActionBtn.hidden = true;
+        if (diProgressEl) { diProgressEl.hidden = true; if (diProgressBar) diProgressBar.style.width = '0%'; }
+        if (diResultEl)   diResultEl.hidden = true;
+        if (diErrorBanner) diErrorBanner.hidden = true;
+        tgShowLoading(diBox, 'Processing...');
+
+        try {
+          var opts = diTool2.getOptions ? diTool2.getOptions(diOptionsEl) : {};
+          diTool2.run(null, opts, function (pct, msg) {
+            if (diProgressBar) diProgressBar.style.width = (pct * 100) + '%';
+            var lbl = diProgressEl ? diProgressEl.querySelector('.tg-progress-label') : null;
+            if (lbl && msg) lbl.textContent = msg;
+            tgUpdateLoading(diBox, pct, msg);
+          }).then(function (result) {
+            if (diProgressEl) diProgressEl.hidden = true;
+            tgHideLoading(diBox);
+            if (diBlobUrl) URL.revokeObjectURL(diBlobUrl);
+            diBlobUrl = URL.createObjectURL(result.blob);
+            diFilename = result.filename || 'output';
+            if (diResultEl) diResultEl.hidden = false;
+            if (diSuccessBanner) diSuccessBanner.hidden = false;
+            if (diErrorBanner)   diErrorBanner.hidden = true;
+            if (diDownloadBtn)   diDownloadBtn.hidden = false;
+            diActionBtn.hidden = false;
+          }).catch(function (e) {
+            diShowError(e && e.message ? e.message : 'An error occurred.');
+          });
+        } catch (e) {
+          diShowError(e && e.message ? e.message : 'An error occurred.');
+        }
       });
     }
 
@@ -283,7 +296,17 @@
         if (diActionBtn) { diActionBtn.hidden = false; diActionBtn.disabled = false; }
       });
     }
-  })();
+  }
+
+  /* All tool scripts are enqueued in the footer, so every tool has
+     registered on window.TGTools before DOMContentLoaded fires. Waiting
+     for DOM ready lets tools enqueued AFTER tool-runner.js still be
+     picked up by the dispatcher. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tgInitDataInputBox);
+  } else {
+    tgInitDataInputBox();
+  }
 
   var box = document.querySelector('.tg-tool-box[data-tool-type="browser"], .tg-tool-box[data-tool-type="server"]');
   if (!box) return;
