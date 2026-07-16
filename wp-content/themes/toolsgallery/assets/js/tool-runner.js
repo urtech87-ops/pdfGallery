@@ -181,7 +181,7 @@
      DATA-INPUT TOOL BOX (Phase 4 — Chart Maker, QR Code)
      No file upload; button always enabled.
   ----------------------------------------------- */
-  (function () {
+  function tgInitDataInputBox() {
     var diBox = document.querySelector('.tg-tool-box[data-tool-type="data-input"]');
     if (!diBox) return;
 
@@ -283,7 +283,17 @@
         if (diActionBtn) { diActionBtn.hidden = false; diActionBtn.disabled = false; }
       });
     }
-  })();
+  }
+
+  /* All tool scripts are enqueued in the footer, so every tool has
+     registered on window.TGTools before DOMContentLoaded fires. Waiting
+     for DOM ready lets tools enqueued AFTER tool-runner.js still be
+     picked up by the dispatcher. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tgInitDataInputBox);
+  } else {
+    tgInitDataInputBox();
+  }
 
   var box = document.querySelector('.tg-tool-box[data-tool-type="browser"], .tg-tool-box[data-tool-type="server"]');
   if (!box) return;
