@@ -810,7 +810,7 @@ function tg_register_meta_fields()
         ]);
     }
 
-    $json_fields = ['_tg_faqs', '_tg_features', '_tg_steps'];
+    $json_fields = ['_tg_faqs', '_tg_features', '_tg_steps', '_tg_intro'];
     foreach ($json_fields as $key) {
         register_post_meta('tg_tool', $key, [
             'single' => true,
@@ -2274,7 +2274,17 @@ function tg_render_steps_meta_box($post)
         ];
     }
     wp_nonce_field('tg_tool_meta_save', 'tg_tool_meta_nonce');
+    $tg_intro = get_post_meta($post->ID, '_tg_intro', true);
     ?>
+        <div class="tg-meta-intro"
+            style="background:#f0f6fc;border:1px solid #c3d9ed;border-radius:6px;padding:12px;margin-bottom:14px;">
+            <label for="tg_intro"
+                style="font-weight:600;display:block;margin-bottom:4px;font-size:13px;">Intro (unique tool description)</label>
+            <textarea id="tg_intro" name="tg_intro" style="width:100%;height:130px;"
+                placeholder="~80–150 words of original prose about THIS specific tool. Shown in the &quot;What is …?&quot; box above the tool. Leave blank to fall back to the excerpt."><?php echo esc_textarea($tg_intro); ?></textarea>
+            <p style="font-size:12px;color:#666;margin:6px 0 0;">Write unique copy for this tool (~80–150 words). Replaces the
+                old templated intro so pages aren't near-duplicates.</p>
+        </div>
         <style>
             .tg-meta-step {
                 background: #f9f9f9;
@@ -2529,6 +2539,15 @@ function tg_save_tool_meta_boxes($post_id)
         return;
     if (!current_user_can('edit_post', $post_id))
         return;
+
+    // Save Intro (unique per-tool description)
+    if (isset($_POST['tg_intro'])) {
+        update_post_meta(
+            $post_id,
+            '_tg_intro',
+            wp_kses_post(wp_unslash($_POST['tg_intro']))
+        );
+    }
 
     // Save Steps
     if (isset($_POST['tg_steps']) && is_array($_POST['tg_steps'])) {

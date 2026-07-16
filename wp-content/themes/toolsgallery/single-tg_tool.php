@@ -76,24 +76,18 @@ while (have_posts()):
                 <?php endif; ?>
                 <h1 class="tg-tool-title"><?php the_title(); ?></h1>
 
-                <!-- 2. Quick Answer Box (D1 — Featured Snippet + AEO) -->
-                <div class="tg-quick-answer" itemscope itemtype="https://schema.org/HowTo">
-                    <p itemprop="description">
-                        <strong><?php the_title(); ?></strong> is a free online tool by Tool Acadmy.
-                        <?php if (has_excerpt()): ?>        <?php echo wp_kses_post(get_the_excerpt()); ?>    <?php endif; ?>
-                        No signup required. Works in any browser.
-                    </p>
-                </div>
-
-                <!-- 2b. Definition Box (AEO — AI assistants + featured snippets) -->
+                <!-- 2. Definition Box (AEO — AI assistants + featured snippets) -->
                 <div class="tg-definition-box">
-                    <strong>What is <?php the_title(); ?>?</strong>
-                    <p>
-                        <?php the_title(); ?> is a free online tool that
-                        <?php echo has_excerpt() ? strtolower(wp_strip_all_tags(get_the_excerpt())) : 'helps you process files quickly and easily.'; ?>
-                        Tool Acadmy's <?php the_title(); ?> runs entirely in your web browser — no software installation or
-                        account required.
-                    </p>
+                    <h2>What is <?php the_title(); ?>?</h2>
+                    <?php
+                    $tg_intro = get_post_meta(get_the_ID(), '_tg_intro', true);
+                    if ($tg_intro) {
+                        echo wp_kses_post(wpautop($tg_intro));
+                    } elseif (has_excerpt()) {
+                        // Fallback only — no strtolower(), no self-promotional filler.
+                        echo '<p>' . wp_kses_post(get_the_excerpt()) . '</p>';
+                    }
+                    ?>
                 </div>
 
                 <!-- 2c. Trust meta bar -->
