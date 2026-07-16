@@ -1710,13 +1710,6 @@ function tg_tool_json_ld()
         'isAccessibleForFree' => true,
         'browserRequirements' => 'Requires JavaScript. Works in Chrome, Firefox, Safari, Edge.',
         'provider' => ['@id' => 'https://toolacadmy.com/#organization'],
-        'aggregateRating' => [
-            '@type' => 'AggregateRating',
-            'ratingValue' => '4.8',
-            'ratingCount' => '127',
-            'bestRating' => '5',
-            'worstRating' => '1',
-        ],
     ];
 
     /* 3. HowTo */
