@@ -17,6 +17,19 @@ if (!defined('TG_AI_MODEL')) {
 }
 
 /* =============================================
+   AI INPUT / OUTPUT COST CAPS
+   The AI proxy is public (the nonce is scrapable), so input size
+   and max_tokens are bounded server-side to cap per-request spend.
+   Override in wp-config.php if a tool legitimately needs more.
+   ============================================= */
+if (!defined('TG_AI_MAX_INPUT_CHARS')) {
+    define('TG_AI_MAX_INPUT_CHARS', 8000);
+}
+if (!defined('TG_AI_MAX_TOKENS')) {
+    define('TG_AI_MAX_TOKENS', 2000);
+}
+
+/* =============================================
    TTS MODEL — OpenRouter /audio/speech slug
    TTS slugs are dated and change; confirm the current one on
    openrouter.ai/models (filtered to speech output). Override in
@@ -1032,6 +1045,9 @@ function tg_handle_removebg()
         wp_send_json_error(['message' => 'Remove.bg API key not configured.'], 500);
     }
 
+    // remove.bg is a paid, credit-metered API — rate-limit like the AI proxies.
+    tg_check_rate_limit('tg_removebg_rate_', 10);
+
     if (empty($_FILES['image_file']) || !is_uploaded_file($_FILES['image_file']['tmp_name'])) {
         wp_send_json_error(['message' => 'No image uploaded.'], 400);
     }
@@ -1156,6 +1172,10 @@ function tg_check_daily_cap($prefix, $cap)
 
 function tg_ai_proxy_handler()
 {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        wp_send_json_error(['message' => 'Invalid request.'], 405);
+    }
+
     check_ajax_referer('tg_tool_nonce', 'nonce');
 
     if (!defined('OPENROUTER_API_KEY')) {
@@ -1164,6 +1184,24 @@ function tg_ai_proxy_handler()
 
     $tool = sanitize_text_field(wp_unslash($_POST['tool'] ?? ''));
     $payload = isset($_POST['payload']) && is_array($_POST['payload']) ? $_POST['payload'] : [];
+
+    // Junk requests without a tool key shouldn't burn a rate-limit slot.
+    if ($tool === '' || !isset(tg_get_tool_prompts()[$tool])) {
+        wp_send_json_error(['message' => 'Invalid request.'], 400);
+    }
+
+    // Reject oversized input up front — before it burns a rate-limit slot
+    // or reaches the API. 20k chars is far beyond any real tool input
+    // (per-field prompts are capped at TG_AI_MAX_INPUT_CHARS anyway).
+    $payload_size = 0;
+    foreach ($payload as $value) {
+        if (is_string($value)) {
+            $payload_size += strlen($value);
+        }
+    }
+    if ($payload_size > 20000) {
+        wp_send_json_error(['message' => 'Input too long.'], 413);
+    }
 
     tg_check_rate_limit('tg_rate_', 30);
     tg_check_daily_cap('tg_ai_daily_', TG_AI_DAILY_CAP);
@@ -1200,6 +1238,9 @@ function tg_call_openrouter($tool_key, $payload)
         return ['error' => 'Empty prompt.'];
     }
 
+    // Clamp per-tool max_tokens so a misconfigured value can't run up cost.
+    $max_tokens = min((int) ($config['max_tokens'] ?? 1500), TG_AI_MAX_TOKENS);
+
     $request_body = wp_json_encode([
         'model' => $config['model'] ?? TG_AI_MODEL,
         'messages' => [
@@ -1212,7 +1253,7 @@ function tg_call_openrouter($tool_key, $payload)
                 'content' => $user_prompt,
             ],
         ],
-        'max_tokens' => $config['max_tokens'] ?? 1500,
+        'max_tokens' => $max_tokens,
         'temperature' => 0.7,
     ]);
 
@@ -1237,16 +1278,19 @@ function tg_call_openrouter($tool_key, $payload)
     $body = wp_remote_retrieve_body($response);
     $data = json_decode($body, true);
 
-    // Log full response for debugging
-    error_log('OpenRouter response for [' .
-        $tool_key . ']: ' . $body);
+    // Full-body logging is debug-only: it bloats the log and stores user text.
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('OpenRouter response for [' .
+            $tool_key . ']: ' . $body);
+    }
 
     // Check for API error
     if (isset($data['error'])) {
         $err_msg = is_array($data['error'])
             ? ($data['error']['message'] ?? json_encode($data['error']))
             : $data['error'];
-        error_log('OpenRouter error: ' . $err_msg);
+        $status = wp_remote_retrieve_response_code($response);
+        error_log('OpenRouter error [' . $tool_key . '] HTTP ' . $status . ': ' . $err_msg);
         return ['error' => $err_msg];
     }
 
@@ -1258,8 +1302,11 @@ function tg_call_openrouter($tool_key, $payload)
         ?? '';
 
     if (empty(trim($content))) {
-        error_log('OpenRouter empty content. Full body: ' . $body);
-        return ['error' => 'AI returned empty response. Body: ' . $body];
+        error_log('OpenRouter empty content for [' . $tool_key . ']');
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('OpenRouter empty-content full body: ' . $body);
+        }
+        return ['error' => 'AI returned an empty response. Please try again.'];
     }
 
     return ['result' => $content];
@@ -1270,6 +1317,10 @@ function tg_call_openrouter($tool_key, $payload)
    ============================================= */
 function tg_tts_proxy_handler()
 {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        wp_send_json_error(['message' => 'Invalid request.'], 405);
+    }
+
     check_ajax_referer('tg_tool_nonce', 'nonce');
 
     if (!defined('OPENROUTER_API_KEY') || !OPENROUTER_API_KEY) {
@@ -1367,7 +1418,7 @@ function tg_tts_proxy_handler()
         if ($code < 200 || $code >= 300) {
             $data = json_decode($bytes, true);
             $err = $data['error']['message'] ?? ('TTS provider returned HTTP ' . $code);
-            error_log('OpenRouter TTS error: ' . $err);
+            error_log('OpenRouter TTS error HTTP ' . $code . ': ' . $err);
             wp_send_json_error(['message' => $err], 500);
         }
 
@@ -1633,10 +1684,19 @@ function tg_build_user_prompt($config, $payload)
 
     foreach ($payload as $key => $value) {
         $clean = sanitize_textarea_field(wp_unslash($value));
+        // Per-field cap so one huge value can't blow up the prompt.
+        if (strlen($clean) > TG_AI_MAX_INPUT_CHARS) {
+            $clean = substr($clean, 0, TG_AI_MAX_INPUT_CHARS);
+        }
         $template = str_replace('{' . $key . '}', $clean, $template);
     }
 
     $template = preg_replace('/\{[a-zA-Z0-9_]+\}/', '', $template);
+
+    // Hard cap on the final prompt regardless of how many fields fed it.
+    if (strlen($template) > TG_AI_MAX_INPUT_CHARS) {
+        $template = substr($template, 0, TG_AI_MAX_INPUT_CHARS);
+    }
 
     return trim($template);
 }
