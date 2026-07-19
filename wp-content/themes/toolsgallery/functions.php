@@ -1266,16 +1266,19 @@ function tg_call_openrouter($tool_key, $payload)
     $body = wp_remote_retrieve_body($response);
     $data = json_decode($body, true);
 
-    // Log full response for debugging
-    error_log('OpenRouter response for [' .
-        $tool_key . ']: ' . $body);
+    // Full-body logging is debug-only: it bloats the log and stores user text.
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('OpenRouter response for [' .
+            $tool_key . ']: ' . $body);
+    }
 
     // Check for API error
     if (isset($data['error'])) {
         $err_msg = is_array($data['error'])
             ? ($data['error']['message'] ?? json_encode($data['error']))
             : $data['error'];
-        error_log('OpenRouter error: ' . $err_msg);
+        $status = wp_remote_retrieve_response_code($response);
+        error_log('OpenRouter error [' . $tool_key . '] HTTP ' . $status . ': ' . $err_msg);
         return ['error' => $err_msg];
     }
 
@@ -1287,8 +1290,11 @@ function tg_call_openrouter($tool_key, $payload)
         ?? '';
 
     if (empty(trim($content))) {
-        error_log('OpenRouter empty content. Full body: ' . $body);
-        return ['error' => 'AI returned empty response. Body: ' . $body];
+        error_log('OpenRouter empty content for [' . $tool_key . ']');
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('OpenRouter empty-content full body: ' . $body);
+        }
+        return ['error' => 'AI returned an empty response. Please try again.'];
     }
 
     return ['result' => $content];
@@ -1396,7 +1402,7 @@ function tg_tts_proxy_handler()
         if ($code < 200 || $code >= 300) {
             $data = json_decode($bytes, true);
             $err = $data['error']['message'] ?? ('TTS provider returned HTTP ' . $code);
-            error_log('OpenRouter TTS error: ' . $err);
+            error_log('OpenRouter TTS error HTTP ' . $code . ': ' . $err);
             wp_send_json_error(['message' => $err], 500);
         }
 
