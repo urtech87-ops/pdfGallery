@@ -17,13 +17,16 @@ if (!defined('TG_AI_MODEL')) {
 }
 
 /* =============================================
-   AI INPUT COST CAP
+   AI INPUT / OUTPUT COST CAPS
    The AI proxy is public (the nonce is scrapable), so input size
-   is bounded server-side to cap per-request spend. Override in
-   wp-config.php if a tool legitimately needs more.
+   and max_tokens are bounded server-side to cap per-request spend.
+   Override in wp-config.php if a tool legitimately needs more.
    ============================================= */
 if (!defined('TG_AI_MAX_INPUT_CHARS')) {
     define('TG_AI_MAX_INPUT_CHARS', 8000);
+}
+if (!defined('TG_AI_MAX_TOKENS')) {
+    define('TG_AI_MAX_TOKENS', 2000);
 }
 
 /* =============================================
@@ -1223,6 +1226,9 @@ function tg_call_openrouter($tool_key, $payload)
         return ['error' => 'Empty prompt.'];
     }
 
+    // Clamp per-tool max_tokens so a misconfigured value can't run up cost.
+    $max_tokens = min((int) ($config['max_tokens'] ?? 1500), TG_AI_MAX_TOKENS);
+
     $request_body = wp_json_encode([
         'model' => $config['model'] ?? TG_AI_MODEL,
         'messages' => [
@@ -1235,7 +1241,7 @@ function tg_call_openrouter($tool_key, $payload)
                 'content' => $user_prompt,
             ],
         ],
-        'max_tokens' => $config['max_tokens'] ?? 1500,
+        'max_tokens' => $max_tokens,
         'temperature' => 0.7,
     ]);
 
