@@ -1169,6 +1169,10 @@ function tg_check_daily_cap($prefix, $cap)
 
 function tg_ai_proxy_handler()
 {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        wp_send_json_error(['message' => 'Invalid request.'], 405);
+    }
+
     check_ajax_referer('tg_tool_nonce', 'nonce');
 
     if (!defined('OPENROUTER_API_KEY')) {
@@ -1177,6 +1181,11 @@ function tg_ai_proxy_handler()
 
     $tool = sanitize_text_field(wp_unslash($_POST['tool'] ?? ''));
     $payload = isset($_POST['payload']) && is_array($_POST['payload']) ? $_POST['payload'] : [];
+
+    // Junk requests without a tool key shouldn't burn a rate-limit slot.
+    if ($tool === '' || !isset(tg_get_tool_prompts()[$tool])) {
+        wp_send_json_error(['message' => 'Invalid request.'], 400);
+    }
 
     // Reject oversized input up front — before it burns a rate-limit slot
     // or reaches the API. 20k chars is far beyond any real tool input
@@ -1305,6 +1314,10 @@ function tg_call_openrouter($tool_key, $payload)
    ============================================= */
 function tg_tts_proxy_handler()
 {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        wp_send_json_error(['message' => 'Invalid request.'], 405);
+    }
+
     check_ajax_referer('tg_tool_nonce', 'nonce');
 
     if (!defined('OPENROUTER_API_KEY') || !OPENROUTER_API_KEY) {
