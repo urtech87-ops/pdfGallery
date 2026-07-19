@@ -17,6 +17,16 @@ if (!defined('TG_AI_MODEL')) {
 }
 
 /* =============================================
+   AI INPUT COST CAP
+   The AI proxy is public (the nonce is scrapable), so input size
+   is bounded server-side to cap per-request spend. Override in
+   wp-config.php if a tool legitimately needs more.
+   ============================================= */
+if (!defined('TG_AI_MAX_INPUT_CHARS')) {
+    define('TG_AI_MAX_INPUT_CHARS', 8000);
+}
+
+/* =============================================
    TTS MODEL — OpenRouter /audio/speech slug
    TTS slugs are dated and change; confirm the current one on
    openrouter.ai/models (filtered to speech output). Override in
@@ -1165,6 +1175,19 @@ function tg_ai_proxy_handler()
     $tool = sanitize_text_field(wp_unslash($_POST['tool'] ?? ''));
     $payload = isset($_POST['payload']) && is_array($_POST['payload']) ? $_POST['payload'] : [];
 
+    // Reject oversized input up front — before it burns a rate-limit slot
+    // or reaches the API. 20k chars is far beyond any real tool input
+    // (per-field prompts are capped at TG_AI_MAX_INPUT_CHARS anyway).
+    $payload_size = 0;
+    foreach ($payload as $value) {
+        if (is_string($value)) {
+            $payload_size += strlen($value);
+        }
+    }
+    if ($payload_size > 20000) {
+        wp_send_json_error(['message' => 'Input too long.'], 413);
+    }
+
     tg_check_rate_limit('tg_rate_', 30);
     tg_check_daily_cap('tg_ai_daily_', TG_AI_DAILY_CAP);
 
@@ -1633,10 +1656,19 @@ function tg_build_user_prompt($config, $payload)
 
     foreach ($payload as $key => $value) {
         $clean = sanitize_textarea_field(wp_unslash($value));
+        // Per-field cap so one huge value can't blow up the prompt.
+        if (strlen($clean) > TG_AI_MAX_INPUT_CHARS) {
+            $clean = substr($clean, 0, TG_AI_MAX_INPUT_CHARS);
+        }
         $template = str_replace('{' . $key . '}', $clean, $template);
     }
 
     $template = preg_replace('/\{[a-zA-Z0-9_]+\}/', '', $template);
+
+    // Hard cap on the final prompt regardless of how many fields fed it.
+    if (strlen($template) > TG_AI_MAX_INPUT_CHARS) {
+        $template = substr($template, 0, TG_AI_MAX_INPUT_CHARS);
+    }
 
     return trim($template);
 }
