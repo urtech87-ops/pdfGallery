@@ -1045,6 +1045,9 @@ function tg_handle_removebg()
         wp_send_json_error(['message' => 'Remove.bg API key not configured.'], 500);
     }
 
+    // remove.bg is a paid, credit-metered API — rate-limit like the AI proxies.
+    tg_check_rate_limit('tg_removebg_rate_', 10);
+
     if (empty($_FILES['image_file']) || !is_uploaded_file($_FILES['image_file']['tmp_name'])) {
         wp_send_json_error(['message' => 'No image uploaded.'], 400);
     }
