@@ -8,12 +8,8 @@
       <div class="tg-footer__col">
         <a href="<?php echo esc_url(home_url('/')); ?>" class="tg-logo tg-footer-logo" aria-label="<?php esc_attr_e('Tool Acadmy — Home', 'toolsgallery'); ?>">
           <div class="tg-logo-icon" aria-hidden="true">
-            <svg viewBox="0 0 40 40" fill="none" width="32" height="32">
-              <rect width="40" height="40" rx="10" fill="#F97316"/>
-              <rect x="6" y="9" width="28" height="6" rx="3" fill="white"/>
-              <rect x="15" y="15" width="10" height="18" rx="5" fill="white"/>
-              <circle cx="34" cy="9" r="4" fill="white" opacity="0.85"/>
-              <circle cx="34" cy="9" r="2" fill="#F97316"/>
+            <svg viewBox="0 0 24 24" fill="#dd2b0f" xmlns="http://www.w3.org/2000/svg" width="32" height="32" aria-hidden="true">
+              <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
             </svg>
           </div>
           <span class="tg-logo-text" style="color:white;">Tool<span style="color:#F97316;font-weight:400;">Acadmy</span></span>
