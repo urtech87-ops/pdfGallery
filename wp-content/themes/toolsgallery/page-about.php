@@ -111,7 +111,7 @@ get_header();
 <details class="tg-faq-item">
 <summary class="tg-faq-question">How do I contact Tool Acadmy? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
-<p>You can reach us via our <a href="/contact/">Contact page</a>. We respond to all inquiries within 24-48 hours. For bug reports, please include the tool name and a description of the issue.</p>
+<p>You can reach us via our <a href="contact/">Contact page</a>. We respond to all inquiries within 24-48 hours. For bug reports, please include the tool name and a description of the issue.</p>
 </div>
 </details>
 
@@ -121,12 +121,12 @@ get_header();
 <section class="tg-about-contact">
 <h2>Get in Touch</h2>
 <p>Have a question, found a bug, or want to suggest a new tool? We would love to hear from you.</p>
-<p>
+<p style="margin-bottom:20px">
 <strong>Email:</strong> contact@toolacadmy.com<br>
 <strong>Response time:</strong> Within 24-48 hours<br>
 <strong>Location:</strong> Available worldwide
 </p>
-<a href="/contact/" class="tg-btn tg-btn-primary">Contact Us &rarr;</a>
+<a href="contact/" class="tg-btn tg-btn-primary">Contact Us &rarr;</a>
 </section>
 
 </div>

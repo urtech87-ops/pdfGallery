@@ -955,3 +955,6 @@ html[data-theme="dark"] .tg-blog-tools-cta {
 	background:#2a2a2a !important
 }
 
+html[data-theme="dark"]  .tg-hero__stat-label {
+    color: #9a9a9a;
+}

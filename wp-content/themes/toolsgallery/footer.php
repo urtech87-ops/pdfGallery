@@ -48,10 +48,10 @@
         <ul class="tg-footer__links">
           <?php
           $image_tools = [
-            __('Background Remover', 'toolsgallery') => '/tool/background-remover/',
+            __('Background Remover', 'toolsgallery') => '/tool/remove-background/',
             __('Compress Image', 'toolsgallery')     => '/tool/compress-image/',
             __('Resize Image', 'toolsgallery')       => '/tool/resize-image/',
-            __('JPG to PNG', 'toolsgallery')         => '/tool/jpg-to-png/',
+            __('JPG to PNG', 'toolsgallery')         => '/tool/convert-to-png/',
             __('All Image Tools', 'toolsgallery')    => '/tools/',
           ];
           foreach ($image_tools as $label => $path) :
