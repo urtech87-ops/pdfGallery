@@ -1004,17 +1004,19 @@ function tg_breadcrumbs()
 }
 
 /* =============================================
-   FAVICON
+   FAVICONS + WEB APP MANIFEST
    ============================================= */
-function tg_favicon()
+function tg_site_icons()
 {
-    $uri = get_template_directory_uri();
-    echo '<link rel="icon" type="image/svg+xml" href="' . esc_url($uri . '/assets/images/logo-icon.svg') . '">' . "\n";
-    echo '<link rel="alternate icon" href="' . esc_url($uri . '/assets/images/favicon.png') . '">' . "\n";
-    echo '<link rel="apple-touch-icon" href="' . esc_url($uri . '/assets/images/logo-icon.svg') . '">' . "\n";
+    $u = get_template_directory_uri() . '/assets/icons/';
+    echo '<link rel="icon" type="image/x-icon" href="' . esc_url($u . 'favicon.ico') . '">' . "\n";
+    echo '<link rel="icon" type="image/png" sizes="96x96" href="' . esc_url($u . 'favicon-96x96.png') . '">' . "\n";
+    echo '<link rel="icon" type="image/svg+xml" href="' . esc_url($u . 'favicon.svg') . '">' . "\n";
+    echo '<link rel="apple-touch-icon" sizes="180x180" href="' . esc_url($u . 'apple-touch-icon.png') . '">' . "\n";
+    echo '<link rel="manifest" href="' . esc_url($u . 'site.webmanifest') . '">' . "\n";
 }
-add_action('wp_head', 'tg_favicon', 1);
-add_action('admin_head', 'tg_favicon', 1);
+add_action('wp_head', 'tg_site_icons', 1);
+add_action('admin_head', 'tg_site_icons', 1);
 
 /* =============================================
    OPENROUTER AI PROXY
