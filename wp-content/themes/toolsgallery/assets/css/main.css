@@ -1709,17 +1709,20 @@ footer .tg-logo {
    PHASE 9 — SEO / AEO Styles
    ============================================= */
 
-/* Quick Answer Box (D1) */
-.tg-quick-answer {
-  background: rgba(249, 115, 22, 0.08);
-  border-left: 4px solid var(--color-primary, #F97316);
-  border-radius: 8px;
-  padding: 16px 20px;
+/* Definition Box (AEO) — heading matches the previous inline <strong> */
+.tg-definition-box {
   margin-bottom: 20px;
   font-size: 15px;
   line-height: 1.6;
 }
-.tg-quick-answer p { margin: 0; }
+.tg-definition-box h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+.tg-definition-box p { margin: 0 0 8px; }
+.tg-definition-box p:last-child { margin-bottom: 0; }
 
 /* Why Use + Benefits sections */
 .tg-why-use ul,
@@ -3133,24 +3136,6 @@ footer .tg-logo {
 [data-theme="dark"] .tg-filter-pill.active .tg-pill-count {
   background: rgba(255,255,255,0.2) !important;
   color: #ffffff !important;
-}
-
-/* ===================================
-   QUICK ANSWER BOX
-   =================================== */
-[data-theme="dark"] .tg-quick-answer {
-  background: rgba(249,115,22,0.1) !important;
-  border-left: 4px solid #F97316 !important;
-}
-
-[data-theme="dark"] .tg-quick-answer p,
-[data-theme="dark"] .tg-quick-answer *,
-[data-theme="dark"] .tg-quick-answer {
-  color: #D0D0D0 !important;
-}
-
-[data-theme="dark"] .tg-quick-answer strong {
-  color: #FFFFFF !important;
 }
 
 /* ===================================
