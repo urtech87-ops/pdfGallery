@@ -30,8 +30,8 @@
       <a class="tg-btn tg-btn--primary tg-btn--lg" href="<?php echo esc_url(home_url('/tools/')); ?>">
         <?php esc_html_e('Explore All Tools', 'toolsgallery'); ?>
       </a>
-      <a class="tg-btn tg-btn--outline tg-btn--lg" href="<?php echo esc_url(home_url('/tool/merge-pdf/')); ?>">
-        <?php esc_html_e('Merge PDF Free', 'toolsgallery'); ?>
+      <a class="tg-btn tg-btn--outline tg-btn--lg" href="<?php echo esc_url(home_url('/tool/edit-pdf/')); ?>">
+        <?php esc_html_e('Edit PDF Free', 'toolsgallery'); ?>
       </a>
     </div>
 
