@@ -126,7 +126,7 @@ get_header();
 <strong>Response time:</strong> Within 24-48 hours<br>
 <strong>Location:</strong> Available worldwide
 </p>
-<a href="contact/" class="tg-btn tg-btn-primary">Contact Us &rarr;</a>
+<a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>" class="tg-btn tg-btn-primary">Contact Us &rarr;</a>
 </section>
 
 </div>
