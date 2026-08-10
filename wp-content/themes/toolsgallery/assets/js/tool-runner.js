@@ -331,7 +331,12 @@
   var accept   = box.dataset.accept || '';
   var handler  = box.dataset.handler || '';
   var isMulti  = box.dataset.multi === 'true';
-  var MAX_FILES = 20;
+
+  /* Per-handler upload caps. Merge is a batch tool — people combine whole
+     scan folders — so it gets a much higher ceiling. Every other
+     multi-file tool keeps the default 20. */
+  var MAX_FILES_MAP = { merge: 100 };
+  var MAX_FILES = MAX_FILES_MAP[handler] || 20;
 
   var currentFile      = null;
   var currentFiles     = [];
