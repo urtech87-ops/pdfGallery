@@ -4565,3 +4565,222 @@ textarea {
   border-color: rgba(255,255,255,0.15);
   color: #e5e7eb;
 }
+
+/* =============================================
+   Merge PDF — file frame grid
+   Preview + drag-to-reorder + per-file rotation.
+   Scoped to the merge tool box only.
+   ============================================= */
+
+/* The frames replace the plain filename rows, but the list container
+   stays in the flow so the "Maximum N files" notice still shows. */
+.tg-tool-box[data-handler="merge"] .tg-file-list-item,
+.tg-tool-box[data-handler="merge"] .tg-add-more-btn { display: none; }
+.tg-tool-box[data-handler="merge"] .tg-file-list { margin-bottom: 0; }
+
+.tg-merge-note {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-gray-700);
+  background: var(--color-primary-light);
+  border-left: 3px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  margin: 0.625rem 0;
+}
+
+.tg-merge-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin: 0.625rem 0 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.tg-merge-count { color: var(--color-gray-600); }
+.tg-merge-summary { color: var(--color-success); font-weight: 600; }
+
+.tg-merge-add {
+  margin-left: auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-primary);
+  background: transparent;
+  border-radius: var(--radius-full);
+  padding: 0.3125rem 0.75rem;
+  transition: background var(--transition);
+}
+.tg-merge-add:hover { background: var(--color-primary-light); }
+
+.tg-merge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+.tg-merge-grid[data-dragover] {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: 6px;
+  border-radius: var(--radius-md);
+}
+
+.tg-merge-frame {
+  position: relative;
+  border: 1.5px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  padding: 0.625rem 0.5rem 0.5rem;
+  text-align: center;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Vertical scrolling still works when a touch starts on the frame —
+     touch drags are picked up by the badge handle instead. */
+  touch-action: pan-y;
+  transition: border-color var(--transition), box-shadow var(--transition), opacity var(--transition);
+}
+.tg-merge-frame:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+.tg-merge-frame.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+  border-style: dashed;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.tg-merge-badge {
+  position: absolute;
+  top: 0.375rem;
+  left: 0.375rem;
+  z-index: 2;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  padding: 0 0.3125rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-white);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: grab;
+  /* The one spot that must swallow touch gestures so a drag can start. */
+  touch-action: none;
+}
+.tg-merge-badge:focus-visible {
+  outline: 2px solid var(--color-gray-900);
+  outline-offset: 2px;
+}
+
+.tg-merge-thumb {
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--color-gray-100);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.5rem;
+}
+.tg-merge-thumb canvas {
+  max-width: 110px;
+  max-height: 110px;
+  background: var(--color-white);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition);
+}
+.tg-merge-thumb-msg {
+  font-size: 0.6875rem;
+  color: var(--color-gray-400);
+  padding: 0 0.5rem;
+}
+
+.tg-merge-spinner {
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid var(--color-gray-200);
+  border-top-color: var(--color-primary);
+  border-radius: var(--radius-full);
+  animation: tg-merge-spin 0.7s linear infinite;
+}
+@keyframes tg-merge-spin { to { transform: rotate(360deg); } }
+
+.tg-merge-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-gray-900);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tg-merge-pages {
+  font-size: 0.6875rem;
+  color: var(--color-gray-600);
+}
+
+.tg-merge-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
+}
+.tg-merge-btn {
+  width: 1.625rem;
+  height: 1.625rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  color: var(--color-gray-700);
+  font-size: 0.875rem;
+  line-height: 1;
+  transition: color var(--transition), border-color var(--transition);
+}
+.tg-merge-btn:hover { color: var(--color-primary); border-color: var(--color-primary); }
+.tg-merge-btn--remove:hover { color: var(--color-error); border-color: var(--color-error); }
+
+/* Dark theme */
+[data-theme="dark"] .tg-merge-note {
+  background: rgba(249,115,22,0.10);
+  color: #e5e7eb;
+}
+[data-theme="dark"] .tg-merge-count { color: #9ca3af; }
+[data-theme="dark"] .tg-merge-frame {
+  background: #2a2a2a;
+  border-color: rgba(255,255,255,0.12);
+}
+[data-theme="dark"] .tg-merge-thumb { background: #1e1e1e; }
+[data-theme="dark"] .tg-merge-name { color: #f0f0f0; }
+[data-theme="dark"] .tg-merge-pages { color: #9ca3af; }
+[data-theme="dark"] .tg-merge-btn {
+  background: #1e1e1e;
+  border-color: rgba(255,255,255,0.15);
+  color: #e5e7eb;
+}
+[data-theme="dark"] .tg-merge-spinner { border-color: rgba(255,255,255,0.15); border-top-color: var(--color-primary); }
+[data-theme="dark"] .tg-merge-badge:focus-visible { outline-color: #f0f0f0; }
+
+/* The dark theme paints every button inside a tool box solid orange with
+   !important (see the ACTION BUTTON block above). That is right for the
+   primary action, but the small per-frame rotate/remove controls need to
+   stay quiet — matched specificity + !important, scoped to merge frames. */
+[data-theme="dark"] .tg-tool-box .tg-merge-frame button.tg-merge-btn {
+  background: #1e1e1e !important;
+  color: #e5e7eb !important;
+}
+[data-theme="dark"] .tg-tool-box .tg-merge-frame button.tg-merge-btn:hover {
+  color: var(--color-primary) !important;
+  border-color: var(--color-primary);
+}
+[data-theme="dark"] .tg-tool-box .tg-merge-frame button.tg-merge-btn--remove:hover {
+  color: var(--color-error) !important;
+  border-color: var(--color-error);
+}

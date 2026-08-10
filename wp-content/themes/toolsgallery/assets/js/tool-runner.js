@@ -331,7 +331,12 @@
   var accept   = box.dataset.accept || '';
   var handler  = box.dataset.handler || '';
   var isMulti  = box.dataset.multi === 'true';
-  var MAX_FILES = 20;
+
+  /* Per-handler upload caps. Merge is a batch tool — people combine whole
+     scan folders — so it gets a much higher ceiling. Every other
+     multi-file tool keeps the default 20. */
+  var MAX_FILES_MAP = { merge: 100 };
+  var MAX_FILES = MAX_FILES_MAP[handler] || 20;
 
   var currentFile      = null;
   var currentFiles     = [];
@@ -1061,10 +1066,11 @@
   ----------------------------------------------- */
   function addFiles(filesList) {
     var invalid = [];
+    var hitMax  = false;
     for (var i = 0; i < filesList.length; i++) {
       var file = filesList[i];
       if (!validateFile(file)) { invalid.push(file.name); continue; }
-      if (currentFiles.length >= MAX_FILES) { showMaxFilesMessage(); break; }
+      if (currentFiles.length >= MAX_FILES) { hitMax = true; break; }
       var dup = currentFiles.some(function (f) { return f.name === file.name && f.size === file.size; });
       if (!dup) { currentFiles.push(file); }
     }
@@ -1072,6 +1078,9 @@
       alert('Skipped invalid file(s): ' + invalid.join(', ') + '\nAccepted formats: ' + accept);
     }
     renderFileList();
+    /* After renderFileList — it rebuilds the list and would otherwise wipe
+       the notice before anyone could read it. */
+    if (hitMax) showMaxFilesMessage();
     if (uploadZone) uploadZone.hidden = currentFiles.length > 0;
     if (actionBtn)  actionBtn.disabled = currentFiles.length === 0;
     /* Multi-file mode needs the same file-ready hook single-file mode
@@ -1230,8 +1239,11 @@
     actionBtn.addEventListener('click', function () {
       clearInlineMsg();
 
-      /* ── MERGE ── */
-      if (handler === 'merge' && isMulti) {
+      /* ── MERGE (legacy inline path) ──
+         Superseded by the TGTools merge implementation (frame preview,
+         drag-reorder, per-file rotation) when that script is loaded; the
+         generic dispatcher at the bottom runs it instead. */
+      if (handler === 'merge' && isMulti && !(window.TGTools && window.TGTools.merge)) {
         if (currentFiles.length < 2) { showInlineMsg('Please add at least 2 PDF files to merge.'); return; }
         for (var i = 0; i < currentFiles.length; i++) {
           if (!isPdfFile(currentFiles[i])) { showInlineMsg(currentFiles[i].name + ' is not a valid PDF file.'); return; }
@@ -2536,7 +2548,13 @@
     getCurrentFile:  function () { return currentFile; },
     getCurrentFiles: function () { return currentFiles.slice(); },
     isMulti:         isMulti,
+    maxFiles:        MAX_FILES,
     resetState:      resetState,
+    /* Multi-file tools that render their own file UI (merge frames) need
+       to drop a file from the shared selection, not just from their view. */
+    removeFileAt:    function (index) { removeFileAt(index); },
+    addFiles:        function (list) { if (isMulti && list && list.length) addFiles(list); },
+    openFilePicker:  function () { if (fileInput) fileInput.click(); },
   };
 
 })();
