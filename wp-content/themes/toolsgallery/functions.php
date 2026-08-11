@@ -841,6 +841,11 @@ add_action('init', 'tg_register_meta_fields');
    ============================================= */
 function tg_ad_slot($slot_id, $size = 'responsive')
 {
+    // Master ad switch. Ads are OFF unless TG_ADS_ENABLED is defined true in wp-config.php.
+    if (!defined('TG_ADS_ENABLED') || !TG_ADS_ENABLED) {
+        return '';
+    }
+
     $slot_id = sanitize_text_field($slot_id);
     $size = sanitize_text_field($size);
 

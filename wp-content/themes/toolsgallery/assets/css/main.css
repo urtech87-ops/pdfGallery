@@ -1002,6 +1002,42 @@ footer .tg-logo {
   text-align: center;
 }
 
+/* ---------------------------------------------
+   Ad wrapper collapse — master ad switch
+   With TG_ADS_ENABLED off, tg_ad_slot() returns an empty string but the
+   wrapper markup stays in the templates (so ads can return without code
+   changes). These rules stop those wrappers from leaving a blank gap.
+--------------------------------------------- */
+.tg-ad-section:empty,
+.tg-ad-leaderboard:empty,
+.tg-ad-section__inner:empty,
+.tg-ad-mid:empty {
+  display: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* :empty does not match an element that still holds the newline/indentation
+   the PHP tag leaves behind, which is exactly what these wrappers contain
+   once the slot returns ''. "No element child" is the reliable test. */
+.tg-ad-leaderboard:not(:has(*)),
+.tg-ad-section__inner:not(:has(*)),
+.tg-ad-mid:not(:has(*)) {
+  display: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Two-level wrappers: the outer div always has an element child, so test the
+   inner one. .tg-leaderboard-wrap lives in tool.css; the extra :not() here
+   outranks it regardless of stylesheet order. */
+.tg-ad-section:not(:has(.tg-ad-section__inner > *)),
+.tg-leaderboard-wrap:not(:has(.tg-container > *)) {
+  display: none;
+  margin: 0;
+  padding: 0;
+}
+
 /* =============================================
    PAGINATION
    ============================================= */
