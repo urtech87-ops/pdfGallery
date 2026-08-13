@@ -24,6 +24,8 @@
       '<label class="tg-opt-label" for="icm-bg">Background Color</label>' +
       '<input type="color" id="icm-bg" value="#ffffff">' +
     '</div>' +
+    '<p class="tg-opt-info">Images are stitched in the order shown below. Drag a frame (or its number badge on touch) to reorder, rotate one with &#8635;, or remove it with &times;.</p>' +
+    '<div id="icm-frames"></div>' +
     '<div id="icm-preview-wrap" style="margin-top:12px;display:none">' +
       '<canvas id="icm-preview" style="max-width:100%;border:1px solid #ddd;border-radius:4px"></canvas>' +
     '</div>';
@@ -33,6 +35,25 @@
     var sl = container.querySelector('#icm-gap');
     var sv = container.querySelector('#icm-gap-val');
     if (sl && sv) sl.addEventListener('input', function () { sv.textContent = sl.value; });
+  }
+
+  /* Frame grid: one preview card per uploaded image, drag-to-reorder with
+     per-image rotation. Order matters most here — the frames' visual order
+     is the stitching order. */
+  var frames = window.TGImageFrames ? window.TGImageFrames.create({
+    host: 'icm-frames',
+    countLabel: function (n) {
+      return n + ' image' + (n === 1 ? '' : 's') + ' — combined in this order';
+    },
+  }) : null;
+
+  function onFileReady(file, optionsEl) {
+    if (!frames) return;
+    if (optionsEl && !optionsEl.querySelector('#icm-frames')) {
+      optionsEl.innerHTML = getOptionsHTML();
+      wireOptions(optionsEl);
+    }
+    frames.update(window.TGImageFrames.selection(file));
   }
 
   function getOptions(optionsEl) {
@@ -47,16 +68,23 @@
     };
   }
 
-  async function loadImages(files) {
-    return Promise.all(Array.from(files).map(function (file) {
-      return new Promise(function (resolve, reject) {
-        var img = new Image();
-        var url = URL.createObjectURL(file);
-        img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
-        img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load ' + file.name)); };
-        img.src = url;
-      });
-    }));
+  /* Load the frame list in order, baking each frame's rotation into the
+     bitmap that gets stitched. One at a time so a long list does not decode
+     everything at once. */
+  async function loadImages(items, onProgress) {
+    var images = [];
+    for (var i = 0; i < items.length; i++) {
+      var f = items[i].file;
+      onProgress && onProgress(0.1 + (i / items.length) * 0.3, 'Loading ' + f.name + '...');
+      var img;
+      try {
+        img = await TGImageUtil.loadImage(f);
+      } catch (e) {
+        throw new Error('Could not load ' + f.name);
+      }
+      images.push(TGImageUtil.rotateSource(img, items[i].rotation));
+    }
+    return images;
   }
 
   async function run(file, options, onProgress) {
@@ -65,9 +93,20 @@
     var box = document.querySelector('.tg-tool-box');
     var files = (box && box._tgFiles && box._tgFiles.length) ? Array.from(box._tgFiles) : [file];
 
-    if (files.length < 2) throw new Error('Please upload at least 2 images to combine.');
+    /* The frames are the source of truth for order and rotation; re-sync
+       first so a selection changed outside this UI can never combine the
+       wrong set. */
+    var items;
+    if (frames) {
+      frames.sync(files);
+      items = frames.items();
+    } else {
+      items = files.map(function (f) { return { file: f, rotation: 0 }; });
+    }
 
-    var images = await loadImages(files);
+    if (items.length < 2) throw new Error('Please upload at least 2 images to combine.');
+
+    var images = await loadImages(items, onProgress);
     onProgress && onProgress(0.4, 'Compositing...');
 
     var gap = options.gap || 0;
@@ -124,10 +163,11 @@
     }
 
     var blob = await new Promise(function (res) { canvas.toBlob(function (b) { res(b); }, 'image/jpeg', 0.92); });
+    if (frames) frames.setSummary('✓ Combined ' + images.length + ' images');
     onProgress && onProgress(1, 'Done!');
     return { blob: blob, filename: 'combined.jpg' };
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();

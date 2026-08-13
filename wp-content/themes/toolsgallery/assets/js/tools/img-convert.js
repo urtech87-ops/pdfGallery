@@ -31,9 +31,10 @@
     return '<div class="tg-opt-row">' +
       '<label class="tg-opt-label" for="icv-fmt">Convert to</label>' +
       '<select id="icv-fmt" class="tg-select"' + (locked ? ' disabled' : '') + '>' + fmtOpts + '</select>' +
-      '<img id="icv-preview" alt="Uploaded image preview" hidden style="max-width:64px;max-height:48px;margin-left:12px;border:1px solid #ddd;border-radius:3px;vertical-align:middle;background:repeating-conic-gradient(#eee 0% 25%,#fff 0% 50%) 0 0 / 10px 10px">' +
     '</div>' +
     (locked ? '<p class="tg-opt-info">Converting ' + inputFmt.toUpperCase() + ' to ' + outputFmt.toUpperCase() + '</p>' : '') +
+    '<p class="tg-opt-info">Images are converted in the order shown below. Drag a frame (or its number badge on touch) to reorder, rotate one with &#8635;, or remove it with &times;.</p>' +
+    '<div id="icv-frames"></div>' +
     '<div id="icv-results" style="margin-top:12px"></div>';
   }
 
@@ -43,22 +44,24 @@
     return { format: fmt ? fmt.value : 'png' };
   }
 
-  var _previewUrl = null;
+  /* Frame grid: one preview card per uploaded image, drag-to-reorder with
+     per-image rotation. Conversion runs in the frames' visual order — the
+     grid replaces the old single inline thumbnail, which only ever showed
+     the first file and could not show a rotation. */
+  var frames = window.TGImageFrames ? window.TGImageFrames.create({
+    host: 'icv-frames',
+    countLabel: function (n) {
+      return n + ' image' + (n === 1 ? '' : 's') + ' — converted in this order';
+    },
+  }) : null;
 
   /* Called by tool-runner when a file is selected — guarantees the
-     format selector is visible and shows a thumbnail of the first file. */
+     format selector is visible and (re)builds the frame grid. */
   function onFileReady(file, optionsEl) {
     if (!optionsEl) return;
     if (!optionsEl.querySelector('#icv-fmt')) optionsEl.innerHTML = getOptionsHTML();
     optionsEl.hidden = false;
-    var thumb = optionsEl.querySelector('#icv-preview');
-    if (thumb && file) {
-      if (_previewUrl) URL.revokeObjectURL(_previewUrl);
-      _previewUrl = URL.createObjectURL(file);
-      thumb.onerror = function () { thumb.hidden = true; };
-      thumb.onload = function () { thumb.hidden = false; };
-      thumb.src = _previewUrl;
-    }
+    if (frames) frames.update(window.TGImageFrames.selection(file));
   }
 
   var _convertedFiles = [];
@@ -72,6 +75,17 @@
       files = Array.from(box._tgFiles);
     } else {
       files = [file];
+    }
+
+    /* The frames are the source of truth for order and rotation; re-sync
+       first so a selection changed outside this UI can never convert the
+       wrong set. */
+    var items;
+    if (frames) {
+      frames.sync(files);
+      items = frames.items();
+    } else {
+      items = files.map(function (f) { return { file: f, rotation: 0 }; });
     }
 
     _convertedFiles = [];
@@ -88,11 +102,11 @@
 
     var lastError = null;
 
-    for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      onProgress && onProgress(i / files.length * 0.9, 'Converting ' + f.name + '...');
+    for (var i = 0; i < items.length; i++) {
+      var f = items[i].file;
+      onProgress && onProgress(i / items.length * 0.9, 'Converting ' + f.name + '...');
       try {
-        var result = await convertOne(f, outputFmt);
+        var result = await convertOne(f, outputFmt, items[i].rotation);
         _convertedFiles.push(result);
 
         var tbody = document.getElementById('icv-tbody');
@@ -141,6 +155,11 @@
     var first = _convertedFiles[0];
     if (!first) throw (lastError || new Error('No files could be converted.'));
 
+    if (frames) {
+      frames.setSummary('✓ Converted ' + _convertedFiles.length +
+        ' image' + (_convertedFiles.length === 1 ? '' : 's') + ' to ' + outputFmt.toUpperCase());
+    }
+
     // 2+ files: the main Download button delivers a ZIP of every output
     if (_convertedFiles.length > 1) {
       onProgress && onProgress(0.95, 'Building ZIP...');
@@ -169,42 +188,48 @@
     return zip.generateAsync({ type: 'blob' });
   }
 
-  async function convertOne(file, toFmt) {
+  async function convertOne(file, toFmt, rotation) {
+    var outName = file.name.replace(/\.[^.]+$/, '') + '.' + toFmt;
+
     // HEIC handling
     if ((file.type === 'image/heic' || file.type === 'image/heif' ||
          file.name.toLowerCase().match(/\.(heic|heif)$/)) && window.heic2any) {
       var converted = await window.heic2any({ blob: file, toType: MIME_MAP[toFmt] || 'image/jpeg' });
       var blob = Array.isArray(converted) ? converted[0] : converted;
-      return { blob: blob, filename: file.name.replace(/\.[^.]+$/, '') + '.' + toFmt };
+      /* heic2any cannot rotate — re-encode the decoded result when the
+         frame asked for a turn. */
+      if (rotation) blob = await encodeSource(await TGImageUtil.loadImage(blob), toFmt, rotation);
+      return { blob: blob, filename: outName };
     }
 
+    var img = await TGImageUtil.loadImage(file);
+    return { blob: await encodeSource(img, toFmt, rotation), filename: outName };
+  }
+
+  /* Draw the (optionally rotated) source into the target format. */
+  function encodeSource(img, toFmt, rotation) {
+    var source = TGImageUtil.rotateSource(img, rotation || 0);
+    var canvas = document.createElement('canvas');
+    canvas.width = source.naturalWidth || source.width;
+    canvas.height = source.naturalHeight || source.height;
+    var ctx = canvas.getContext('2d');
+    if (toFmt === 'jpg' || toFmt === 'jpeg' || toFmt === 'bmp') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.drawImage(source, 0, 0);
+    var mime = MIME_MAP[toFmt] || 'image/jpeg';
     return new Promise(function (resolve, reject) {
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        URL.revokeObjectURL(url);
-        var canvas = document.createElement('canvas');
-        canvas.width = img.width; canvas.height = img.height;
-        var ctx = canvas.getContext('2d');
-        if (toFmt === 'jpg' || toFmt === 'jpeg' || toFmt === 'bmp') {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
+      canvas.toBlob(function (blob) {
+        /* Browsers that can't encode a format either return null or
+           silently fall back to PNG (blob.type mismatch) — both mean
+           the chosen format is unsupported here. */
+        if (!blob || blob.type !== mime) {
+          reject(new Error('This browser can\'t export ' + toFmt.toUpperCase() + ' — try PNG or JPG instead.'));
+          return;
         }
-        ctx.drawImage(img, 0, 0);
-        var mime = MIME_MAP[toFmt] || 'image/jpeg';
-        canvas.toBlob(function (blob) {
-          /* Browsers that can't encode a format either return null or
-             silently fall back to PNG (blob.type mismatch) — both mean
-             the chosen format is unsupported here. */
-          if (!blob || blob.type !== mime) {
-            reject(new Error('This browser can\'t export ' + toFmt.toUpperCase() + ' — try PNG or JPG instead.'));
-            return;
-          }
-          resolve({ blob: blob, filename: file.name.replace(/\.[^.]+$/, '') + '.' + toFmt });
-        }, mime, 0.92);
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
-      img.src = url;
+        resolve(blob);
+      }, mime, 0.92);
     });
   }
 
