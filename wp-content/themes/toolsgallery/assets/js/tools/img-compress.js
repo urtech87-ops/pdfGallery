@@ -61,6 +61,8 @@
       '</div>' +
       '<p id="ic-preview-note" class="tg-opt-info" style="margin-top:4px"></p>' +
     '</div>' +
+    '<p class="tg-opt-info">Images are compressed in the order shown below. Drag a frame (or its number badge on touch) to reorder, rotate one with &#8635;, or remove it with &times;.</p>' +
+    '<div id="ic-frames"></div>' +
     '<div id="ic-results-wrap" style="margin-top:12px"></div>';
   }
 
@@ -112,6 +114,24 @@
     };
   }
 
+  /* Frame grid: one preview card per uploaded image, drag-to-reorder with
+     per-image rotation. Compression runs in the frames' visual order. */
+  var frames = window.TGImageFrames ? window.TGImageFrames.create({
+    host: 'ic-frames',
+    countLabel: function (n) {
+      return n + ' image' + (n === 1 ? '' : 's') + ' — compressed in this order';
+    },
+  }) : null;
+
+  function onFileReady(file, optionsEl) {
+    if (!frames) return;
+    if (optionsEl && !optionsEl.querySelector('#ic-frames')) {
+      optionsEl.innerHTML = getOptionsHTML();
+      wireOptions(optionsEl);
+    }
+    frames.update(window.TGImageFrames.selection(file));
+  }
+
   var _compressedFiles = [];
 
   async function run(file, options, onProgress) {
@@ -123,6 +143,17 @@
       files = Array.from(box._tgFiles);
     } else {
       files = [file];
+    }
+
+    /* The frames are the source of truth for order and rotation; re-sync
+       first so a selection changed outside this UI can never compress the
+       wrong set. */
+    var items;
+    if (frames) {
+      frames.sync(files);
+      items = frames.items();
+    } else {
+      items = files.map(function (f) { return { file: f, rotation: 0 }; });
     }
 
     _compressedFiles = [];
@@ -145,12 +176,12 @@
     var firstImg = null;
     var firstOrigSize = 0;
 
-    for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      onProgress && onProgress((i / files.length) * 0.9, 'Compressing ' + f.name + '...');
+    for (var i = 0; i < items.length; i++) {
+      var f = items[i].file;
+      onProgress && onProgress((i / items.length) * 0.9, 'Compressing ' + f.name + '...');
 
       try {
-        var result = await compressOne(f, options);
+        var result = await compressOne(f, options, items[i].rotation);
         _compressedFiles.push(result);
         if (result.pngLossless) anyPngKeptAsPng = true;
         if (!firstResult) { firstResult = result; firstImg = result.sourceImg; firstOrigSize = f.size; }
@@ -203,6 +234,11 @@
 
     var firstItem = _compressedFiles[0];
     if (!firstItem) throw new Error('No files could be compressed.');
+
+    if (frames) {
+      frames.setSummary('✓ Compressed ' + _compressedFiles.length +
+        ' image' + (_compressedFiles.length === 1 ? '' : 's'));
+    }
 
     // 2+ files: the main Download button delivers a ZIP of every output
     if (_compressedFiles.length > 1) {
@@ -263,9 +299,12 @@
     wrap.hidden = false;
   }
 
-  async function compressOne(file, options) {
+  async function compressOne(file, options, rotation) {
     var img = await TGImageUtil.loadImage(file);
-    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    /* The frame's rotation is baked into the pixels before anything else so
+       Max Width applies to the rotated dimensions. */
+    var source = TGImageUtil.rotateSource(img, rotation || 0);
+    var w = source.naturalWidth || source.width, h = source.naturalHeight || source.height;
     if (options.maxWidth && w > options.maxWidth) {
       h = Math.round(h * options.maxWidth / w);
       w = options.maxWidth;
@@ -273,7 +312,7 @@
     var canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
     var ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, w, h);
+    ctx.drawImage(source, 0, 0, w, h);
 
     var isPng = file.type === 'image/png';
     var isWebp = file.type === 'image/webp';
@@ -299,22 +338,25 @@
       blob = await TGImageUtil.canvasToBlob(canvas, outMime, options.quality);
     }
 
-    // Never output a bigger file — keep the original bytes instead
-    if (!blob || blob.size >= file.size) {
+    /* Never output a bigger file — keep the original bytes instead. A
+       rotated image is a different picture, so that shortcut is off once
+       the user has turned the frame. */
+    if (!rotation && (!blob || blob.size >= file.size)) {
       return {
         blob: file,
         filename: file.name,
         alreadyOptimized: true,
         pngLossless: outMime === 'image/png',
-        sourceImg: img,
+        sourceImg: source,
       };
     }
+    if (!blob) throw new Error('Could not compress ' + file.name);
 
     return {
       blob: blob,
       filename: baseName + '-compressed' + ext,
       pngLossless: outMime === 'image/png',
-      sourceImg: img,
+      sourceImg: source,
     };
   }
 
@@ -343,5 +385,5 @@
   }
 
   window.TGTools = window.TGTools || {};
-  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, CONFIG: CONFIG };
+  window.TGTools[CONFIG.handler] = { run: run, getOptionsHTML: getOptionsHTML, getOptions: getOptions, wireOptions: wireOptions, onFileReady: onFileReady, CONFIG: CONFIG };
 })();
