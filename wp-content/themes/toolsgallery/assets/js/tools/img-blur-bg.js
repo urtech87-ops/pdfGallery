@@ -6,13 +6,20 @@
  * The subject is detected automatically via TGSegment (no rectangle) and
  * kept sharp over a blurred background. The preview re-renders live when
  * the blur-intensity slider moves.
+ *
+ * Rotating turns the detected cutout with the photo instead of running
+ * the segmentation again, so a rotate stays instant and the subject
+ * still lines up.
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'img-blur-bg' };
 
-  var _origImg = null;
-  var _cutout = null;
+  var _origImg = null;     // the photo as uploaded
+  var _workImg = null;     // working source — rotated canvas once _rot !== 0
+  var _rot = 0;
+  var _baseCutout = null;  // segmentation result at 0°
+  var _cutout = null;      // _baseCutout turned to match _rot
   var _cutoutPromise = null;
 
   function getOptionsHTML() {
@@ -21,12 +28,13 @@
       '<label class="tg-opt-label" for="ibb-blur">Blur Intensity: <span id="ibb-blur-val">10</span>px</label>' +
       '<input type="range" id="ibb-blur" min="2" max="40" value="10" style="flex:1">' +
     '</div>' +
-    '<div id="ibb-preview-wrap" style="margin-top:12px;display:none">' +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+    TGImgTools.barHTML('ibb') +
+    '<div id="ibb-preview-wrap" class="tg-img-preview-frame" style="display:none">' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">' +
         '<div><p style="margin:0 0 4px;font-size:12px;font-weight:600">Original</p>' +
-          '<canvas id="ibb-before" style="max-width:280px;border:1px solid #ddd;border-radius:4px"></canvas></div>' +
+          '<canvas id="ibb-before" style="max-width:280px"></canvas></div>' +
         '<div><p style="margin:0 0 4px;font-size:12px;font-weight:600">Blurred background</p>' +
-          '<canvas id="ibb-after" style="max-width:280px;border:1px solid #ddd;border-radius:4px"></canvas></div>' +
+          '<canvas id="ibb-after" style="max-width:280px"></canvas></div>' +
       '</div>' +
     '</div>';
   }
@@ -42,6 +50,22 @@
         debounce = setTimeout(updatePreview, 120);
       });
     }
+
+    TGImgTools.wire(container, 'ibb', {
+      onRotate: function () {
+        if (!_origImg) return;
+        _rot = (_rot + 90) % 360;
+        _workImg = TGImgTools.rotate(_origImg, _rot);
+        applyRotationToCutout();
+        var beforeEl = document.getElementById('ibb-before');
+        if (beforeEl) TGImageUtil.drawPreview(_workImg, beforeEl, 280);
+        updatePreview();
+      },
+      onClear: function () {
+        _origImg = null; _workImg = null; _rot = 0;
+        _baseCutout = null; _cutout = null; _cutoutPromise = null;
+      },
+    });
   }
 
   function getOptions(optionsEl) {
@@ -60,6 +84,20 @@
     return slider ? parseInt(slider.value, 10) : 10;
   }
 
+  /* Turn the subject cutout by the current rotation so it still matches
+     the working photo. At 0° the segmentation result is used as-is. */
+  function applyRotationToCutout() {
+    if (!_baseCutout) { _cutout = null; return; }
+    if (!_rot) { _cutout = _baseCutout; return; }
+    var swap = (_rot === 90 || _rot === 270);
+    _cutout = {
+      subjectCanvas: TGImgTools.rotate(_baseCutout.subjectCanvas, _rot),
+      width: swap ? _baseCutout.height : _baseCutout.width,
+      height: swap ? _baseCutout.width : _baseCutout.height,
+      method: _baseCutout.method,
+    };
+  }
+
   /* Draw the composite (blurred image + sharp subject) at width w.
      Blur radius scales with the render size so preview matches export. */
   function renderComposite(targetCanvas, renderW, blurPx) {
@@ -71,15 +109,15 @@
     var ctx = targetCanvas.getContext('2d');
 
     // Unblurred base first so canvas edges don't fade to transparent
-    ctx.drawImage(_origImg, 0, 0, w, h);
+    ctx.drawImage(_workImg, 0, 0, w, h);
     ctx.filter = 'blur(' + Math.max(1, blurPx * scale) + 'px)';
-    ctx.drawImage(_origImg, 0, 0, w, h);
+    ctx.drawImage(_workImg, 0, 0, w, h);
     ctx.filter = 'none';
     ctx.drawImage(_cutout.subjectCanvas, 0, 0, w, h);
   }
 
   function updatePreview() {
-    if (!_cutout || !_origImg) return;
+    if (!_cutout || !_workImg) return;
     var afterEl = document.getElementById('ibb-after');
     if (!afterEl) return;
     renderComposite(afterEl, Math.min(_cutout.width, 560), currentBlur());
@@ -89,7 +127,8 @@
     _cutoutPromise = TGSegment.cutout(file || _origImg, function (pct, msg) {
       if (msg) setStatus(msg);
     }).then(function (result) {
-      _cutout = result;
+      _baseCutout = result;
+      applyRotationToCutout();
       setStatus(result.method === 'floodfill'
         ? 'Subject isolated with color detection (works best on even backgrounds). Adjust the blur below.'
         : 'Subject detected! Adjust the blur below — the preview updates live.');
@@ -104,16 +143,19 @@
 
   function onFileReady(file) {
     _origImg = null;
+    _workImg = null;
+    _rot = 0;
+    _baseCutout = null;
     _cutout = null;
     _cutoutPromise = null;
     if (!file) return;
 
     TGImageUtil.loadImage(file).then(function (img) {
       _origImg = img;
+      _workImg = img;
       var beforeEl = document.getElementById('ibb-before');
-      var wrap = document.getElementById('ibb-preview-wrap');
       if (beforeEl) TGImageUtil.drawPreview(img, beforeEl, 280);
-      if (wrap) wrap.style.display = 'block';
+      TGImgTools.show('ibb', true, 'ibb-preview-wrap');
       setStatus('Detecting subject...');
       startCutout(file);
     }).catch(function () {});
@@ -124,7 +166,10 @@
       throw new Error('Image processing library not loaded. Please refresh the page.');
     }
     onProgress && onProgress(0.1, 'Preparing...');
-    if (!_origImg) _origImg = await TGImageUtil.loadImage(file);
+    if (!_origImg) {
+      _origImg = await TGImageUtil.loadImage(file);
+      _workImg = TGImgTools.rotate(_origImg, _rot);
+    }
 
     await (_cutoutPromise || startCutout(file));
     if (!_cutout) throw new Error('Could not detect the subject in this image.');

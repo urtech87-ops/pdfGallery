@@ -7,12 +7,19 @@
  * after load, never before). Pointer coordinates are mapped through
  * getBoundingClientRect so selections stay accurate when CSS shrinks
  * the canvas, and the selection rectangle now draws live while dragging.
+ *
+ * Selections are held in the working image's own pixel coordinates, so a
+ * rotate turns them through the same 90° as the picture — no rectangle is
+ * ever left pointing at the previous orientation.
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'img-remove-watermark' };
+
   var _selections = [];
-  var _origImg = null;
+  var _origImg = null;   // the image as uploaded
+  var _src = null;       // working source — a rotated canvas once _rot !== 0
+  var _rot = 0;
   var _redrawOverlay = null;
 
   function getOptionsHTML() {
@@ -21,12 +28,12 @@
       '<label class="tg-opt-label" for="irw-feather">Feather Edges: <span id="irw-feather-val">3</span>px</label>' +
       '<input type="range" id="irw-feather" min="0" max="20" value="3" style="flex:1">' +
     '</div>' +
-    '<div id="irw-canvas-wrap" style="margin-top:12px;display:none;position:relative;max-width:100%">' +
-      '<canvas id="irw-canvas" style="display:block;width:100%;height:auto;cursor:crosshair;border:1px solid #ddd;border-radius:4px;touch-action:none"></canvas>' +
+    TGImgTools.barHTML('irw',
+      '<button type="button" class="tg-btn-secondary tg-btn-sm tg-img-tool-btn" id="irw-clear-sel-btn" ' +
+        'title="Remove the rectangles you drew, keeping the image">Clear Selections</button>') +
+    '<div id="irw-canvas-wrap" class="tg-img-preview-frame tg-img-preview-frame--editor tg-img-preview-frame--flush" style="display:none;position:relative">' +
+      '<canvas id="irw-canvas" style="cursor:crosshair;touch-action:none"></canvas>' +
       '<canvas id="irw-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none"></canvas>' +
-    '</div>' +
-    '<div style="margin-top:8px">' +
-      '<button type="button" class="tg-btn-secondary" id="irw-clear-btn">Clear Selections</button>' +
     '</div>';
   }
 
@@ -34,10 +41,35 @@
     var sl = container.querySelector('#irw-feather');
     var sv = container.querySelector('#irw-feather-val');
     if (sl && sv) sl.addEventListener('input', function () { sv.textContent = sl.value; });
-    var clr = container.querySelector('#irw-clear-btn');
+
+    var clr = container.querySelector('#irw-clear-sel-btn');
     if (clr) clr.addEventListener('click', function () {
       _selections = [];
       if (_redrawOverlay) _redrawOverlay();
+    });
+
+    TGImgTools.wire(container, 'irw', {
+      onRotate: function () {
+        if (!_origImg) return;
+        var oldH = TGImgTools.h(_src);
+        _rot = (_rot + 90) % 360;
+        _src = TGImgTools.rotate(_origImg, _rot);
+        rotateSelections(oldH);
+        mountEditor();
+      },
+      onClear: function () {
+        _origImg = null; _src = null; _rot = 0;
+        _selections = []; _redrawOverlay = null;
+      },
+    });
+  }
+
+  /* Turn every selection 90° clockwise with the image: a point (x,y)
+     lands at (oldHeight - y, x), so a rectangle's top-left corner
+     becomes its top-right one. */
+  function rotateSelections(oldHeight) {
+    _selections = _selections.map(function (s) {
+      return { x: oldHeight - (s.y + s.h), y: s.x, w: s.h, h: s.w };
     });
   }
 
@@ -55,8 +87,121 @@
     };
   }
 
+  /* Size both canvases from the CURRENT working source and re-wire the
+     drawing handlers. Called on upload and after every rotate. */
+  function mountEditor() {
+    if (!_src) return;
+    var wrap = document.getElementById('irw-canvas-wrap');
+    var canvas = document.getElementById('irw-canvas');
+    var overlay = document.getElementById('irw-overlay');
+    if (!wrap || !canvas || !overlay) return;
+
+    var sw = TGImgTools.w(_src);
+    var sh = TGImgTools.h(_src);
+    var maxW = Math.min(700, window.innerWidth - 40);
+    var sc = Math.min(1, maxW / sw);
+    var dw = Math.max(1, Math.round(sw * sc));
+    var dh = Math.max(1, Math.round(sh * sc));
+
+    canvas.width = dw;
+    canvas.height = dh;
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, dw, dh);
+    ctx.drawImage(_src, 0, 0, dw, dh);
+
+    overlay.width = dw;
+    overlay.height = dh;
+    wrap.style.display = 'block';
+    TGImgTools.show('irw', true);
+
+    function drawRect(octx, x, y, w, h) {
+      octx.fillRect(x, y, w, h);
+      octx.strokeRect(x, y, w, h);
+    }
+
+    function redrawOverlay(liveRect) {
+      var octx = overlay.getContext('2d');
+      octx.clearRect(0, 0, dw, dh);
+      octx.strokeStyle = '#E07B39';
+      octx.fillStyle = 'rgba(224,123,57,0.3)';
+      octx.lineWidth = 2;
+      _selections.forEach(function (sel) {
+        drawRect(octx, sel.x * sc, sel.y * sc, sel.w * sc, sel.h * sc);
+      });
+      if (liveRect) {
+        octx.setLineDash([5, 3]);
+        drawRect(octx, liveRect.x, liveRect.y, liveRect.w, liveRect.h);
+        octx.setLineDash([]);
+      }
+    }
+    _redrawOverlay = redrawOverlay;
+    redrawOverlay();
+
+    var drawing = false, sx = 0, sy = 0;
+
+    function start(px, py) { drawing = true; sx = px; sy = py; }
+    function move(px, py) {
+      if (!drawing) return;
+      redrawOverlay({
+        x: Math.min(sx, px), y: Math.min(sy, py),
+        w: Math.abs(px - sx), h: Math.abs(py - sy),
+      });
+    }
+    function end(px, py) {
+      if (!drawing) return;
+      drawing = false;
+      if (Math.abs(px - sx) > 5 && Math.abs(py - sy) > 5) {
+        _selections.push({
+          x: Math.round(Math.min(sx, px) / sc),
+          y: Math.round(Math.min(sy, py) / sc),
+          w: Math.round(Math.abs(px - sx) / sc),
+          h: Math.round(Math.abs(py - sy) / sc),
+        });
+      }
+      redrawOverlay();
+    }
+
+    /* Assigned, not addEventListener: a re-mount after a rotate replaces
+       these handlers instead of stacking a second set on the canvas. */
+    canvas.onmousedown = function (e) {
+      var p = canvasPos(canvas, e.clientX, e.clientY);
+      start(p.x, p.y);
+    };
+    canvas.onmousemove = function (e) {
+      var p = canvasPos(canvas, e.clientX, e.clientY);
+      move(p.x, p.y);
+    };
+    canvas.onmouseup = function (e) {
+      var p = canvasPos(canvas, e.clientX, e.clientY);
+      end(p.x, p.y);
+    };
+    canvas.onmouseleave = function (e) {
+      var p = canvasPos(canvas, e.clientX, e.clientY);
+      end(p.x, p.y);
+    };
+
+    canvas.ontouchstart = function (e) {
+      e.preventDefault();
+      var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
+      start(p.x, p.y);
+    };
+    canvas.ontouchmove = function (e) {
+      e.preventDefault();
+      var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
+      move(p.x, p.y);
+    };
+    canvas.ontouchend = function (e) {
+      e.preventDefault();
+      var t = e.changedTouches[0];
+      var p = canvasPos(canvas, t.clientX, t.clientY);
+      end(p.x, p.y);
+    };
+  }
+
   function onFileReady(file) {
     _origImg = null;
+    _src = null;
+    _rot = 0;
     _selections = [];
     if (!file) return;
 
@@ -66,109 +211,8 @@
     img.onload = function () {
       URL.revokeObjectURL(objectUrl);
       _origImg = img;
-
-      var wrap = document.getElementById('irw-canvas-wrap');
-      var canvas = document.getElementById('irw-canvas');
-      var overlay = document.getElementById('irw-overlay');
-      if (!wrap || !canvas || !overlay) return;
-
-      // Size the canvas AFTER the image has loaded.
-      var maxW = Math.min(700, window.innerWidth - 40);
-      var sc = Math.min(1, maxW / img.naturalWidth);
-      var dw = Math.max(1, Math.round(img.naturalWidth * sc));
-      var dh = Math.max(1, Math.round(img.naturalHeight * sc));
-
-      canvas.width = dw;
-      canvas.height = dh;
-      var ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, dw, dh);
-      ctx.drawImage(img, 0, 0, dw, dh);
-
-      overlay.width = dw;
-      overlay.height = dh;
-      wrap.style.display = 'block';
-      wrap.style.width = dw + 'px';
-
-      function drawRect(octx, x, y, w, h) {
-        octx.fillRect(x, y, w, h);
-        octx.strokeRect(x, y, w, h);
-      }
-
-      function redrawOverlay(liveRect) {
-        var octx = overlay.getContext('2d');
-        octx.clearRect(0, 0, dw, dh);
-        octx.strokeStyle = '#E07B39';
-        octx.fillStyle = 'rgba(224,123,57,0.3)';
-        octx.lineWidth = 2;
-        _selections.forEach(function (sel) {
-          drawRect(octx, sel.x * sc, sel.y * sc, sel.w * sc, sel.h * sc);
-        });
-        if (liveRect) {
-          octx.setLineDash([5, 3]);
-          drawRect(octx, liveRect.x, liveRect.y, liveRect.w, liveRect.h);
-          octx.setLineDash([]);
-        }
-      }
-      _redrawOverlay = redrawOverlay;
-      redrawOverlay();
-
-      var drawing = false, sx = 0, sy = 0;
-
-      function start(px, py) { drawing = true; sx = px; sy = py; }
-      function move(px, py) {
-        if (!drawing) return;
-        redrawOverlay({
-          x: Math.min(sx, px), y: Math.min(sy, py),
-          w: Math.abs(px - sx), h: Math.abs(py - sy),
-        });
-      }
-      function end(px, py) {
-        if (!drawing) return;
-        drawing = false;
-        if (Math.abs(px - sx) > 5 && Math.abs(py - sy) > 5) {
-          _selections.push({
-            x: Math.round(Math.min(sx, px) / sc),
-            y: Math.round(Math.min(sy, py) / sc),
-            w: Math.round(Math.abs(px - sx) / sc),
-            h: Math.round(Math.abs(py - sy) / sc),
-          });
-        }
-        redrawOverlay();
-      }
-
-      canvas.onmousedown = function (e) {
-        var p = canvasPos(canvas, e.clientX, e.clientY);
-        start(p.x, p.y);
-      };
-      canvas.onmousemove = function (e) {
-        var p = canvasPos(canvas, e.clientX, e.clientY);
-        move(p.x, p.y);
-      };
-      canvas.onmouseup = function (e) {
-        var p = canvasPos(canvas, e.clientX, e.clientY);
-        end(p.x, p.y);
-      };
-      canvas.onmouseleave = function (e) {
-        var p = canvasPos(canvas, e.clientX, e.clientY);
-        end(p.x, p.y);
-      };
-
-      canvas.ontouchstart = function (e) {
-        e.preventDefault();
-        var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
-        start(p.x, p.y);
-      };
-      canvas.ontouchmove = function (e) {
-        e.preventDefault();
-        var p = canvasPos(canvas, e.touches[0].clientX, e.touches[0].clientY);
-        move(p.x, p.y);
-      };
-      canvas.ontouchend = function (e) {
-        e.preventDefault();
-        var t = e.changedTouches[0];
-        var p = canvasPos(canvas, t.clientX, t.clientY);
-        end(p.x, p.y);
-      };
+      _src = img;
+      mountEditor();
     };
 
     img.onerror = function () {
@@ -184,16 +228,20 @@
       throw new Error('Image processing library not loaded. Please refresh the page.');
     }
     onProgress && onProgress(0.1, 'Loading image...');
-    var img = _origImg || await TGImageUtil.loadImage(file);
+    if (!_src) {
+      _origImg = await TGImageUtil.loadImage(file);
+      _src = TGImgTools.rotate(_origImg, _rot);
+    }
     if (_selections.length === 0) {
       throw new Error('Please draw a rectangle over the watermark first, then click the button again.');
     }
 
     onProgress && onProgress(0.6, 'Removing watermark...');
     var canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+    canvas.width = TGImgTools.w(_src);
+    canvas.height = TGImgTools.h(_src);
     var ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(_src, 0, 0, canvas.width, canvas.height);
     var id = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
     _selections.forEach(function (sel) {

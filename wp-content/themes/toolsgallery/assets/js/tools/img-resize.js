@@ -2,6 +2,11 @@
  * ToolsGallery — Resize Image
  * Handler: img-resize
  * URL: /tool/resize-image/
+ *
+ * The preview frame shows the resized result for the current options, so
+ * the target dimensions can be checked before downloading. Rotate turns
+ * the working image (and swaps the dimension fields with it); Clear hands
+ * the tool box back to the upload state.
  */
 (function () {
   'use strict';
@@ -16,6 +21,12 @@
     { label: 'Twitter (1200×675)', w: 1200, h: 675 },
     { label: 'Facebook (1200×630)', w: 1200, h: 630 },
   ];
+
+  var _img = null;      // the image as uploaded
+  var _src = null;      // working source — a rotated canvas once _rot !== 0
+  var _rot = 0;
+  var _optionsEl = null;
+  var _setDims = null;  // installed by wireOptions
 
   function getOptionsHTML() {
     var presetOpts = PRESETS.map(function (p) {
@@ -55,10 +66,17 @@
         '<label class="tg-opt-label" for="ir-preset">Preset</label>' +
         '<select id="ir-preset" class="tg-select">' + presetOpts + '</select>' +
       '</div>' +
+    '</div>' +
+    TGImgTools.barHTML('ir') +
+    '<div id="ir-preview-wrap" class="tg-img-preview-frame" style="display:none">' +
+      '<canvas id="ir-preview"></canvas>' +
+      '<p class="tg-opt-info" id="ir-preview-dims" style="margin:6px 0 0"></p>' +
     '</div>';
   }
 
   function wireOptions(container) {
+    _optionsEl = container;
+
     var radios = container.querySelectorAll('input[name="ir-mode"]');
     var dims = container.querySelector('#ir-dims-wrap');
     var pct = container.querySelector('#ir-pct-wrap');
@@ -68,32 +86,63 @@
         if (dims) dims.hidden = r.value !== 'dimensions';
         if (pct) pct.hidden = r.value !== 'percentage';
         if (pre) pre.hidden = r.value !== 'preset';
+        updatePreview();
       });
     });
     var ps = container.querySelector('#ir-pct');
     var pv = container.querySelector('#ir-pct-val');
-    if (ps && pv) ps.addEventListener('input', function () { pv.textContent = ps.value; });
+    if (ps) ps.addEventListener('input', function () {
+      if (pv) pv.textContent = ps.value;
+      updatePreview();
+    });
+    var preset = container.querySelector('#ir-preset');
+    if (preset) preset.addEventListener('change', updatePreview);
+
     var wInp = container.querySelector('#ir-width');
     var hInp = container.querySelector('#ir-height');
     var lock = container.querySelector('#ir-lock');
     var ratio = 0;
     if (wInp && hInp && lock) {
-      wInp.addEventListener('input', function () { if (lock.checked && ratio && wInp.value) { hInp.value = Math.round(wInp.value / ratio); } });
-      hInp.addEventListener('input', function () { if (lock.checked && ratio && hInp.value) { wInp.value = Math.round(hInp.value * ratio); } });
+      wInp.addEventListener('input', function () {
+        if (lock.checked && ratio && wInp.value) { hInp.value = Math.round(wInp.value / ratio); }
+        updatePreview();
+      });
+      hInp.addEventListener('input', function () {
+        if (lock.checked && ratio && hInp.value) { wInp.value = Math.round(hInp.value * ratio); }
+        updatePreview();
+      });
     }
-    window._irSetDims = function (w, h) {
+    _setDims = function (w, h) {
       ratio = w / h;
       if (wInp) wInp.value = w;
       if (hInp) hInp.value = h;
       var el = container.querySelector('#ir-orig-dims');
       if (el) el.textContent = 'Current: ' + w + '×' + h + 'px';
     };
+
+    TGImgTools.wire(container, 'ir', {
+      onRotate: function () {
+        if (!_img) return;
+        _rot = (_rot + 90) % 360;
+        _src = TGImgTools.rotate(_img, _rot);
+        /* The turn swaps width and height — re-seed the fields from the
+           rotated image so the target dimensions aren't sideways. */
+        if (_setDims) _setDims(TGImgTools.w(_src), TGImgTools.h(_src));
+        updatePreview();
+      },
+      onClear: function () { _img = null; _src = null; _rot = 0; },
+    });
   }
 
-  function onFileReady(file) {
+  function onFileReady(file, optionsEl) {
+    _img = null; _src = null; _rot = 0;
+    if (optionsEl) _optionsEl = optionsEl;
     if (!file || !window.TGImageUtil) return;
     TGImageUtil.loadImage(file).then(function (img) {
-      if (window._irSetDims) window._irSetDims(img.naturalWidth, img.naturalHeight);
+      _img = img;
+      _src = img;
+      if (_setDims) _setDims(img.naturalWidth, img.naturalHeight);
+      updatePreview();
     }).catch(function () {});
   }
 
@@ -116,62 +165,94 @@
     };
   }
 
+  /* Target size for the current options, or null when it isn't usable. */
+  function targetSize(source, opts) {
+    var sw = TGImgTools.w(source);
+    var sh = TGImgTools.h(source);
+    var tw = sw, th = sh;
+
+    if (opts.mode === 'dimensions') {
+      if (opts.width && opts.height) {
+        tw = opts.width; th = opts.height;
+      } else if (opts.width) {
+        tw = opts.width; th = Math.round(sh * opts.width / sw);
+      } else if (opts.height) {
+        th = opts.height; tw = Math.round(sw * opts.height / sh);
+      }
+    } else if (opts.mode === 'percentage') {
+      tw = Math.round(sw * opts.percentage);
+      th = Math.round(sh * opts.percentage);
+    } else if (opts.mode === 'preset' && opts.preset) {
+      var parts = opts.preset.split('x');
+      tw = parseInt(parts[0]); th = parseInt(parts[1]);
+    }
+
+    if (!tw || !th || tw < 1 || th < 1) return null;
+    return { w: tw, h: th };
+  }
+
+  function resizeToCanvas(source, size) {
+    var canvas = document.createElement('canvas');
+    canvas.width = size.w; canvas.height = size.h;
+    var ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(source, 0, 0, size.w, size.h);
+    return canvas;
+  }
+
+  /* The frame shows the resized result, scaled down to fit — the caption
+     carries the real pixel size. */
+  function updatePreview() {
+    if (!_src) return;
+    var canvasEl = document.getElementById('ir-preview');
+    var wrap = document.getElementById('ir-preview-wrap');
+    if (!canvasEl || !wrap) return;
+    var size = targetSize(_src, getOptions(_optionsEl || document));
+    if (!size) return;
+
+    /* Drawn straight at the preview scale rather than by shrinking a
+       full-size resize — same framing and aspect (including a stretched
+       one), without allocating a 4K canvas on every keystroke. */
+    var sc = Math.min(1, 360 / size.w);
+    canvasEl.width = Math.max(1, Math.round(size.w * sc));
+    canvasEl.height = Math.max(1, Math.round(size.h * sc));
+    var ctx = canvasEl.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(_src, 0, 0, canvasEl.width, canvasEl.height);
+    var caption = document.getElementById('ir-preview-dims');
+    if (caption) caption.textContent = 'Result: ' + size.w + '×' + size.h + 'px';
+    wrap.style.display = 'block';
+    TGImgTools.show('ir', true);
+  }
+
   async function run(file, options, onProgress) {
     if (!window.TGImageUtil) {
       throw new Error('Image processing library not loaded. Please refresh the page.');
     }
     onProgress && onProgress(0.1, 'Loading image...');
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        URL.revokeObjectURL(url);
+    if (!_src) {
+      _img = await TGImageUtil.loadImage(file);
+      _src = TGImgTools.rotate(_img, _rot);
+      if (_setDims) _setDims(TGImgTools.w(_src), TGImgTools.h(_src));
+    }
 
-        // Set dims UI if available
-        if (window._irSetDims) window._irSetDims(img.width, img.height);
+    var size = targetSize(_src, options);
+    if (!size) throw new Error('Invalid dimensions');
 
-        var tw = img.width, th = img.height;
-        var opts = options;
+    onProgress && onProgress(0.5, 'Resizing...');
+    var canvas = resizeToCanvas(_src, size);
+    updatePreview();
 
-        if (opts.mode === 'dimensions') {
-          if (opts.width && opts.height) {
-            tw = opts.width; th = opts.height;
-          } else if (opts.width) {
-            tw = opts.width; th = Math.round(img.height * opts.width / img.width);
-          } else if (opts.height) {
-            th = opts.height; tw = Math.round(img.width * opts.height / img.height);
-          }
-        } else if (opts.mode === 'percentage') {
-          tw = Math.round(img.width * opts.percentage);
-          th = Math.round(img.height * opts.percentage);
-        } else if (opts.mode === 'preset' && opts.preset) {
-          var parts = opts.preset.split('x');
-          tw = parseInt(parts[0]); th = parseInt(parts[1]);
-        }
+    var match = file.name.match(/\.[^.]+$/);
+    var ext = match ? match[0] : '.jpg';
+    var mime = ext.toLowerCase() === '.png' ? 'image/png' : 'image/jpeg';
 
-        if (!tw || !th || tw < 1 || th < 1) { reject(new Error('Invalid dimensions')); return; }
-
-        onProgress && onProgress(0.5, 'Resizing...');
-        var canvas = document.createElement('canvas');
-        canvas.width = tw; canvas.height = th;
-        var ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, tw, th);
-
-        var ext = file.name.match(/\.[^.]+$/) ? file.name.match(/\.[^.]+$/)[0] : '.jpg';
-        var mime = ext === '.png' ? 'image/png' : 'image/jpeg';
-        var base = file.name.replace(/\.[^.]+$/, '');
-
-        canvas.toBlob(function (blob) {
-          if (!blob) { reject(new Error('Failed to create image')); return; }
-          onProgress && onProgress(1, 'Done!');
-          resolve({ blob: blob, filename: base + '-resized' + ext });
-        }, mime, 0.92);
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
-      img.src = url;
-    });
+    onProgress && onProgress(0.9, 'Saving...');
+    var blob = await TGImageUtil.canvasToBlob(canvas, mime, 0.92);
+    onProgress && onProgress(1, 'Done!');
+    return { blob: blob, filename: TGImageUtil.stripExt(file.name) + '-resized' + ext };
   }
 
   window.TGTools = window.TGTools || {};

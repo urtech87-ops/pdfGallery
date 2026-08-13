@@ -7,13 +7,19 @@
  * No external library needed — the previous Fabric.js version passed a
  * revoked blob URL to fabric.Image.fromURL(), so the background image
  * never loaded and exports came out black.
+ *
+ * Rotating re-mounts the editor on the turned image and re-anchors every
+ * text layer through the same rotation, so a layer stays on the part of
+ * the picture it was placed on instead of pointing at stale coordinates.
  */
 (function () {
   'use strict';
   var CONFIG = { handler: 'img-add-text' };
 
   var state = {
-    img: null,
+    img: null,      // the image as uploaded
+    src: null,      // working source — a rotated canvas once rot !== 0
+    rot: 0,
     file: null,
     canvas: null,
     ctx: null,
@@ -74,11 +80,12 @@
     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">' +
       '<button type="button" class="tg-btn-secondary" id="iat-add-btn">+ Add Text</button>' +
       '<button type="button" class="tg-btn-secondary" id="iat-del-btn">Delete Selected</button>' +
-      '<button type="button" class="tg-btn-secondary" id="iat-clear-btn">Clear All</button>' +
+      '<button type="button" class="tg-btn-secondary" id="iat-clear-text-btn">Clear All Text</button>' +
     '</div>' +
     '<div id="iat-layer-list" style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;margin-bottom:8px"></div>' +
-    '<div id="iat-canvas-wrap" style="margin-top:8px;display:none;border:1px solid #ddd;border-radius:4px;overflow:hidden;max-width:100%">' +
-      '<canvas id="iat-canvas" style="display:block;width:100%;height:auto;touch-action:none"></canvas>' +
+    TGImgTools.barHTML('iat') +
+    '<div id="iat-canvas-wrap" class="tg-img-preview-frame tg-img-preview-frame--editor" style="display:none">' +
+      '<canvas id="iat-canvas" style="touch-action:none"></canvas>' +
     '</div>' +
     '<p class="tg-opt-info" id="iat-hint" style="margin-top:6px">Upload an image, click "+ Add Text", then drag the text into position. Changing the options edits the selected text layer. When ready, click the action button to save.</p>';
   }
@@ -160,7 +167,7 @@
   }
 
   function redraw() {
-    var canvas = state.canvas, ctx = state.ctx, img = state.img;
+    var canvas = state.canvas, ctx = state.ctx, img = state.src;
     if (!canvas || !ctx || !img) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -280,13 +287,48 @@
       redraw();
     });
 
-    var clearBtn = container.querySelector('#iat-clear-btn');
+    var clearBtn = container.querySelector('#iat-clear-text-btn');
     if (clearBtn) clearBtn.addEventListener('click', function () {
       if (state.texts.length && !confirm('Remove all text layers?')) return;
       state.texts = [];
       state.selectedIdx = -1;
       updateLayerList();
       redraw();
+    });
+
+    /* "Clear All Text" above drops the layers; this Clear drops the
+       image itself and hands the tool back to the upload state. */
+    TGImgTools.wire(container, 'iat', {
+      onRotate: function () {
+        if (!state.img || !state.canvas) return;
+        var oldW = state.canvas.width;
+        var oldH = state.canvas.height;
+        var oldScale = state.scale;
+
+        state.rot = (state.rot + 90) % 360;
+        state.src = TGImgTools.rotate(state.img, state.rot);
+        mountEditor();
+
+        /* Re-anchor each layer: its position is carried as a fraction of
+           the canvas and turned the same 90° clockwise ((fx,fy) becomes
+           (1-fy,fx)), then its size is rescaled because the display
+           scale changes with the new aspect. */
+        var sizeMul = oldScale ? state.scale / oldScale : 1;
+        state.texts.forEach(function (t) {
+          var fx = oldW ? t.x / oldW : 0;
+          var fy = oldH ? t.y / oldH : 0;
+          t.x = Math.max(0, Math.min(state.canvas.width - 10, (1 - fy) * state.canvas.width));
+          t.y = Math.max(0, Math.min(state.canvas.height - 10, fx * state.canvas.height));
+          t.size = Math.max(4, Math.round(t.size * sizeMul));
+        });
+        updateLayerList();
+        redraw();
+      },
+      onClear: function () {
+        state.img = null; state.src = null; state.rot = 0; state.file = null;
+        state.canvas = null; state.ctx = null; state.scale = 1;
+        state.texts = []; state.selectedIdx = -1; state.dragging = false;
+      },
     });
   }
 
@@ -362,9 +404,41 @@
     }, { passive: false });
   }
 
+  /* Size the canvas from the CURRENT working source — on upload and
+     again after every rotate, never before the source exists. Text
+     layers are left alone; the callers decide what happens to them. */
+  function mountEditor() {
+    var source = state.src;
+    if (!source) return;
+
+    var canvas = document.getElementById('iat-canvas');
+    var wrap = document.getElementById('iat-canvas-wrap');
+    if (!canvas || !wrap) return;
+    state.canvas = canvas;
+    state.ctx = canvas.getContext('2d');
+
+    var sw = TGImgTools.w(source);
+    var sh = TGImgTools.h(source);
+    var maxW = Math.min(800, window.innerWidth - 40);
+    var maxH = 520;
+    state.scale = Math.min(1, maxW / sw, maxH / sh);
+    canvas.width = Math.max(1, Math.round(sw * state.scale));
+    canvas.height = Math.max(1, Math.round(sh * state.scale));
+
+    wrap.style.display = 'block';
+    TGImgTools.show('iat', true);
+
+    updateLayerList();
+    redraw();
+    setupCanvasEvents(canvas);
+  }
+
   function onFileReady(file) {
     if (!file) return;
     state.file = file;
+    state.img = null;
+    state.src = null;
+    state.rot = 0;
 
     var img = new Image();
     var objectUrl = URL.createObjectURL(file);
@@ -372,28 +446,10 @@
     img.onload = function () {
       URL.revokeObjectURL(objectUrl);
       state.img = img;
-
-      var canvas = document.getElementById('iat-canvas');
-      var wrap = document.getElementById('iat-canvas-wrap');
-      if (!canvas || !wrap) return;
-      state.canvas = canvas;
-      state.ctx = canvas.getContext('2d');
-
-      // Set canvas size AFTER the image has loaded — never before.
-      var maxW = Math.min(800, window.innerWidth - 40);
-      var maxH = 520;
-      state.scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
-      canvas.width = Math.max(1, Math.round(img.naturalWidth * state.scale));
-      canvas.height = Math.max(1, Math.round(img.naturalHeight * state.scale));
-
-      wrap.style.display = 'block';
-      wrap.style.width = canvas.width + 'px';
-
+      state.src = img;
       state.texts = [];
       state.selectedIdx = -1;
-      updateLayerList();
-      redraw();
-      setupCanvasEvents(canvas);
+      mountEditor();
     };
 
     img.onerror = function () {
@@ -408,7 +464,7 @@
     if (!window.TGImageUtil) {
       throw new Error('Image processing library not loaded. Please refresh the page.');
     }
-    if (!state.img || !state.canvas) {
+    if (!state.src || !state.canvas) {
       throw new Error('Editor not ready yet — wait for the image preview, add your text, then try again.');
     }
     if (state.texts.length === 0) {
@@ -420,8 +476,8 @@
     // Render at the original resolution: draw the source image full-size
     // and scale every text layer up from display coordinates.
     var out = document.createElement('canvas');
-    out.width = state.img.naturalWidth;
-    out.height = state.img.naturalHeight;
+    out.width = TGImgTools.w(state.src);
+    out.height = TGImgTools.h(state.src);
     var ctx = out.getContext('2d');
 
     var format = options.format || 'png';
@@ -430,7 +486,7 @@
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, out.width, out.height);
     }
-    ctx.drawImage(state.img, 0, 0, out.width, out.height);
+    ctx.drawImage(state.src, 0, 0, out.width, out.height);
 
     var sizeMul = state.scale ? 1 / state.scale : 1;
     state.texts.forEach(function (t) {

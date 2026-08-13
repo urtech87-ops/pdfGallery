@@ -810,3 +810,106 @@
     selection: currentSelection,
   };
 })();
+
+/**
+ * ToolsGallery — TGImgTools
+ * Preview frame + Rotate/Clear toolbar shared by the SINGLE-image tools
+ * (round, resize, crop, flip, rotate, add-text, add-border, upscale,
+ * blur-bg, remove-watermark). The multi-file tools use TGImageFrames
+ * above instead — this is the one-image equivalent.
+ *
+ * Each tool keeps its own rotation (a multiple of 90) and rebuilds its
+ * working source with rotate() whenever that changes, so the turn shows
+ * in the preview AND in the exported file — every option the tool
+ * offers is then applied on top of the rotated source.
+ *
+ * Clear hands the tool box back to the runner's upload state:
+ * TGTool.resetState() re-injects fresh option markup, so the preview and
+ * this toolbar come back hidden and a new image can be dropped straight in.
+ */
+(function () {
+  'use strict';
+
+  var api = {
+
+    /* Toolbar markup — place it next to the tool's preview frame. Hidden
+       until the tool has an image and calls show(). extraHTML lets a tool
+       add its own control (e.g. "Clear Selections") to the same row. */
+    barHTML: function (prefix, extraHTML) {
+      return '<div class="tg-img-tools-bar" id="' + prefix + '-tools-bar" style="display:none">' +
+        '<button type="button" class="tg-btn-secondary tg-btn-sm tg-img-tool-btn" ' +
+          'id="' + prefix + '-rotate-btn" title="Rotate the image 90° clockwise">' +
+          '↻ Rotate 90°</button>' +
+        '<button type="button" class="tg-btn-secondary tg-btn-sm tg-img-tool-btn" ' +
+          'id="' + prefix + '-clear-btn" title="Remove this image and start over">' +
+          '✕ Clear</button>' +
+        (extraHTML || '') +
+      '</div>';
+    },
+
+    /* Wire the two buttons. handlers.onRotate turns the tool's own image;
+       handlers.onClear drops the tool's state just before the tool box is
+       reset. */
+    wire: function (container, prefix, handlers) {
+      handlers = handlers || {};
+      var scope = container || document;
+      var rotateBtn = scope.querySelector('#' + prefix + '-rotate-btn');
+      var clearBtn = scope.querySelector('#' + prefix + '-clear-btn');
+      if (rotateBtn) {
+        rotateBtn.addEventListener('click', function () {
+          if (handlers.onRotate) handlers.onRotate();
+        });
+      }
+      if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+          if (handlers.onClear) handlers.onClear();
+          api.reset();
+        });
+      }
+    },
+
+    /* Show/hide the toolbar (and, when given, the preview frame). */
+    show: function (prefix, on, wrapId) {
+      var bar = document.getElementById(prefix + '-tools-bar');
+      if (bar) bar.style.display = on ? 'flex' : 'none';
+      if (wrapId) {
+        var wrap = document.getElementById(wrapId);
+        if (wrap) wrap.style.display = on ? 'block' : 'none';
+      }
+    },
+
+    /* Rotation applied to a working source. 0° returns the source
+       untouched so the common case costs nothing; anything else comes
+       back as a canvas, which every tool can draw from just like an
+       <img>. */
+    rotate: function (source, degrees) {
+      if (!source) return source;
+      return window.TGImageUtil.rotateSource(source, degrees);
+    },
+
+    /* Dimensions of a working source — <img> or rotated canvas. */
+    w: function (source) { return source ? (source.naturalWidth || source.width || 0) : 0; },
+    h: function (source) { return source ? (source.naturalHeight || source.height || 0) : 0; },
+
+    /* An <img> element for a source that may already be a canvas — for
+       helpers (TGSegment) that only accept a File or an HTMLImageElement. */
+    toImage: function (source) {
+      if (!source || source instanceof HTMLImageElement) return Promise.resolve(source);
+      return new Promise(function (resolve, reject) {
+        var img = new Image();
+        img.onload = function () { resolve(img); };
+        img.onerror = function () { reject(new Error('Could not read the rotated image.')); };
+        img.src = source.toDataURL('image/png');
+      });
+    },
+
+    /* Back to the upload state. */
+    reset: function () {
+      if (window.TGTool && typeof window.TGTool.resetState === 'function') {
+        window.TGTool.resetState();
+      }
+    },
+  };
+
+  window.TGImgTools = api;
+})();

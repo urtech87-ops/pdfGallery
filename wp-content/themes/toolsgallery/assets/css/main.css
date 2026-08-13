@@ -5026,3 +5026,95 @@ textarea {
   color: var(--color-error) !important;
   border-color: var(--color-error);
 }
+
+/* =============================================
+   Single-image tools — preview frame + toolbar
+   One framed preview per tool (round, resize,
+   crop, flip, rotate, add-text, add-border,
+   upscale, blur-bg, remove-watermark) with the
+   shared Rotate / Clear controls above it.
+   ============================================= */
+
+.tg-img-preview-frame {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1.5px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background: var(--color-gray-100);
+  text-align: center;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.tg-img-preview-frame canvas {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  /* Checkerboard so transparent PNGs read as transparent, not white. */
+  background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 0 0 / 12px 12px;
+  box-shadow: var(--shadow-sm);
+}
+/* Interactive editors (crop box, text layers, watermark selection) size
+   their own canvas — the frame just shrinks to fit it, and never past
+   the width of the tool box on a phone. */
+.tg-img-preview-frame--editor {
+  padding: 0.5rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+.tg-img-preview-frame--editor canvas {
+  box-shadow: none;
+  background: none;
+  display: block;
+}
+/* An editor whose overlay canvas is stretched over the frame (the
+   watermark selection layer) can't have padding under it, or the two
+   canvases stop lining up. */
+.tg-img-preview-frame--flush { padding: 0; overflow: hidden; }
+
+.tg-img-tools-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.tg-img-tools-bar .tg-img-tool-btn {
+  /* >=40px tall so the controls stay comfortable on touch. */
+  min-height: 40px;
+  padding: 0.5rem 0.875rem;
+  border: 1.5px solid var(--color-gray-200);
+  border-radius: var(--radius-full);
+  background: var(--color-white);
+  color: var(--color-gray-700);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+.tg-img-tools-bar .tg-img-tool-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+/* Dark theme */
+[data-theme="dark"] .tg-img-preview-frame {
+  background: #1e1e1e;
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* The dark theme paints every button inside a tool box solid orange with
+   !important (see the ACTION BUTTON block above). That is right for the
+   primary action, but these secondary controls need to stay quiet —
+   matched specificity + !important, scoped to the image tools bar. */
+[data-theme="dark"] .tg-tool-box .tg-img-tools-bar button.tg-img-tool-btn {
+  background: #2a2a2a !important;
+  color: #e5e7eb !important;
+  border-color: rgba(255,255,255,0.15);
+}
+[data-theme="dark"] .tg-tool-box .tg-img-tools-bar button.tg-img-tool-btn:hover {
+  color: var(--color-primary) !important;
+  border-color: var(--color-primary);
+}
