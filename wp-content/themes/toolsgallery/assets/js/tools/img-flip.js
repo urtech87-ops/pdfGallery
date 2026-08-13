@@ -6,7 +6,10 @@
 (function () {
   'use strict';
   var CONFIG = { handler: 'img-flip' };
-  var _img = null;
+
+  var _img = null;   // the image as uploaded
+  var _src = null;   // working source — a rotated canvas once _rot !== 0
+  var _rot = 0;
 
   function getOptionsHTML() {
     return '<div class="tg-opt-row" style="flex-direction:column;gap:10px">' +
@@ -17,9 +20,15 @@
         '<button type="button" class="tg-btn-secondary tg-flip-btn" data-flip="both">Both</button>' +
       '</div>' +
     '</div>' +
-    '<div id="if-preview-wrap" style="margin-top:12px;display:none">' +
-      '<canvas id="if-preview" style="max-width:100%;border:1px solid #ddd;border-radius:4px"></canvas>' +
+    TGImgTools.barHTML('if') +
+    '<div id="if-preview-wrap" class="tg-img-preview-frame" style="display:none">' +
+      '<canvas id="if-preview"></canvas>' +
     '</div>';
+  }
+
+  function currentFlip() {
+    var active = document.querySelector('.tg-flip-btn--active');
+    return active ? active.dataset.flip : 'h';
   }
 
   function wireOptions(container) {
@@ -31,6 +40,16 @@
         updatePreview(b.dataset.flip);
       });
     });
+
+    TGImgTools.wire(container, 'if', {
+      onRotate: function () {
+        if (!_img) return;
+        _rot = (_rot + 90) % 360;
+        _src = TGImgTools.rotate(_img, _rot);
+        updatePreview(currentFlip());
+      },
+      onClear: function () { _img = null; _src = null; _rot = 0; },
+    });
   }
 
   function getOptions(optionsEl) {
@@ -39,33 +58,35 @@
     return { flip: active ? active.dataset.flip : 'h' };
   }
 
-  function flipToCanvas(img, flip) {
+  function flipToCanvas(source, flip) {
     var canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
+    canvas.width = TGImgTools.w(source);
+    canvas.height = TGImgTools.h(source);
     var ctx = canvas.getContext('2d');
     var flipH = flip === 'h' || flip === 'both';
     var flipV = flip === 'v' || flip === 'both';
     ctx.translate(flipH ? canvas.width : 0, flipV ? canvas.height : 0);
     ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
     return canvas;
   }
 
   function updatePreview(flip) {
-    if (!_img) return;
+    if (!_src) return;
     var preview = document.getElementById('if-preview');
     var wrap = document.getElementById('if-preview-wrap');
     if (!preview || !wrap) return;
-    TGImageUtil.drawPreview(flipToCanvas(_img, flip), preview, 400);
+    TGImageUtil.drawPreview(flipToCanvas(_src, flip), preview, 400);
     wrap.style.display = 'block';
+    TGImgTools.show('if', true);
   }
 
   function onFileReady(file, optionsEl) {
-    _img = null;
+    _img = null; _src = null; _rot = 0;
     if (!file) return;
     TGImageUtil.loadImage(file).then(function (img) {
       _img = img;
+      _src = img;
       var active = optionsEl ? optionsEl.querySelector('.tg-flip-btn--active') : null;
       updatePreview(active ? active.dataset.flip : 'h');
     }).catch(function () {});
@@ -76,9 +97,12 @@
       throw new Error('Image processing library not loaded. Please refresh the page.');
     }
     onProgress && onProgress(0.1, 'Loading image...');
-    var img = _img || await TGImageUtil.loadImage(file);
+    if (!_src) {
+      _img = await TGImageUtil.loadImage(file);
+      _src = TGImgTools.rotate(_img, _rot);
+    }
     onProgress && onProgress(0.5, 'Flipping...');
-    var canvas = flipToCanvas(img, options.flip);
+    var canvas = flipToCanvas(_src, options.flip);
 
     var isPng = file.type === 'image/png';
     var mime = isPng ? 'image/png' : 'image/jpeg';

@@ -33,8 +33,9 @@
     '<div id="ir-bg-custom-wrap" hidden style="margin-top:6px">' +
       '<input type="color" id="ir-bg-custom" value="#ffffff">' +
     '</div>' +
-    '<div id="ir-preview-wrap" style="margin-top:12px;display:none">' +
-      '<canvas id="ir-preview" style="max-width:100%;border:1px solid #ddd;border-radius:4px"></canvas>' +
+    TGImgTools.barHTML('ir') +
+    '<div id="ir-preview-wrap" class="tg-img-preview-frame" style="display:none">' +
+      '<canvas id="ir-preview"></canvas>' +
     '</div>';
   }
 
@@ -65,6 +66,18 @@
       setAngle(v);
     });
     if (flip180) flip180.addEventListener('click', function () { setAngle(180); });
+
+    /* The shared Rotate button drives the angle this tool already
+       exports — no second rotation to keep in sync. */
+    TGImgTools.wire(container, 'ir', {
+      onRotate: function () {
+        if (!ang) return;
+        var v = ((parseInt(ang.value) + 90) + 360) % 360;
+        if (v > 180) v -= 360;
+        setAngle(v);
+      },
+      onClear: function () { _img = null; },
+    });
 
     var bgSel = container.querySelector('#ir-bg');
     var bgCW = container.querySelector('#ir-bg-custom-wrap');
@@ -119,6 +132,7 @@
     var opts = getOptions(optionsEl || document);
     TGImageUtil.drawPreview(rotateCanvas(_img, opts.angle, opts.background), preview, 300);
     wrap.style.display = 'block';
+    TGImgTools.show('ir', true);
   }
 
   function onFileReady(file, optionsEl) {
