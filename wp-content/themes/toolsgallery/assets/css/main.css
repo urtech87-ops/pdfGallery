@@ -5053,10 +5053,25 @@ textarea {
   background: repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 0 0 / 12px 12px;
   box-shadow: var(--shadow-sm);
 }
-/* Interactive editors (crop box, text layers, watermark selection) own
-   their canvas sizing — the frame only supplies the border. */
-.tg-img-preview-frame--editor { padding: 0.5rem; }
-.tg-img-preview-frame--editor canvas { box-shadow: none; }
+/* Interactive editors (crop box, text layers, watermark selection) size
+   their own canvas — the frame just shrinks to fit it, and never past
+   the width of the tool box on a phone. */
+.tg-img-preview-frame--editor {
+  padding: 0.5rem;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+.tg-img-preview-frame--editor canvas {
+  box-shadow: none;
+  background: none;
+  display: block;
+}
+/* An editor whose overlay canvas is stretched over the frame (the
+   watermark selection layer) can't have padding under it, or the two
+   canvases stop lining up. */
+.tg-img-preview-frame--flush { padding: 0; overflow: hidden; }
 
 .tg-img-tools-bar {
   display: flex;

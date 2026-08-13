@@ -7,6 +7,10 @@
  * Replaces the Cropper.js CDN dependency — the tool now renders the
  * image itself using the load-then-size canvas pattern, so the preview
  * can never come up black.
+ *
+ * Rotating rebuilds the working source and re-mounts the editor: the
+ * canvas is re-sized from the turned image and the crop box is re-fitted,
+ * so no selection is ever left pointing at the old orientation.
  */
 (function () {
   'use strict';
@@ -15,7 +19,9 @@
   var HANDLE_SIZE = 12;
 
   var state = {
-    img: null,
+    img: null,      // the image as uploaded
+    src: null,      // working source — a rotated canvas once rot !== 0
+    rot: 0,
     file: null,
     canvas: null,
     scale: 1,
@@ -53,8 +59,9 @@
       '</select>' +
     '</div>' +
     '<p id="ic-crop-dims" class="tg-opt-info" style="margin-top:6px"></p>' +
-    '<div id="ic-canvas-wrap" style="margin-top:12px;display:none;border:1px solid #ddd;border-radius:4px;overflow:hidden;background:#1f2937;max-width:100%">' +
-      '<canvas id="ic-canvas" style="display:block;width:100%;height:auto;cursor:crosshair;touch-action:none"></canvas>' +
+    TGImgTools.barHTML('ic') +
+    '<div id="ic-canvas-wrap" class="tg-img-preview-frame tg-img-preview-frame--editor" style="display:none">' +
+      '<canvas id="ic-canvas" style="cursor:crosshair;touch-action:none"></canvas>' +
     '</div>' +
     '<p class="tg-opt-info" style="margin-top:6px">Drag inside the highlighted area to move it, drag the orange handles to resize, or drag on the dimmed area to draw a new crop box.</p>';
   }
@@ -71,7 +78,7 @@
     container.querySelectorAll('input[name="ic-ar"]').forEach(function (r) {
       r.addEventListener('change', function () {
         state.aspect = parseFloat(r.value) || 0;
-        if (state.aspect > 0 && state.canvas && state.img) {
+        if (state.aspect > 0 && state.canvas && state.src) {
           applyAspectPreset(state.aspect);
         }
       });
@@ -82,8 +89,25 @@
         state.aspect = 1;
         var sq = container.querySelector('input[name="ic-ar"][value="1"]');
         if (sq) sq.checked = true;
-        if (state.canvas && state.img) applyAspectPreset(1);
+        if (state.canvas && state.src) applyAspectPreset(1);
       }
+    });
+
+    TGImgTools.wire(container, 'ic', {
+      onRotate: function () {
+        if (!state.img) return;
+        state.rot = (state.rot + 90) % 360;
+        state.src = TGImgTools.rotate(state.img, state.rot);
+        /* Re-mount: canvas dimensions come from the rotated source and
+           the crop box is rebuilt, so nothing survives in old coords. */
+        mountEditor();
+      },
+      onClear: function () {
+        state.img = null; state.src = null; state.rot = 0; state.file = null;
+        state.canvas = null; state.scale = 1;
+        state.crop = { x: 0, y: 0, w: 0, h: 0 };
+        state.dragging = false; state.resizing = false; state.resizeHandle = '';
+      },
     });
   }
 
@@ -103,9 +127,50 @@
     drawCrop();
   }
 
+  /* Size the canvas from the CURRENT working source and reset the crop
+     box. Called on upload and after every rotate — never before the
+     source exists. */
+  function mountEditor() {
+    var source = state.src;
+    if (!source) return;
+
+    var canvas = document.getElementById('ic-canvas');
+    var wrap = document.getElementById('ic-canvas-wrap');
+    if (!canvas || !wrap) return;
+    state.canvas = canvas;
+
+    var sw = TGImgTools.w(source);
+    var sh = TGImgTools.h(source);
+    var maxW = Math.min(750, window.innerWidth - 40);
+    var maxH = 520;
+    state.scale = Math.min(1, maxW / sw, maxH / sh);
+    canvas.width = Math.max(1, Math.round(sw * state.scale));
+    canvas.height = Math.max(1, Math.round(sh * state.scale));
+
+    wrap.style.display = 'block';
+    TGImgTools.show('ic', true);
+
+    // Default crop: centered 80% box (respecting a selected aspect).
+    if (state.aspect > 0) {
+      applyAspectPreset(state.aspect);
+    } else {
+      state.crop = {
+        x: Math.floor(canvas.width * 0.1),
+        y: Math.floor(canvas.height * 0.1),
+        w: Math.floor(canvas.width * 0.8),
+        h: Math.floor(canvas.height * 0.8),
+      };
+      drawCrop();
+    }
+    setupCropEvents(canvas);
+  }
+
   function onFileReady(file) {
     if (!file || !file.type || file.type.indexOf('image/') !== 0) return;
     state.file = file;
+    state.img = null;
+    state.src = null;
+    state.rot = 0;
 
     var img = new Image();
     var objectUrl = URL.createObjectURL(file);
@@ -113,35 +178,8 @@
     img.onload = function () {
       URL.revokeObjectURL(objectUrl);
       state.img = img;
-
-      var canvas = document.getElementById('ic-canvas');
-      var wrap = document.getElementById('ic-canvas-wrap');
-      if (!canvas || !wrap) return;
-      state.canvas = canvas;
-
-      // Size the canvas AFTER the image loads.
-      var maxW = Math.min(750, window.innerWidth - 40);
-      var maxH = 520;
-      state.scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
-      canvas.width = Math.max(1, Math.round(img.naturalWidth * state.scale));
-      canvas.height = Math.max(1, Math.round(img.naturalHeight * state.scale));
-
-      wrap.style.display = 'block';
-      wrap.style.width = canvas.width + 'px';
-
-      // Default crop: centered 80% box (respecting a selected aspect).
-      if (state.aspect > 0) {
-        applyAspectPreset(state.aspect);
-      } else {
-        state.crop = {
-          x: Math.floor(canvas.width * 0.1),
-          y: Math.floor(canvas.height * 0.1),
-          w: Math.floor(canvas.width * 0.8),
-          h: Math.floor(canvas.height * 0.8),
-        };
-        drawCrop();
-      }
-      setupCropEvents(canvas);
+      state.src = img;
+      mountEditor();
     };
 
     img.onerror = function () {
@@ -154,12 +192,12 @@
 
   function drawCrop() {
     var canvas = state.canvas;
-    if (!canvas || !state.img) return;
+    if (!canvas || !state.src) return;
     var ctx = canvas.getContext('2d');
     var c = state.crop;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(state.img, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(state.src, 0, 0, canvas.width, canvas.height);
 
     // Dim everything outside the crop area
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -348,20 +386,22 @@
     if (!window.TGImageUtil) {
       throw new Error('Image processing library not loaded. Please refresh the page.');
     }
-    if (!state.img || !state.canvas) {
+    if (!state.src || !state.canvas) {
       throw new Error('Crop area not ready yet — wait for the image preview, adjust the selection, then try again.');
     }
 
     onProgress && onProgress(0.5, 'Cropping...');
 
     // Convert display-space crop to source pixel coordinates
+    var sw = TGImgTools.w(state.src);
+    var sh = TGImgTools.h(state.src);
     var s = state.scale;
     var rx = Math.max(0, Math.round(state.crop.x / s));
     var ry = Math.max(0, Math.round(state.crop.y / s));
     var rw = Math.round(state.crop.w / s);
     var rh = Math.round(state.crop.h / s);
-    rw = Math.min(rw, state.img.naturalWidth - rx);
-    rh = Math.min(rh, state.img.naturalHeight - ry);
+    rw = Math.min(rw, sw - rx);
+    rh = Math.min(rh, sh - ry);
     if (rw < 1 || rh < 1) throw new Error('Crop area is too small. Please select a larger area.');
 
     var out = document.createElement('canvas');
@@ -374,7 +414,7 @@
       ctx.arc(rw / 2, rh / 2, Math.min(rw, rh) / 2, 0, Math.PI * 2);
       ctx.clip();
     }
-    ctx.drawImage(state.img, rx, ry, rw, rh, 0, 0, rw, rh);
+    ctx.drawImage(state.src, rx, ry, rw, rh, 0, 0, rw, rh);
 
     var mime = options.circle ? 'image/png'
       : (options.format === 'same'
