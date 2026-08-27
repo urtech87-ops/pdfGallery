@@ -1884,41 +1884,47 @@ function tg_add_seo_meta_tags()
     echo '<meta name="googlebot" content="index,follow">' . "\n";
     echo '<meta name="bingbot" content="index,follow">' . "\n";
 
-    if (is_singular('tg_tool')) {
-        global $post;
-        $stored_title = (string) get_post_meta(get_the_ID(), 'rank_math_title', true);
-        $stored_desc = (string) get_post_meta(get_the_ID(), 'rank_math_description', true);
+    /* RankMath already emits og:/twitter: tags (built from the same
+       rank_math_title / rank_math_description meta), so the theme only
+       outputs its own set as a fallback when RankMath is not active.
+       Emitting both produced duplicate og:title/og:description tags. */
+    if (!defined('RANK_MATH_VERSION')) {
+        if (is_singular('tg_tool')) {
+            global $post;
+            $stored_title = (string) get_post_meta(get_the_ID(), 'rank_math_title', true);
+            $stored_desc = (string) get_post_meta(get_the_ID(), 'rank_math_description', true);
 
-        $title = $stored_title !== '' ? $stored_title : get_the_title() . ' — Free Online Tool | ToolsHall';
-        $desc = $stored_desc !== '' ? $stored_desc : wp_strip_all_tags(get_the_excerpt());
-        $url = get_permalink();
-        $img = get_template_directory_uri() . '/assets/images/og-default.jpg';
+            $title = $stored_title !== '' ? $stored_title : get_the_title() . ' — Free Online Tool | ToolsHall';
+            $desc = $stored_desc !== '' ? $stored_desc : wp_strip_all_tags(get_the_excerpt());
+            $url = get_permalink();
+            $img = get_template_directory_uri() . '/assets/images/og-default.jpg';
 
-        echo '<meta property="og:type" content="website">' . "\n";
-        echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
-        echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
-        echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
-        echo '<meta property="og:site_name" content="ToolsHall">' . "\n";
-        echo '<meta property="og:image" content="' . esc_url($img) . '">' . "\n";
-        echo '<meta name="twitter:card" content="summary_large_image">' . "\n";
-        echo '<meta name="twitter:title" content="' . esc_attr($title) . '">' . "\n";
-        echo '<meta name="twitter:description" content="' . esc_attr($desc) . '">' . "\n";
-        echo '<meta name="twitter:image" content="' . esc_url($img) . '">' . "\n";
-    } elseif (is_front_page()) {
-        $front_id = (int) get_option('page_on_front');
-        $stored_title = $front_id ? (string) get_post_meta($front_id, 'rank_math_title', true) : '';
-        $stored_desc = $front_id ? (string) get_post_meta($front_id, 'rank_math_description', true) : '';
+            echo '<meta property="og:type" content="website">' . "\n";
+            echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
+            echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
+            echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
+            echo '<meta property="og:site_name" content="ToolsHall">' . "\n";
+            echo '<meta property="og:image" content="' . esc_url($img) . '">' . "\n";
+            echo '<meta name="twitter:card" content="summary_large_image">' . "\n";
+            echo '<meta name="twitter:title" content="' . esc_attr($title) . '">' . "\n";
+            echo '<meta name="twitter:description" content="' . esc_attr($desc) . '">' . "\n";
+            echo '<meta name="twitter:image" content="' . esc_url($img) . '">' . "\n";
+        } elseif (is_front_page()) {
+            $front_id = (int) get_option('page_on_front');
+            $stored_title = $front_id ? (string) get_post_meta($front_id, 'rank_math_title', true) : '';
+            $stored_desc = $front_id ? (string) get_post_meta($front_id, 'rank_math_description', true) : '';
 
-        $title = $stored_title !== '' ? $stored_title : 'Free Online Tools — PDF, Image, AI & Video | ToolsHall';
-        $desc = $stored_desc !== '' ? $stored_desc : '150+ free online tools for PDF, image, video, AI writing and file conversion. No signup, no downloads — everything runs in your browser. Fast, private, free forever.';
-        $img = get_template_directory_uri() . '/assets/images/og-default.jpg';
+            $title = $stored_title !== '' ? $stored_title : 'Free Online Tools — PDF, Image, AI & Video | ToolsHall';
+            $desc = $stored_desc !== '' ? $stored_desc : '150+ free online tools for PDF, image, video, AI writing and file conversion. No signup, no downloads — everything runs in your browser. Fast, private, free forever.';
+            $img = get_template_directory_uri() . '/assets/images/og-default.jpg';
 
-        echo '<meta property="og:type" content="website">' . "\n";
-        echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
-        echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
-        echo '<meta property="og:url" content="' . esc_url(home_url('/')) . '">' . "\n";
-        echo '<meta property="og:site_name" content="ToolsHall">' . "\n";
-        echo '<meta property="og:image" content="' . esc_url($img) . '">' . "\n";
+            echo '<meta property="og:type" content="website">' . "\n";
+            echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
+            echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
+            echo '<meta property="og:url" content="' . esc_url(home_url('/')) . '">' . "\n";
+            echo '<meta property="og:site_name" content="ToolsHall">' . "\n";
+            echo '<meta property="og:image" content="' . esc_url($img) . '">' . "\n";
+        }
     }
 }
 add_action('wp_head', 'tg_add_seo_meta_tags', 1);
@@ -2157,6 +2163,13 @@ add_action('admin_post_tg_contact_submit', 'tg_handle_contact_form');
    ============================================= */
 function tg_canonical_url()
 {
+    /* RankMath emits its own <link rel="canonical">. Two canonical tags on a
+       page can make Google ignore both, so the theme's canonical is now only
+       a fallback for when RankMath is not active. */
+    if (defined('RANK_MATH_VERSION')) {
+        return;
+    }
+
     if (is_singular()) {
         $url = get_permalink();
     } elseif (is_tax('tool_category')) {
