@@ -23,7 +23,7 @@
 	  </h1>
 
     <p class="tg-hero__subtitle">
-      <?php esc_html_e('150+ free browser-based tools. No signup. No download. No limits. Tool Acadmy — your academy for free online tools.', 'toolsgallery'); ?>
+      <?php esc_html_e('150+ free browser-based tools. No signup. No download. No limits. ToolsHall — your hub for free online tools.', 'toolsgallery'); ?>
     </p>
 
     <div class="tg-hero__actions">
@@ -456,7 +456,7 @@
   <div class="tg-container">
     <div class="tg-section__header">
       <div class="tg-section__tag"><?php esc_html_e('Why Us', 'toolsgallery'); ?></div>
-      <h2 class="tg-section__title" id="why-heading"><?php esc_html_e('Why Choose Tool Acadmy?', 'toolsgallery'); ?></h2>
+      <h2 class="tg-section__title" id="why-heading"><?php esc_html_e('Why Choose ToolsHall?', 'toolsgallery'); ?></h2>
     </div>
     <div class="tg-features-grid">
       <?php
@@ -492,17 +492,17 @@
 
       <h2 id="seo-heading">Free Online Tools &mdash; No Download, No Signup, No Cost</h2>
 
-      <p>Tool Acadmy is a free collection of 150+ browser-based tools for everyday digital tasks. Whether you are a student who needs to compress a PDF before uploading an assignment, a freelancer editing product photos, a marketer writing social media captions with AI, or a developer converting JSON to CSV &mdash; we have a free tool for that.</p>
+      <p>ToolsHall is a free collection of 150+ browser-based tools for everyday digital tasks. Whether you are a student who needs to compress a PDF before uploading an assignment, a freelancer editing product photos, a marketer writing social media captions with AI, or a developer converting JSON to CSV &mdash; we have a free tool for that.</p>
 
-      <p>Every tool on Tool Acadmy runs directly in your web browser. That means no software to download, no account to create, and no files sent to our servers. Your documents, images, and videos stay private on your device the entire time.</p>
+      <p>Every tool on ToolsHall runs directly in your web browser. That means no software to download, no account to create, and no files sent to our servers. Your documents, images, and videos stay private on your device the entire time.</p>
 
-      <h3>Why Tool Acadmy is Different</h3>
+      <h3>Why ToolsHall is Different</h3>
 
-      <p>Most online tool sites either charge monthly fees, add watermarks to your output, or make you sign up before you can use anything. Tool Acadmy does none of those things. Every tool is free, every download is clean, and you can start immediately without entering an email address.</p>
+      <p>Most online tool sites either charge monthly fees, add watermarks to your output, or make you sign up before you can use anything. ToolsHall does none of those things. Every tool is free, every download is clean, and you can start immediately without entering an email address.</p>
 
       <h3>What Types of Tools Are Available?</h3>
 
-      <p>Tool Acadmy currently offers tools in six categories:</p>
+      <p>ToolsHall currently offers tools in six categories:</p>
 
       <?php
       $tg_seo_cats = [
@@ -528,9 +528,9 @@
 
       <h3>How It Works</h3>
 
-      <p>Using any Tool Acadmy tool takes three steps: choose the tool you need, upload your file or enter your text, and get your result. Most tools complete in under 10 seconds. Video tools may take longer due to the processing requirements of video files.</p>
+      <p>Using any ToolsHall tool takes three steps: choose the tool you need, upload your file or enter your text, and get your result. Most tools complete in under 10 seconds. Video tools may take longer due to the processing requirements of video files.</p>
 
-      <p>Tool Acadmy is built using modern web technologies including WebAssembly (for video processing), PDF-lib and PDF.js (for PDF tools), the Canvas API (for image tools), and OpenRouter AI (for writing tools). This combination allows professional-grade results entirely in your browser.</p>
+      <p>ToolsHall is built using modern web technologies including WebAssembly (for video processing), PDF-lib and PDF.js (for PDF tools), the Canvas API (for image tools), and OpenRouter AI (for writing tools). This combination allows professional-grade results entirely in your browser.</p>
 
     </div>
   </div>

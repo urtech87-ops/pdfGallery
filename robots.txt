@@ -19,7 +19,7 @@ Allow: /wp-content/plugins/
 Allow: /*.css$
 Allow: /*.js$
 
-Sitemap: https://toolacadmy.com/sitemap_index.xml
+Sitemap: https://toolshall.com/sitemap_index.xml
 
 # AI / answer engines (AEO + GEO)
 User-agent: GPTBot

@@ -6,13 +6,13 @@
 
       <!-- Col 1: Brand -->
       <div class="tg-footer__col">
-        <a href="<?php echo esc_url(home_url('/')); ?>" class="tg-logo tg-footer-logo" aria-label="<?php esc_attr_e('Tool Acadmy — Home', 'toolsgallery'); ?>">
+        <a href="<?php echo esc_url(home_url('/')); ?>" class="tg-logo tg-footer-logo" aria-label="<?php esc_attr_e('ToolsHall — Home', 'toolsgallery'); ?>">
           <div class="tg-logo-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="#dd2b0f" xmlns="http://www.w3.org/2000/svg" width="32" height="32" aria-hidden="true">
               <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
             </svg>
           </div>
-          <span class="tg-logo-text" style="color:white;">Tool<span style="color:#F97316;font-weight:400;">Acadmy</span></span>
+          <span class="tg-logo-text" style="color:white;">Tools<span style="color:#F97316;font-weight:400;">Hall</span></span>
         </a>
         <p class="tg-footer__tagline"><?php esc_html_e('150+ Free Online Tools — No Signup Required', 'toolsgallery'); ?></p>
         <p class="tg-footer__desc"><?php esc_html_e('Fast, free, and privacy-friendly tools for PDF, images, AI writing, video, files and more — your files never leave your device.', 'toolsgallery'); ?></p>

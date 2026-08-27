@@ -12,10 +12,10 @@ if (have_posts()) :
         'description'       => get_the_excerpt(),
         'datePublished'     => get_the_date('c'),
         'dateModified'      => get_the_modified_date('c'),
-        'author'            => ['@type' => 'Organization', 'name' => 'Tool Acadmy', 'url' => 'https://toolacadmy.com'],
+        'author'            => ['@type' => 'Organization', 'name' => 'ToolsHall', 'url' => 'https://toolshall.com'],
         'publisher'         => [
             '@type' => 'Organization',
-            'name'  => 'Tool Acadmy',
+            'name'  => 'ToolsHall',
             'logo'  => ['@type' => 'ImageObject', 'url' => get_template_directory_uri() . '/assets/images/logo.png'],
         ],
         'mainEntityOfPage'  => ['@type' => 'WebPage', '@id' => get_permalink()],

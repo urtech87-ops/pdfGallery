@@ -92,7 +92,7 @@
       '}' +
       '</style></head><body>' +
       '<div id="tg-toolbar">' +
-        '<span>&#128196; Tool Acadmy — URL to PDF</span>' +
+        '<span>&#128196; ToolsHall — URL to PDF</span>' +
         '<button id="tg-save-btn" onclick="window.print()">&#11015;&#65039; Save as PDF</button>' +
         '<button id="tg-hide-btn" onclick="document.getElementById(\'tg-toolbar\').style.display=\'none\';window.print()">Hide toolbar &amp; Print</button>' +
         '<span id="tg-url-label">' + escapeHtml(url) + '</span>' +

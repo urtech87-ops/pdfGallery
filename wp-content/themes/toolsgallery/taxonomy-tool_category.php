@@ -45,7 +45,7 @@ $cat_seo = [
       'Remove passwords from PDFs you own when you no longer need the protection',
     ],
     'faq_extra' => [
-      ['q' => 'Are these PDF tools really free?', 'a' => 'Yes. All PDF tools on Tool Acadmy are completely free to use with no limits, no watermarks, and no account required.'],
+      ['q' => 'Are these PDF tools really free?', 'a' => 'Yes. All PDF tools on ToolsHall are completely free to use with no limits, no watermarks, and no account required.'],
       ['q' => 'Is my PDF safe when I use these tools?', 'a' => 'Yes. Standard PDF processing happens locally in your browser using PDF-lib and PDF.js, so those files are never uploaded to any server. The AI-powered Summarize and Translate tools are the exception: they send your document\'s extracted text to our AI provider to generate results.'],
     ],
   ],
@@ -61,7 +61,7 @@ $cat_seo = [
       'Crop images to the exact frame you need in seconds',
     ],
     'faq_extra' => [
-      ['q' => 'What image formats are supported?', 'a' => 'Tool Acadmy supports JPG, PNG, WebP, GIF, BMP, TIFF, AVIF, ICO, and SVG formats for input and output depending on the tool.'],
+      ['q' => 'What image formats are supported?', 'a' => 'ToolsHall supports JPG, PNG, WebP, GIF, BMP, TIFF, AVIF, ICO, and SVG formats for input and output depending on the tool.'],
     ],
   ],
   'ai-tools' => [
@@ -119,7 +119,7 @@ $cat_seo = [
       'Generate cryptographically secure random numbers for any purpose',
     ],
     'faq_extra' => [
-      ['q' => 'Do utility tools require any setup?', 'a' => 'No. All utility tools on Tool Acadmy work instantly in your browser with no setup, no download, and no account required.'],
+      ['q' => 'Do utility tools require any setup?', 'a' => 'No. All utility tools on ToolsHall work instantly in your browser with no setup, no download, and no account required.'],
     ],
   ],
 ];
@@ -256,7 +256,7 @@ if (!empty($cat_content['faq_extra'])) {
       <h2 id="cat-seo-heading"><?php echo esc_html('Free ' . $term_name . ' — No Signup Required'); ?></h2>
       <p>
         <?php printf(
-            esc_html__('Tool Acadmy\'s free %s work entirely in your browser. No software to install, no account to create, and your files never leave your device. Fast, private, and always free.', 'toolsgallery'),
+            esc_html__('ToolsHall\'s free %s work entirely in your browser. No software to install, no account to create, and your files never leave your device. Fast, private, and always free.', 'toolsgallery'),
             esc_html(strtolower($term_name))
         ); ?>
       </p>

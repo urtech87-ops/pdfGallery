@@ -1,4 +1,4 @@
-/* Tool Acadmy — Unique SVG icons per tool type */
+/* ToolsHall — Unique SVG icons per tool type */
 var TG_TOOL_ICONS = {
   'merge-pdf': '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="4" width="20" height="28" rx="3" fill="#FF6B35" opacity="0.9"/><rect x="20" y="10" width="20" height="28" rx="3" fill="#FF8C5A"/><path d="M16 20h16M16 26h12" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M30 32l4 4-4 4" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>',
 

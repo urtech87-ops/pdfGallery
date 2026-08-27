@@ -15,13 +15,13 @@
   <div class="tg-container tg-header__inner">
 
     <!-- Logo -->
-    <a href="<?php echo esc_url(home_url('/')); ?>" class="tg-logo" aria-label="Tool Acadmy">
+    <a href="<?php echo esc_url(home_url('/')); ?>" class="tg-logo" aria-label="ToolsHall">
       <div class="tg-logo-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="#dd2b0f" xmlns="http://www.w3.org/2000/svg" width="36" height="36" aria-hidden="true">
           <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
         </svg>
       </div>
-      <span class="tg-logo-text">Tool<span class="tg-logo-accent">Acadmy</span></span>
+      <span class="tg-logo-text">Tools<span class="tg-logo-accent">Hall</span></span>
     </a>
 
     <!-- Desktop nav -->
@@ -69,7 +69,7 @@
           <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
         </svg>
       </div>
-      <span class="tg-logo-text">Tool<span class="tg-logo-accent">Acadmy</span></span>
+      <span class="tg-logo-text">Tools<span class="tg-logo-accent">Hall</span></span>
     </a>
     <button class="tg-mobile-close-btn" id="tg-mobile-close-btn" aria-label="<?php esc_attr_e('Close menu', 'toolsgallery'); ?>">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">

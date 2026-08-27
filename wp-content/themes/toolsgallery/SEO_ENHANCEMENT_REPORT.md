@@ -29,7 +29,7 @@ All SEO enhancement tasks completed and committed to `claude/seo-tool-pages-cont
 **File:** `front-page.php`
 
 - Replaced thin SEO section with **~300 word humanized content block**
-- Added H2, H3 structure: "Why Tool Acadmy is Different", "What Types of Tools Are Available?", "How It Works"
+- Added H2, H3 structure: "Why ToolsHall is Different", "What Types of Tools Are Available?", "How It Works"
 - Full category list with links and tool counts
 - Technology explanation paragraph (WebAssembly, PDF-lib, Canvas API, OpenRouter)
 
@@ -61,7 +61,7 @@ All SEO enhancement tasks completed and committed to `claude/seo-tool-pages-cont
 - Already referenced in `tg_add_seo_meta_tags()` in functions.php
 
 ### FIX 4: Sitemap in robots.txt ✅
-- Already present: `Sitemap: https://toolacadmy.com/sitemap_index.xml`
+- Already present: `Sitemap: https://toolshall.com/sitemap_index.xml`
 
 ### FIX 5: Internal linking blog → tools ✅
 - `tg_get_blog_related_tools()` helper added to `functions.php`

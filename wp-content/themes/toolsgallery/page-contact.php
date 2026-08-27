@@ -10,7 +10,7 @@ get_header();
     <div class="tg-contact-page">
 
         <section class="tg-contact-hero">
-            <h1>Contact Tool Acadmy</h1>
+            <h1>Contact ToolsHall</h1>
             <p>Have a question, found a bug, or want to suggest a new tool? Get in touch with us. We respond to all
                 messages within 24-48 hours.</p>
         </section>
@@ -37,7 +37,7 @@ get_header();
                         <span class="tg-contact-icon">&#x2709;&#xFE0F;</span>
                         <div>
                             <strong>Email</strong>
-                            <p>contact@toolacadmy.com</p>
+                            <p>contact@toolshall.com</p>
                         </div>
                     </div>
 
@@ -53,7 +53,7 @@ get_header();
                         <span class="tg-contact-icon">&#x1F310;</span>
                         <div>
                             <strong>Website</strong>
-                            <p>toolacadmy.com</p>
+                            <p>toolshall.com</p>
                         </div>
                     </div>
 
@@ -72,7 +72,7 @@ get_header();
                     <li>&#x1F4A1; <strong>Feature Requests</strong> — Suggest a new tool or improvement</li>
                     <li>&#x1F4BC; <strong>Business Inquiries</strong> — Partnerships, advertising, or collaborations
                     </li>
-                    <li>&#x2753; <strong>General Questions</strong> — Any other questions about Tool Acadmy</li>
+                    <li>&#x2753; <strong>General Questions</strong> — Any other questions about ToolsHall</li>
                 </ul>
             </div>
         </div>

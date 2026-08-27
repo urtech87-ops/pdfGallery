@@ -10,8 +10,8 @@ get_header();
 <div class="tg-about-page">
 
 <section class="tg-about-hero">
-<h1>About Tool Acadmy</h1>
-<p class="tg-about-lead">Tool Acadmy is a free online tools platform offering 150+ browser-based utilities for PDF editing, image processing, AI writing, video editing, file conversion, and everyday productivity tasks.</p>
+<h1>About ToolsHall</h1>
+<p class="tg-about-lead">ToolsHall is a free online tools platform offering 150+ browser-based utilities for PDF editing, image processing, AI writing, video editing, file conversion, and everyday productivity tasks.</p>
 </section>
 
 <section class="tg-about-mission">
@@ -20,8 +20,8 @@ get_header();
 </section>
 
 <section class="tg-about-what">
-<h2>What is Tool Acadmy?</h2>
-<p>Tool Acadmy is your free online toolkit for everyday digital tasks. Whether you need to merge PDFs, compress images, fix grammar, convert files, or generate AI content — we have a free tool for that. All 150+ tools run directly in your browser using modern web technologies.</p>
+<h2>What is ToolsHall?</h2>
+<p>ToolsHall is your free online toolkit for everyday digital tasks. Whether you need to merge PDFs, compress images, fix grammar, convert files, or generate AI content — we have a free tool for that. All 150+ tools run directly in your browser using modern web technologies.</p>
 
 <div class="tg-about-stats">
 <div class="tg-about-stat">
@@ -45,7 +45,7 @@ get_header();
 
 <section class="tg-about-privacy">
 <h2>Privacy First — Your Files Stay on Your Device</h2>
-<p>Every tool on Tool Acadmy runs directly in your web browser. This means your files are processed locally on your device using technologies like WebAssembly, PDF.js, and the Web Audio API. We never receive, store, or process your files on any server. Your documents, images, and data stay completely private.</p>
+<p>Every tool on ToolsHall runs directly in your web browser. This means your files are processed locally on your device using technologies like WebAssembly, PDF.js, and the Web Audio API. We never receive, store, or process your files on any server. Your documents, images, and data stay completely private.</p>
 </section>
 
 <section class="tg-about-tools">
@@ -61,8 +61,8 @@ get_header();
 </section>
 
 <section class="tg-about-tech">
-<h2>Technology Behind Tool Acadmy</h2>
-<p>Tool Acadmy uses cutting-edge browser technologies to deliver professional results without any server processing:</p>
+<h2>Technology Behind ToolsHall</h2>
+<p>ToolsHall uses cutting-edge browser technologies to deliver professional results without any server processing:</p>
 <ul>
 <li><strong>PDF-lib:</strong> PDF creation and manipulation</li>
 <li><strong>PDF.js:</strong> PDF rendering and text extraction</li>
@@ -76,21 +76,21 @@ get_header();
 </section>
 
 <section class="tg-about-faq">
-<h2>Frequently Asked Questions About Tool Acadmy</h2>
+<h2>Frequently Asked Questions About ToolsHall</h2>
 
 <div class="tg-faq-accordion">
 
 <details class="tg-faq-item">
-<summary class="tg-faq-question">Is Tool Acadmy really free? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
+<summary class="tg-faq-question">Is ToolsHall really free? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
-<p>Yes — all 150+ tools on Tool Acadmy are completely free to use with no hidden costs, no subscription fees, and no premium tiers. We are supported by non-intrusive advertising.</p>
+<p>Yes — all 150+ tools on ToolsHall are completely free to use with no hidden costs, no subscription fees, and no premium tiers. We are supported by non-intrusive advertising.</p>
 </div>
 </details>
 
 <details class="tg-faq-item">
 <summary class="tg-faq-question">Do I need to create an account? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
-<p>No. Tool Acadmy requires no signup, no account creation, and no email address. Simply visit any tool and start using it immediately.</p>
+<p>No. ToolsHall requires no signup, no account creation, and no email address. Simply visit any tool and start using it immediately.</p>
 </div>
 </details>
 
@@ -104,12 +104,12 @@ get_header();
 <details class="tg-faq-item">
 <summary class="tg-faq-question">What browsers are supported? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
-<p>Tool Acadmy works in all modern browsers including Google Chrome, Mozilla Firefox, Microsoft Edge, Safari, and Opera. We recommend Chrome for the best experience with video tools.</p>
+<p>ToolsHall works in all modern browsers including Google Chrome, Mozilla Firefox, Microsoft Edge, Safari, and Opera. We recommend Chrome for the best experience with video tools.</p>
 </div>
 </details>
 
 <details class="tg-faq-item">
-<summary class="tg-faq-question">How do I contact Tool Acadmy? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
+<summary class="tg-faq-question">How do I contact ToolsHall? <span class="tg-faq-chevron" aria-hidden="true"></span></summary>
 <div class="tg-faq-answer">
 <p>You can reach us via our <a href="contact/">Contact page</a>. We respond to all inquiries within 24-48 hours. For bug reports, please include the tool name and a description of the issue.</p>
 </div>
@@ -122,7 +122,7 @@ get_header();
 <h2>Get in Touch</h2>
 <p>Have a question, found a bug, or want to suggest a new tool? We would love to hear from you.</p>
 <p style="margin-bottom:20px">
-<strong>Email:</strong> contact@toolacadmy.com<br>
+<strong>Email:</strong> contact@toolshall.com<br>
 <strong>Response time:</strong> Within 24-48 hours<br>
 <strong>Location:</strong> Available worldwide
 </p>
