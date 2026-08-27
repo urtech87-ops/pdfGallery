@@ -1867,7 +1867,13 @@ function tg_get_the_excerpt_safe($length = 140)
    PHASE 9 — SEO / AEO / GEO OPTIMIZATION
    ============================================= */
 
-/* --- A3: Critical Meta Tags --- */
+/* --- A3: Critical Meta Tags ---
+
+   The og:/twitter: values below reuse the stored RankMath meta when it is
+   present (written by apply-toolshall-seo.php) so the social cards and the
+   search snippet never disagree. The hard-coded strings are fallbacks for
+   pages that have no stored meta yet.
+   --------------------------------------------------------------------- */
 function tg_add_seo_meta_tags()
 {
     if (is_admin())
@@ -1880,8 +1886,11 @@ function tg_add_seo_meta_tags()
 
     if (is_singular('tg_tool')) {
         global $post;
-        $title = get_the_title() . ' - Free Online Tool | Tool Acadmy';
-        $desc = wp_strip_all_tags(get_the_excerpt());
+        $stored_title = (string) get_post_meta(get_the_ID(), 'rank_math_title', true);
+        $stored_desc = (string) get_post_meta(get_the_ID(), 'rank_math_description', true);
+
+        $title = $stored_title !== '' ? $stored_title : get_the_title() . ' — Free Online Tool | ToolsHall';
+        $desc = $stored_desc !== '' ? $stored_desc : wp_strip_all_tags(get_the_excerpt());
         $url = get_permalink();
         $img = get_template_directory_uri() . '/assets/images/og-default.jpg';
 
@@ -1889,22 +1898,26 @@ function tg_add_seo_meta_tags()
         echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
         echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
         echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
-        echo '<meta property="og:site_name" content="Tool Acadmy">' . "\n";
+        echo '<meta property="og:site_name" content="ToolsHall">' . "\n";
         echo '<meta property="og:image" content="' . esc_url($img) . '">' . "\n";
         echo '<meta name="twitter:card" content="summary_large_image">' . "\n";
         echo '<meta name="twitter:title" content="' . esc_attr($title) . '">' . "\n";
         echo '<meta name="twitter:description" content="' . esc_attr($desc) . '">' . "\n";
         echo '<meta name="twitter:image" content="' . esc_url($img) . '">' . "\n";
     } elseif (is_front_page()) {
-        $title = 'Free Online Tools for PDF, Images, AI Writing & More | Tool Acadmy';
-        $desc = 'Tool Acadmy offers 150+ free online tools for PDF editing, image conversion, AI writing, video processing, file conversion and more. No signup required.';
+        $front_id = (int) get_option('page_on_front');
+        $stored_title = $front_id ? (string) get_post_meta($front_id, 'rank_math_title', true) : '';
+        $stored_desc = $front_id ? (string) get_post_meta($front_id, 'rank_math_description', true) : '';
+
+        $title = $stored_title !== '' ? $stored_title : 'Free Online Tools — PDF, Image, AI & Video | ToolsHall';
+        $desc = $stored_desc !== '' ? $stored_desc : '150+ free online tools for PDF, image, video, AI writing and file conversion. No signup, no downloads — everything runs in your browser. Fast, private, free forever.';
         $img = get_template_directory_uri() . '/assets/images/og-default.jpg';
 
         echo '<meta property="og:type" content="website">' . "\n";
         echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
         echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
         echo '<meta property="og:url" content="' . esc_url(home_url('/')) . '">' . "\n";
-        echo '<meta property="og:site_name" content="Tool Acadmy">' . "\n";
+        echo '<meta property="og:site_name" content="ToolsHall">' . "\n";
         echo '<meta property="og:image" content="' . esc_url($img) . '">' . "\n";
     }
 }
@@ -1979,38 +1992,67 @@ function tg_organization_schema()
 }
 add_action('wp_head', 'tg_organization_schema');
 
-/* --- C1: Dynamic Meta Titles & Descriptions (RankMath filters) --- */
+/* --- C1: Dynamic Meta Titles & Descriptions (RankMath filters) ---
+
+   IMPORTANT: these filters are FALLBACKS ONLY.
+
+   RankMath resolves a page's title/description from stored meta first
+   (post meta `rank_math_title` / `rank_math_description`, or the matching
+   term meta), then runs `rank_math/frontend/title` and
+   `rank_math/frontend/description` over the result. Because the filter runs
+   last, anything added here overrides the stored meta.
+
+   apply-toolshall-seo.php writes per-post and per-term ToolsHall meta, so
+   these filters only run where no meta has been stored yet — otherwise the
+   hand-written and formula-generated values would be silently discarded.
+   --------------------------------------------------------------------- */
 function tg_dynamic_meta()
 {
     if (is_singular('tg_tool')) {
-        $tool_name = get_the_title();
-        $excerpt = wp_strip_all_tags(get_the_excerpt());
-        $category = wp_get_post_terms(get_the_ID(), 'tool_category');
-        $cat_name = (!empty($category) && !is_wp_error($category)) ? $category[0]->name : 'Online';
+        $post_id = get_the_ID();
+        $stored_title = (string) get_post_meta($post_id, 'rank_math_title', true);
+        $stored_desc = (string) get_post_meta($post_id, 'rank_math_description', true);
 
-        $title = $tool_name . ' - Free Online ' . $cat_name . ' Tool | Tool Acadmy';
-        $desc = 'Use free ' . strtolower($tool_name) . ' online. ' . wp_trim_words($excerpt, 20) . ' No signup. 100% free.';
+        if ($stored_title === '' || $stored_desc === '') {
+            $tool_name = get_the_title();
+            $excerpt = wp_strip_all_tags(get_the_excerpt());
+            $category = wp_get_post_terms($post_id, 'tool_category');
+            $cat_name = (!empty($category) && !is_wp_error($category)) ? $category[0]->name : 'Online';
 
-        add_filter('rank_math/frontend/title', function () use ($title) {
-            return $title;
-        });
-        add_filter('rank_math/frontend/description', function () use ($desc) {
-            return $desc;
-        });
+            if ($stored_title === '') {
+                $title = $tool_name . ' - Free Online ' . $cat_name . ' Tool | ToolsHall';
+                add_filter('rank_math/frontend/title', function () use ($title) {
+                    return $title;
+                });
+            }
+
+            if ($stored_desc === '') {
+                $desc = 'Use free ' . strtolower($tool_name) . ' online. ' . wp_trim_words($excerpt, 20) . ' No signup. 100% free.';
+                add_filter('rank_math/frontend/description', function () use ($desc) {
+                    return $desc;
+                });
+            }
+        }
     }
 
     if (is_tax('tool_category')) {
         $term = get_queried_object();
-        $count = $term->count;
-        $title = 'Free Online ' . $term->name . ' Tools (' . $count . '+ Tools) | Tool Acadmy';
-        $desc = 'Browse ' . $count . '+ free online ' . strtolower($term->name) . ' tools. No download, no signup required. Works in any browser.';
+        $stored_title = (string) get_term_meta($term->term_id, 'rank_math_title', true);
+        $stored_desc = (string) get_term_meta($term->term_id, 'rank_math_description', true);
 
-        add_filter('rank_math/frontend/title', function () use ($title) {
-            return $title;
-        });
-        add_filter('rank_math/frontend/description', function () use ($desc) {
-            return $desc;
-        });
+        if ($stored_title === '') {
+            $title = 'Free Online ' . $term->name . ' (' . $term->count . '+ Tools) | ToolsHall';
+            add_filter('rank_math/frontend/title', function () use ($title) {
+                return $title;
+            });
+        }
+
+        if ($stored_desc === '') {
+            $desc = 'Browse ' . $term->count . '+ free online ' . strtolower($term->name) . '. No download, no signup required. Works in any browser.';
+            add_filter('rank_math/frontend/description', function () use ($desc) {
+                return $desc;
+            });
+        }
     }
 }
 add_action('wp', 'tg_dynamic_meta');
