@@ -20,7 +20,7 @@ function tg_reading_time($post_id) {
     <div class="tg-layout__main">
 
       <header class="tg-archive-header">
-        <h1 class="tg-archive-title"><?php esc_html_e('Tool Acadmy Blog &mdash; Guides, Tips &amp; Tutorials', 'toolsgallery'); ?></h1>
+        <h1 class="tg-archive-title"><?php esc_html_e('ToolsHall Blog &mdash; Guides, Tips &amp; Tutorials', 'toolsgallery'); ?></h1>
         <p class="tg-archive-desc"><?php esc_html_e('Free guides on PDF tools, image editing, AI writing, video conversion and more. Learn how to get the most out of our free online tools.', 'toolsgallery'); ?></p>
       </header>
 

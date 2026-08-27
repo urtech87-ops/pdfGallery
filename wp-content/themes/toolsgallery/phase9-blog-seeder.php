@@ -48,13 +48,13 @@ $posts = [
 <li><strong>Free to use</strong> — no subscription or payment needed</li>
 <li><strong>Works on any device</strong> — desktop, tablet, or phone</li>
 <li><strong>Fast</strong> — merge files in seconds, not minutes</li>
-<li><strong>Private</strong> — with browser-based tools like Tool Acadmy, your files never leave your device</li>
+<li><strong>Private</strong> — with browser-based tools like ToolsHall, your files never leave your device</li>
 </ul>
 
-<h2>How to Merge PDF Files on Tool Acadmy (Step-by-Step)</h2>
-<p>Tool Acadmy's free Merge PDF tool lets you combine unlimited PDFs directly in your browser. Here's how:</p>
+<h2>How to Merge PDF Files on ToolsHall (Step-by-Step)</h2>
+<p>ToolsHall's free Merge PDF tool lets you combine unlimited PDFs directly in your browser. Here's how:</p>
 <ol>
-<li><strong>Go to the Merge PDF tool</strong> at Tool Acadmy.</li>
+<li><strong>Go to the Merge PDF tool</strong> at ToolsHall.</li>
 <li><strong>Upload your PDF files</strong> — click "Drop your files here" or drag and drop multiple PDFs.</li>
 <li><strong>Arrange the order</strong> — drag files up or down to set the page order you want.</li>
 <li><strong>Click "Merge PDF"</strong> — the tool combines all files instantly.</li>
@@ -68,7 +68,7 @@ $posts = [
 </div>
 
 <h2>How to Merge PDF Files on Mobile</h2>
-<p>Tool Acadmy works perfectly on mobile browsers — Chrome, Safari, Firefox. Simply:</p>
+<p>ToolsHall works perfectly on mobile browsers — Chrome, Safari, Firefox. Simply:</p>
 <ol>
 <li>Open your mobile browser and visit the Merge PDF tool page.</li>
 <li>Tap "Browse" to select files from your phone's storage or cloud.</li>
@@ -83,16 +83,16 @@ $posts = [
 <h2>Common Questions About Merging PDFs</h2>
 
 <h3>Is it safe to merge PDFs online?</h3>
-<p>Yes — especially with Tool Acadmy, which processes all files locally in your browser. Your PDFs are never uploaded to any server, so there is zero privacy risk.</p>
+<p>Yes — especially with ToolsHall, which processes all files locally in your browser. Your PDFs are never uploaded to any server, so there is zero privacy risk.</p>
 
 <h3>Is there a file size limit?</h3>
-<p>Tool Acadmy's browser-based merger has no hard file size limit. Very large files (500MB+) may take longer to process depending on your device's RAM.</p>
+<p>ToolsHall's browser-based merger has no hard file size limit. Very large files (500MB+) may take longer to process depending on your device's RAM.</p>
 
 <h3>Can I merge password-protected PDFs?</h3>
 <p>You'll need to unlock the PDF first (use our free Unlock PDF tool), then merge the unlocked copies.</p>
 
 <h3>Will merging reduce PDF quality?</h3>
-<p>No. Tool Acadmy's merger preserves all original content, fonts, images, and formatting at full quality.</p>
+<p>No. ToolsHall's merger preserves all original content, fonts, images, and formatting at full quality.</p>
 
 <h3>How many PDFs can I merge at once?</h3>
 <p>You can merge as many PDFs as your browser memory allows — typically 20–50 files with ease.</p>
@@ -105,7 +105,7 @@ $posts = [
 </ul>
 
 <h2>Conclusion</h2>
-<p>Merging PDFs online has never been easier or more private. Tool Acadmy's free Merge PDF tool runs entirely in your browser, combines files in seconds, and never touches your data. Next time you need to combine PDF documents, skip the expensive software — use Tool Acadmy for free.</p>
+<p>Merging PDFs online has never been easier or more private. ToolsHall's free Merge PDF tool runs entirely in your browser, combines files in seconds, and never touches your data. Next time you need to combine PDF documents, skip the expensive software — use ToolsHall for free.</p>
 EOC,
     ],
     [
@@ -128,9 +128,9 @@ EOC,
 
 <h2>How to Compress a PDF Without Losing Quality — Free Methods</h2>
 
-<h3>Method 1: Use Tool Acadmy's Free PDF Compressor (Recommended)</h3>
+<h3>Method 1: Use ToolsHall's Free PDF Compressor (Recommended)</h3>
 <ol>
-<li>Go to the <a href="/tool/compress-pdf/">Compress PDF tool</a> on Tool Acadmy.</li>
+<li>Go to the <a href="/tool/compress-pdf/">Compress PDF tool</a> on ToolsHall.</li>
 <li>Upload your PDF file.</li>
 <li>Select your compression level: Low (best quality), Medium (balanced), or High (smallest size).</li>
 <li>Click "Compress PDF" and download the result.</li>
@@ -160,7 +160,7 @@ EOC,
 <p>Note: Mac's built-in filter can be aggressive and may visibly reduce image quality.</p>
 
 <h2>How Much Can You Compress a PDF?</h2>
-<p>Typical results with Tool Acadmy's compressor:</p>
+<p>Typical results with ToolsHall's compressor:</p>
 <ul>
 <li>Image-heavy PDFs: 60–85% size reduction</li>
 <li>Scanned documents: 50–70% reduction</li>
@@ -184,7 +184,7 @@ EOC,
 <p>You can, but each pass yields diminishing returns. Compress once at your desired quality level for the best result.</p>
 
 <h3>What's the difference between online and desktop PDF compressors?</h3>
-<p>Desktop tools like Adobe Acrobat Pro offer more control over individual settings (DPI, color spaces, etc.) but cost money. Online tools like Tool Acadmy's compressor handle 95% of everyday compression needs for free, instantly.</p>
+<p>Desktop tools like Adobe Acrobat Pro offer more control over individual settings (DPI, color spaces, etc.) but cost money. Online tools like ToolsHall's compressor handle 95% of everyday compression needs for free, instantly.</p>
 
 <h2>Related Tools</h2>
 <ul>
@@ -194,7 +194,7 @@ EOC,
 </ul>
 
 <h2>Conclusion</h2>
-<p>Compressing a PDF without losing quality is easy with the right tool. Tool Acadmy's free PDF compressor delivers professional-grade compression directly in your browser, with no file uploads and no signup. Try it now and reduce your PDF file size by up to 85%.</p>
+<p>Compressing a PDF without losing quality is easy with the right tool. ToolsHall's free PDF compressor delivers professional-grade compression directly in your browser, with no file uploads and no signup. Try it now and reduce your PDF file size by up to 85%.</p>
 EOC,
     ],
     [
@@ -215,7 +215,7 @@ EOC,
 <li><strong>Social media content</strong> — create eye-catching graphics quickly</li>
 </ul>
 
-<h2>How to Remove an Image Background for Free on Tool Acadmy</h2>
+<h2>How to Remove an Image Background for Free on ToolsHall</h2>
 <ol>
 <li>Go to the <a href="/tool/background-remover/">Background Remover tool</a>.</li>
 <li>Upload your image (supports JPG, PNG, WebP).</li>
@@ -248,13 +248,13 @@ EOC,
 <h2>Frequently Asked Questions</h2>
 
 <h3>Is the background remover completely free?</h3>
-<p>Yes. Tool Acadmy's background remover is 100% free, with no usage limits, no watermarks, and no signup required.</p>
+<p>Yes. ToolsHall's background remover is 100% free, with no usage limits, no watermarks, and no signup required.</p>
 
 <h3>What image formats are supported?</h3>
 <p>JPG, PNG, WebP, and most common image formats are supported.</p>
 
 <h3>Will my image be uploaded to a server?</h3>
-<p>No. Tool Acadmy processes images locally in your browser. Your photos never leave your device.</p>
+<p>No. ToolsHall processes images locally in your browser. Your photos never leave your device.</p>
 
 <h3>What resolution should my image be?</h3>
 <p>Any resolution works, but higher resolution (1MP+) gives cleaner edges around detailed subjects like hair.</p>
@@ -267,7 +267,7 @@ EOC,
 </ul>
 
 <h2>Conclusion</h2>
-<p>Removing image backgrounds no longer requires Photoshop or expensive subscriptions. Tool Acadmy's free background remover delivers accurate, clean results for product photos, portraits, and more — entirely in your browser, with no signup required. Try it now and see the difference in seconds.</p>
+<p>Removing image backgrounds no longer requires Photoshop or expensive subscriptions. ToolsHall's free background remover delivers accurate, clean results for product photos, portraits, and more — entirely in your browser, with no signup required. Try it now and see the difference in seconds.</p>
 EOC,
     ],
     [
@@ -288,7 +288,7 @@ EOC,
 
 <h2>How to Convert JPG to PDF Free Online — Step by Step</h2>
 <ol>
-<li>Go to the <a href="/tool/jpg-to-pdf/">JPG to PDF converter</a> on Tool Acadmy.</li>
+<li>Go to the <a href="/tool/jpg-to-pdf/">JPG to PDF converter</a> on ToolsHall.</li>
 <li>Click "Drop your file here" or drag and drop one or more JPG images.</li>
 <li>Arrange the image order if you're converting multiple images.</li>
 <li>Select your page size (A4, Letter, or match image size) and orientation.</li>
@@ -303,7 +303,7 @@ EOC,
 <h2>How to Convert JPG to PDF on iPhone and Android</h2>
 <h3>On iPhone (iOS Safari):</h3>
 <ol>
-<li>Open Safari and go to Tool Acadmy's JPG to PDF tool.</li>
+<li>Open Safari and go to ToolsHall's JPG to PDF tool.</li>
 <li>Tap "Browse" and select your photos from Camera Roll.</li>
 <li>Tap "Convert to PDF" and then "Download".</li>
 <li>The PDF is saved to your Files app.</li>
@@ -318,7 +318,7 @@ EOC,
 </ol>
 
 <h2>How to Convert Multiple JPG Images to One PDF</h2>
-<p>Tool Acadmy's converter supports multi-file upload. Simply:</p>
+<p>ToolsHall's converter supports multi-file upload. Simply:</p>
 <ol>
 <li>Enable "multi" mode by uploading more than one image.</li>
 <li>All images are combined into a single PDF in the order you arrange them.</li>
@@ -326,7 +326,7 @@ EOC,
 </ol>
 
 <h2>What Image Formats Can Be Converted to PDF?</h2>
-<p>In addition to JPG (JPEG), Tool Acadmy also supports:</p>
+<p>In addition to JPG (JPEG), ToolsHall also supports:</p>
 <ul>
 <li>PNG to PDF</li>
 <li>WebP to PDF</li>
@@ -340,7 +340,7 @@ EOC,
 <p>Yes, completely free. No subscription, no watermarks, no signup.</p>
 
 <h3>Will the image quality be preserved?</h3>
-<p>Yes. Tool Acadmy embeds your images at their original resolution. The PDF output is as sharp as the source image.</p>
+<p>Yes. ToolsHall embeds your images at their original resolution. The PDF output is as sharp as the source image.</p>
 
 <h3>Is there a file size limit?</h3>
 <p>There's no hard limit. Very large images (20MB+) may take a few seconds to process, but there's no cap.</p>
@@ -356,7 +356,7 @@ EOC,
 </ul>
 
 <h2>Conclusion</h2>
-<p>Converting JPG to PDF is simple and free with Tool Acadmy. The tool works in any browser on any device — no app, no software, no signup. Whether you have one image or fifty, you'll have a professional PDF ready to share in seconds.</p>
+<p>Converting JPG to PDF is simple and free with ToolsHall. The tool works in any browser on any device — no app, no software, no signup. Whether you have one image or fifty, you'll have a professional PDF ready to share in seconds.</p>
 EOC,
     ],
     [
@@ -371,7 +371,7 @@ EOC,
 <h2>What Is a Grammar Checker?</h2>
 <p>A grammar checker is a tool that analyzes text for grammatical errors, spelling mistakes, punctuation issues, and style problems. Modern AI-powered grammar checkers go further, identifying awkward phrasing, passive voice overuse, run-on sentences, and readability issues.</p>
 
-<h2>How to Use Tool Acadmy's Free Grammar Checker</h2>
+<h2>How to Use ToolsHall's Free Grammar Checker</h2>
 <ol>
 <li>Go to the <a href="/tool/grammar-checker/">Grammar Checker tool</a>.</li>
 <li>Paste or type your text into the input box.</li>
@@ -423,7 +423,7 @@ EOC,
 <h2>Frequently Asked Questions</h2>
 
 <h3>Is the grammar checker completely free?</h3>
-<p>Yes. Tool Acadmy's grammar checker is 100% free with no word limits, no signup, and no watermarks on output.</p>
+<p>Yes. ToolsHall's grammar checker is 100% free with no word limits, no signup, and no watermarks on output.</p>
 
 <h3>Does the grammar checker work for non-native English speakers?</h3>
 <p>Absolutely. The tool is designed to help both native and non-native speakers improve their English writing.</p>
@@ -442,7 +442,7 @@ EOC,
 </ul>
 
 <h2>Conclusion</h2>
-<p>Good grammar is the foundation of clear, professional communication. Tool Acadmy's free online grammar checker catches the errors that spell-check misses — grammatical issues, style problems, and clarity improvements — helping you write better in minutes. Best of all, it's completely free, works in any browser, and requires no signup. Check your writing today.</p>
+<p>Good grammar is the foundation of clear, professional communication. ToolsHall's free online grammar checker catches the errors that spell-check misses — grammatical issues, style problems, and clarity improvements — helping you write better in minutes. Best of all, it's completely free, works in any browser, and requires no signup. Check your writing today.</p>
 EOC,
     ],
 ];

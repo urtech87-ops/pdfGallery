@@ -12,12 +12,12 @@ get_header();
         <h1>Privacy Policy</h1>
         <p class="tg-legal-updated">Last updated: June 2025</p>
 
-        <p>Tool Acadmy ("we", "us", or "our") operates the website toolacadmy.com. This Privacy Policy explains how we
+        <p>ToolsHall ("we", "us", or "our") operates the website toolshall.com. This Privacy Policy explains how we
             collect, use, and protect information when you use our free online tools and website. Please read this
             policy carefully to understand our practices.</p>
 
         <h2>1. The Short Version</h2>
-        <p>Tool Acadmy is built on a <strong>privacy-first architecture</strong>. The vast majority of our tools process
+        <p>ToolsHall is built on a <strong>privacy-first architecture</strong>. The vast majority of our tools process
             your files entirely within your web browser using client-side JavaScript. Your files never leave your
             device. We do not upload, store, or have access to any documents, images, or videos you process using our
             tools.</p>
@@ -33,7 +33,7 @@ get_header();
         </ul>
 
         <h2>3. Information We Automatically Collect</h2>
-        <p>When you visit toolacadmy.com, we automatically collect anonymous usage data through Google Analytics:</p>
+        <p>When you visit toolshall.com, we automatically collect anonymous usage data through Google Analytics:</p>
         <ul>
             <li>Browser type and version</li>
             <li>Operating system</li>
@@ -62,7 +62,7 @@ get_header();
         </ul>
 
         <h2>6. Cookies</h2>
-        <p>Tool Acadmy uses the following types of cookies:</p>
+        <p>ToolsHall uses the following types of cookies:</p>
 
         <h3>Essential Cookies</h3>
         <p>We store your theme preference (dark or light mode) in your browser's localStorage. This data never leaves
@@ -87,7 +87,7 @@ get_header();
             to our servers.</p>
 
         <h2>7. Third-Party Services</h2>
-        <p>Tool Acadmy uses the following third-party services, each governed by their own privacy policies:</p>
+        <p>ToolsHall uses the following third-party services, each governed by their own privacy policies:</p>
         <ul>
             <li><strong>Google Analytics</strong> — Anonymous website traffic analysis. <a
                     href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy
@@ -116,9 +116,9 @@ get_header();
             by design. Contact form data is stored in our WordPress database with standard security measures.</p>
 
         <h2>10. Children's Privacy</h2>
-        <p>Tool Acadmy does not knowingly collect personal information from children under the age of 13. Our tools are
+        <p>ToolsHall does not knowingly collect personal information from children under the age of 13. Our tools are
             general-purpose utilities suitable for all ages. If you believe a child under 13 has submitted personal
-            information through our contact form, please contact us immediately at contact@toolacadmy.com and we will
+            information through our contact form, please contact us immediately at contact@toolshall.com and we will
             delete it promptly.</p>
 
         <h2>11. Your Rights</h2>
@@ -130,7 +130,7 @@ get_header();
             <li><strong>Right to opt out of personalized ads</strong> — Visit Google Ad Settings</li>
             <li><strong>Right to complain</strong> — Lodge a complaint with your local data protection authority</li>
         </ul>
-        <p>To exercise any of these rights, contact us at <strong>contact@toolacadmy.com</strong>.</p>
+        <p>To exercise any of these rights, contact us at <strong>contact@toolshall.com</strong>.</p>
 
         <h2>12. GDPR Compliance (European Users)</h2>
         <p>If you are located in the European Economic Area (EEA), you have additional rights under the General Data
@@ -141,16 +141,16 @@ get_header();
         <h2>13. Changes to This Policy</h2>
         <p>We may update this Privacy Policy from time to time to reflect changes in our practices or for legal and
             regulatory reasons. Changes will be posted on this page with an updated "Last updated" date at the top. We
-            encourage you to review this policy periodically. Continued use of Tool Acadmy after changes are posted
+            encourage you to review this policy periodically. Continued use of ToolsHall after changes are posted
             constitutes acceptance of the updated policy.</p>
 
         <h2>14. Contact Us</h2>
         <p>If you have any questions, concerns, or requests regarding this Privacy Policy or how we handle your data,
             please contact us:</p>
         <p>
-            <strong>Email:</strong> contact@toolacadmy.com<br>
-            <strong>Contact form:</strong> <a href="/contact/">toolacadmy.com/contact</a><br>
-            <strong>Website:</strong> toolacadmy.com
+            <strong>Email:</strong> contact@toolshall.com<br>
+            <strong>Contact form:</strong> <a href="/contact/">toolshall.com/contact</a><br>
+            <strong>Website:</strong> toolshall.com
         </p>
 
     </div>

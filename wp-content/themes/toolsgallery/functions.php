@@ -1,6 +1,6 @@
 <?php
 /**
- * Tool Acadmy — functions.php
+ * ToolsHall — functions.php
  */
 
 defined('ABSPATH') || exit;
@@ -1746,7 +1746,7 @@ function tg_tool_json_ld()
         'url' => $tool_url,
         'name' => $title . ' - Free Online Tool',
         'description' => $excerpt,
-        'isPartOf' => ['@id' => 'https://toolacadmy.com/#website'],
+        'isPartOf' => ['@id' => 'https://toolshall.com/#website'],
         'breadcrumb' => ['@id' => $tool_url . '#breadcrumb'],
         'dateModified' => get_the_modified_date('c', $post_id),
         'datePublished' => get_the_date('c', $post_id),
@@ -1777,7 +1777,7 @@ function tg_tool_json_ld()
         'featureList' => $feature_list ?: ['Free to use', 'No signup required', 'Browser-based', 'Privacy-first'],
         'isAccessibleForFree' => true,
         'browserRequirements' => 'Requires JavaScript. Works in Chrome, Firefox, Safari, Edge.',
-        'provider' => ['@id' => 'https://toolacadmy.com/#organization'],
+        'provider' => ['@id' => 'https://toolshall.com/#organization'],
     ];
 
     /* 3. HowTo */
@@ -1953,35 +1953,35 @@ function tg_organization_schema()
         '@graph' => [
             [
                 '@type' => 'Organization',
-                '@id' => 'https://toolacadmy.com/#organization',
-                'name' => 'Tool Acadmy',
-                'url' => 'https://toolacadmy.com',
+                '@id' => 'https://toolshall.com/#organization',
+                'name' => 'ToolsHall',
+                'url' => 'https://toolshall.com',
                 'logo' => [
                     '@type' => 'ImageObject',
                     'url' => get_template_directory_uri() . '/assets/images/logo.png',
                     'width' => 200,
                     'height' => 60,
                 ],
-                'description' => 'Tool Acadmy provides 150+ free online tools for PDF, image, AI writing, video, file conversion and utility tasks.',
+                'description' => 'ToolsHall provides 150+ free online tools for PDF, image, AI writing, video, file conversion and utility tasks.',
                 'foundingDate' => '2025',
                 'sameAs' => [
-                    'https://twitter.com/toolacadmy',
-                    'https://facebook.com/toolacadmy',
-                    'https://linkedin.com/company/toolacadmy',
+                    'https://twitter.com/toolshall',
+                    'https://facebook.com/toolshall',
+                    'https://linkedin.com/company/toolshall',
                 ],
             ],
             [
                 '@type' => 'WebSite',
-                '@id' => 'https://toolacadmy.com/#website',
-                'url' => 'https://toolacadmy.com',
-                'name' => 'Tool Acadmy',
+                '@id' => 'https://toolshall.com/#website',
+                'url' => 'https://toolshall.com',
+                'name' => 'ToolsHall',
                 'description' => '150+ Free Online Tools',
-                'publisher' => ['@id' => 'https://toolacadmy.com/#organization'],
+                'publisher' => ['@id' => 'https://toolshall.com/#organization'],
                 'potentialAction' => [
                     '@type' => 'SearchAction',
                     'target' => [
                         '@type' => 'EntryPoint',
-                        'urlTemplate' => 'https://toolacadmy.com/tools/?s={search_term_string}',
+                        'urlTemplate' => 'https://toolshall.com/tools/?s={search_term_string}',
                     ],
                     'query-input' => 'required name=search_term_string',
                 ],
@@ -2088,8 +2088,8 @@ add_action('send_headers', 'tg_ai_crawler_headers');
 function tg_ai_meta_tags()
 {
     echo '<meta name="content-type" content="tool, utility, free-tool">' . "\n";
-    echo '<meta name="application-name" content="Tool Acadmy">' . "\n";
-    echo '<meta name="description-for-ai" content="Tool Acadmy provides free browser-based tools for PDF, image, video, file conversion, AI writing and utility tasks. All tools are free, require no signup, and process files locally.">' . "\n";
+    echo '<meta name="application-name" content="ToolsHall">' . "\n";
+    echo '<meta name="description-for-ai" content="ToolsHall provides free browser-based tools for PDF, image, video, file conversion, AI writing and utility tasks. All tools are free, require no signup, and process files locally.">' . "\n";
 }
 add_action('wp_head', 'tg_ai_meta_tags');
 
@@ -2141,9 +2141,9 @@ function tg_handle_contact_form()
 
     wp_mail(
         get_option('admin_email'),
-        '[Tool Acadmy Contact] ' . $subject . ' from ' . $name,
+        '[ToolsHall Contact] ' . $subject . ' from ' . $name,
         "Name: $name\nEmail: $email\nSubject: $subject\n\nMessage:\n$message",
-        ['From: noreply@toolacadmy.com']
+        ['From: noreply@toolshall.com']
     );
 
     wp_redirect(home_url('/contact/?sent=1'));

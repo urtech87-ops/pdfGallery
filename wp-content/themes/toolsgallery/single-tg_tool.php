@@ -531,7 +531,7 @@ while (have_posts()):
                 <section class="tg-tool-section tg-why-use" id="why-use">
                     <h2><?php esc_html_e('Why Use', 'toolsgallery'); ?>     <?php the_title(); ?>
                         <?php esc_html_e('Online?', 'toolsgallery'); ?></h2>
-                    <p><?php the_title(); ?> by Tool Acadmy is a free browser-based tool that requires no signup, no
+                    <p><?php the_title(); ?> by ToolsHall is a free browser-based tool that requires no signup, no
                         download, and no installation. Your files are processed locally in your browser and never uploaded
                         to any server, ensuring complete privacy.</p>
                     <?php if (!empty($features)): ?>
@@ -549,7 +549,7 @@ while (have_posts()):
                     <h2>Key Benefits of Using This Free <?php echo esc_html($cat ? $cat->name : 'Online'); ?> Tool</h2>
                     <ul class="tg-benefits-list">
                         <li><strong>Completely free</strong> &mdash; No hidden fees, no premium tier, no credit card
-                            required. Tool Acadmy is free to use forever.</li>
+                            required. ToolsHall is free to use forever.</li>
                         <li><strong>No account needed</strong> &mdash; Start using <?php the_title(); ?> immediately without
                             registering or entering your email address.</li>
                         <li><strong>Privacy guaranteed</strong> &mdash; All processing happens locally in your browser. We

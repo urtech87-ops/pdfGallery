@@ -10,7 +10,7 @@ get_header();
 <div class="tg-container" style="padding-top:2rem;padding-bottom:4rem;">
 
   <h1><?php the_title(); ?></h1>
-  <p><?php esc_html_e('A complete list of all free online tools available on Tool Acadmy, organized by category.', 'toolsgallery'); ?></p>
+  <p><?php esc_html_e('A complete list of all free online tools available on ToolsHall, organized by category.', 'toolsgallery'); ?></p>
 
   <?php
   $categories = get_terms([

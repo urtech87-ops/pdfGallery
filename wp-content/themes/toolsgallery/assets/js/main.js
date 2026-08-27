@@ -1,4 +1,4 @@
-/* Tool Acadmy — main.js */
+/* ToolsHall — main.js */
 (function () {
   'use strict';
 
