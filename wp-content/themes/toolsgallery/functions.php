@@ -1867,12 +1867,364 @@ function tg_get_the_excerpt_safe($length = 140)
    PHASE 9 — SEO / AEO / GEO OPTIMIZATION
    ============================================= */
 
+/* --- A2b: Theme-level <title> + <meta name="description"> guarantee -------
+
+   The site's title and description used to depend entirely on RankMath: the
+   theme emitted its own tags only when RANK_MATH_VERSION was undefined.
+   RankMath, though, boots its whole front end only when its registration is
+   valid — rank-math.php::init_frontend() returns early on
+   $container['registration']->invalid, which is true whenever the site is
+   neither connected to rankmath.com nor has the setup wizard explicitly
+   skipped. On such a site the constant is defined, RankMath\Frontend\Head is
+   never constructed, so RankMath prints no title filter and no description,
+   and the theme stayed silent as well: every page shipped WordPress's bare
+   <title> and no <meta name="description"> at all.
+
+   The helpers below read exactly the meta RankMath would have used — the
+   rank_math_title / rank_math_description post meta, the matching term meta
+   for tool_category archives, and the homepage_title / homepage_description
+   keys of the rank-math-options-titles option when the homepage is the blog
+   index — and render it themselves, with a fallback for everything that has
+   nothing stored, so no page is ever left without a title or a description.
+
+   Duplicates are avoided by asking at render time whether RankMath's front
+   end is really running (tg_rank_math_head_active()) instead of whether the
+   plugin file is merely loaded. Once RankMath is reconnected it takes the
+   title back (its pre_get_document_title filter runs at priority 15, ours at
+   20 and only fills a value nobody else set) and the description (we skip
+   our own tag entirely).
+   --------------------------------------------------------------------- */
+
+/**
+ * Is RankMath's front end actually emitting head tags on this request?
+ *
+ * RankMath\Frontend\Head is constructed on `wp` (Frontend::integrations()),
+ * and it is that constructor which registers the rank_math/head actions that
+ * print the meta description and installs the title filter. Testing for
+ * those, rather than for RANK_MATH_VERSION, is what tells us whether
+ * RankMath is really outputting anything on this page.
+ *
+ * @return bool
+ */
+function tg_rank_math_head_active()
+{
+    if (!defined('RANK_MATH_VERSION') || !function_exists('rank_math')) {
+        return false;
+    }
+    if (has_action('rank_math/head')) {
+        return true;
+    }
+    $rank_math = rank_math();
+    return is_object($rank_math) && isset($rank_math->head);
+}
+
+/**
+ * Expand the RankMath %variables% that may sit inside stored meta.
+ *
+ * RankMath's own replacement engine is unavailable when its front end is
+ * disabled (the variables manager is built after the registration check), so
+ * the handful of variables that realistically appear in stored ToolsHall
+ * meta are expanded here and any unknown %var% is dropped rather than
+ * printed raw.
+ *
+ * @param string             $text   Raw stored value.
+ * @param WP_Post|WP_Term|null $object Object the value belongs to.
+ * @return string
+ */
+function tg_seo_replace_vars($text, $object = null)
+{
+    $text = (string) $text;
+    if ($text === '' || strpos($text, '%') === false) {
+        return $text;
+    }
+
+    $name = '';
+    $excerpt = '';
+    if ($object instanceof WP_Post) {
+        $name = get_the_title($object);
+        $excerpt = $object->post_excerpt !== '' ? $object->post_excerpt : $object->post_content;
+    } elseif ($object instanceof WP_Term) {
+        $name = $object->name;
+        $excerpt = $object->description;
+    }
+    $excerpt = wp_trim_words(wp_strip_all_tags((string) $excerpt), 30, '');
+
+    $text = strtr($text, [
+        '%title%' => $name,
+        '%term%' => $name,
+        '%name%' => $name,
+        '%excerpt%' => $excerpt,
+        '%excerpt_only%' => $excerpt,
+        '%sitename%' => get_bloginfo('name'),
+        '%sitedesc%' => get_bloginfo('description'),
+        '%sep%' => '|',
+        '%currentyear%' => gmdate('Y'),
+        '%currentmonth%' => gmdate('F'),
+        '%currentdate%' => gmdate('j F Y'),
+    ]);
+
+    // Drop anything left over (%page%, %customfield(x)%, …) so no raw
+    // variable ever reaches the page source.
+    $text = preg_replace('/%[a-z0-9_-]+(\([^)]*\))?%/i', '', $text);
+
+    return trim(preg_replace('/\s{2,}/', ' ', $text), " \t\n\r\0\x0B|-");
+}
+
+/**
+ * Normalise a description: strip tags, collapse whitespace, optionally cap.
+ *
+ * @param string $text Raw description.
+ * @param int    $max  Character cap; 0 leaves stored copy untouched.
+ * @return string
+ */
+function tg_seo_clean_description($text, $max = 0)
+{
+    $text = trim(preg_replace('/\s+/', ' ', wp_strip_all_tags((string) $text, true)));
+    if ($text === '' || $max <= 0) {
+        return $text;
+    }
+
+    $length = function_exists('mb_strlen') ? mb_strlen($text) : strlen($text);
+    if ($length <= $max) {
+        return $text;
+    }
+
+    return rtrim(wp_html_excerpt($text, $max, ''), " ,.;:-") . '…';
+}
+
+/**
+ * Fallback SEO title for the current query, used when nothing is stored.
+ *
+ * Mirrors the copy tg_dynamic_meta() feeds to RankMath so the rendered title
+ * is identical whichever of the two ends up printing it.
+ *
+ * @return string
+ */
+function tg_seo_fallback_title()
+{
+    $site = get_bloginfo('name');
+
+    if (is_front_page()) {
+        return 'Free Online Tools — PDF, Image, AI & Video | ' . $site;
+    }
+
+    if (is_home()) {
+        return 'Blog — Free Tool Guides & Tutorials | ' . $site;
+    }
+
+    if (is_singular('tg_tool')) {
+        $terms = wp_get_post_terms(get_the_ID(), 'tool_category');
+        if (!empty($terms) && !is_wp_error($terms)) {
+            return get_the_title() . ' - Free Online ' . $terms[0]->name . ' Tool | ' . $site;
+        }
+        return get_the_title() . ' - Free Online Tool | ' . $site;
+    }
+
+    if (is_singular()) {
+        return get_the_title() . ' | ' . $site;
+    }
+
+    if (is_tax() || is_category() || is_tag()) {
+        $term = get_queried_object();
+        if ($term instanceof WP_Term) {
+            if ($term->taxonomy === 'tool_category') {
+                return 'Free Online ' . $term->name . ' (' . (int) $term->count . '+ Tools) | ' . $site;
+            }
+            return $term->name . ' | ' . $site;
+        }
+    }
+
+    if (is_search()) {
+        return 'Search results for "' . get_search_query() . '" | ' . $site;
+    }
+
+    if (is_404()) {
+        return 'Page not found | ' . $site;
+    }
+
+    return '';
+}
+
+/**
+ * Fallback meta description for the current query.
+ *
+ * @return string
+ */
+function tg_seo_fallback_description()
+{
+    if (is_front_page()) {
+        return '150+ free online tools for PDF, image, video, AI writing and file conversion. No signup, no downloads — everything runs in your browser. Fast, private, free forever.';
+    }
+
+    if (is_home()) {
+        return 'Guides, tutorials and how-tos for working with PDFs, images, video and AI writing — from the team behind ' . get_bloginfo('name') . "'s free browser-based tools.";
+    }
+
+    if (is_singular('tg_tool')) {
+        $excerpt = wp_trim_words(wp_strip_all_tags(get_the_excerpt()), 20);
+        return tg_seo_clean_description('Use free ' . strtolower(get_the_title()) . ' online. ' . $excerpt . ' No signup. 100% free.', 160);
+    }
+
+    if (is_singular()) {
+        $post = get_queried_object();
+        $source = ($post instanceof WP_Post && $post->post_excerpt !== '') ? $post->post_excerpt : get_the_excerpt();
+        return tg_seo_clean_description($source, 160);
+    }
+
+    if (is_tax() || is_category() || is_tag()) {
+        $term = get_queried_object();
+        if ($term instanceof WP_Term) {
+            if ($term->description !== '') {
+                return tg_seo_clean_description($term->description, 160);
+            }
+            if ($term->taxonomy === 'tool_category') {
+                return 'Browse ' . (int) $term->count . '+ free online ' . strtolower($term->name) . '. No download, no signup required. Works in any browser.';
+            }
+            return tg_seo_clean_description('Browse everything filed under ' . $term->name . ' on ' . get_bloginfo('name') . '.', 160);
+        }
+    }
+
+    return '';
+}
+
+/**
+ * Resolve the stored SEO title + description for the current request.
+ *
+ * Source of truth per page type:
+ *   front page (static)   -> post meta of page_on_front
+ *   front page (blog)     -> rank-math-options-titles homepage_* keys
+ *   blog index page       -> post meta of page_for_posts
+ *   singular (tool/page/post) -> post meta of the post
+ *   term archives         -> term meta of the queried term
+ *
+ * Anything without stored meta falls back to tg_seo_fallback_*().
+ *
+ * @return array{title:string,description:string}
+ */
+function tg_get_seo_meta()
+{
+    static $cache = null;
+    if (is_array($cache)) {
+        return $cache;
+    }
+
+    $title = '';
+    $description = '';
+    $object = null;
+
+    if (is_front_page()) {
+        $front_id = (int) get_option('page_on_front');
+        if ($front_id > 0) {
+            $object = get_post($front_id);
+            $title = (string) get_post_meta($front_id, 'rank_math_title', true);
+            $description = (string) get_post_meta($front_id, 'rank_math_description', true);
+        } else {
+            // Blog-index homepage: RankMath keeps this copy in its Titles &
+            // Meta option rather than in post meta.
+            $options = get_option('rank-math-options-titles', []);
+            if (is_array($options)) {
+                $title = isset($options['homepage_title']) ? (string) $options['homepage_title'] : '';
+                $description = isset($options['homepage_description']) ? (string) $options['homepage_description'] : '';
+            }
+        }
+    } elseif (is_home()) {
+        $blog_id = (int) get_option('page_for_posts');
+        if ($blog_id > 0) {
+            $object = get_post($blog_id);
+            $title = (string) get_post_meta($blog_id, 'rank_math_title', true);
+            $description = (string) get_post_meta($blog_id, 'rank_math_description', true);
+        }
+    } elseif (is_singular()) {
+        $post_id = (int) get_queried_object_id();
+        if ($post_id > 0) {
+            $object = get_post($post_id);
+            $title = (string) get_post_meta($post_id, 'rank_math_title', true);
+            $description = (string) get_post_meta($post_id, 'rank_math_description', true);
+        }
+    } elseif (is_tax() || is_category() || is_tag()) {
+        $term = get_queried_object();
+        if ($term instanceof WP_Term) {
+            $object = $term;
+            $title = (string) get_term_meta($term->term_id, 'rank_math_title', true);
+            $description = (string) get_term_meta($term->term_id, 'rank_math_description', true);
+        }
+    }
+
+    $title = tg_seo_replace_vars($title, $object);
+    $description = tg_seo_clean_description(tg_seo_replace_vars($description, $object));
+
+    if ($title === '') {
+        $title = tg_seo_fallback_title();
+    }
+    if ($description === '') {
+        $description = tg_seo_fallback_description();
+    }
+
+    $cache = [
+        'title' => $title,
+        'description' => $description,
+    ];
+
+    return $cache;
+}
+
+/**
+ * Render the stored SEO title in <title>, whatever RankMath is doing.
+ *
+ * Runs after RankMath's own pre_get_document_title filter (priority 15) and
+ * only fills in a title nobody else supplied, so there is never a fight over
+ * the tag — and, because this filters WordPress's single title tag rather
+ * than printing one, never a second <title> either.
+ *
+ * @param string $title Title set by an earlier filter, '' if none.
+ * @return string
+ */
+function tg_filter_document_title($title)
+{
+    if (is_admin() || is_feed() || $title !== '') {
+        return $title;
+    }
+
+    $meta = tg_get_seo_meta();
+
+    return $meta['title'] !== '' ? $meta['title'] : $title;
+}
+add_filter('pre_get_document_title', 'tg_filter_document_title', 20);
+
+/**
+ * Print exactly one <meta name="description"> from the stored meta.
+ *
+ * Skipped when RankMath's front end is live, since it prints its own from
+ * the same values; the static guard keeps a second call from doubling the
+ * tag.
+ */
+function tg_output_meta_description()
+{
+    static $printed = false;
+
+    if ($printed || is_admin() || is_feed() || tg_rank_math_head_active()) {
+        return;
+    }
+
+    $meta = tg_get_seo_meta();
+    if ($meta['description'] === '') {
+        return;
+    }
+
+    $printed = true;
+    echo '<meta name="description" content="' . esc_attr($meta['description']) . '">' . "\n";
+}
+
 /* --- A3: Critical Meta Tags ---
 
    The og:/twitter: values below reuse the stored RankMath meta when it is
    present (written by apply-toolshall-seo.php) so the social cards and the
    search snippet never disagree. The hard-coded strings are fallbacks for
    pages that have no stored meta yet.
+
+   The <meta name="description"> is emitted here too, via
+   tg_output_meta_description() (see A2b above), independently of whether
+   RankMath is installed — only whether it is actually rendering.
    --------------------------------------------------------------------- */
 function tg_add_seo_meta_tags()
 {
@@ -1883,6 +2235,13 @@ function tg_add_seo_meta_tags()
     echo '<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">' . "\n";
     echo '<meta name="googlebot" content="index,follow">' . "\n";
     echo '<meta name="bingbot" content="index,follow">' . "\n";
+
+    /* Deliberately outside the RANK_MATH_VERSION check below: the
+       description has to be printed whenever RankMath is not printing one,
+       which includes the case where the plugin is loaded but its front end
+       never booted. tg_output_meta_description() makes that call itself and
+       prints at most one tag. */
+    tg_output_meta_description();
 
     /* RankMath already emits og:/twitter: tags (built from the same
        rank_math_title / rank_math_description meta), so the theme only
@@ -2014,47 +2373,41 @@ add_action('wp_head', 'tg_organization_schema');
    --------------------------------------------------------------------- */
 function tg_dynamic_meta()
 {
-    if (is_singular('tg_tool')) {
-        $post_id = get_the_ID();
-        $stored_title = (string) get_post_meta($post_id, 'rank_math_title', true);
-        $stored_desc = (string) get_post_meta($post_id, 'rank_math_description', true);
-
-        if ($stored_title === '' || $stored_desc === '') {
-            $tool_name = get_the_title();
-            $excerpt = wp_strip_all_tags(get_the_excerpt());
-            $category = wp_get_post_terms($post_id, 'tool_category');
-            $cat_name = (!empty($category) && !is_wp_error($category)) ? $category[0]->name : 'Online';
-
-            if ($stored_title === '') {
-                $title = $tool_name . ' - Free Online ' . $cat_name . ' Tool | ToolsHall';
-                add_filter('rank_math/frontend/title', function () use ($title) {
-                    return $title;
-                });
-            }
-
-            if ($stored_desc === '') {
-                $desc = 'Use free ' . strtolower($tool_name) . ' online. ' . wp_trim_words($excerpt, 20) . ' No signup. 100% free.';
-                add_filter('rank_math/frontend/description', function () use ($desc) {
-                    return $desc;
-                });
-            }
-        }
+    $is_tool = is_singular('tg_tool');
+    $is_category = is_tax('tool_category');
+    if (!$is_tool && !$is_category) {
+        return;
     }
 
-    if (is_tax('tool_category')) {
+    if ($is_tool) {
+        $post_id = (int) get_the_ID();
+        $stored_title = (string) get_post_meta($post_id, 'rank_math_title', true);
+        $stored_desc = (string) get_post_meta($post_id, 'rank_math_description', true);
+    } else {
         $term = get_queried_object();
+        if (!$term instanceof WP_Term) {
+            return;
+        }
         $stored_title = (string) get_term_meta($term->term_id, 'rank_math_title', true);
         $stored_desc = (string) get_term_meta($term->term_id, 'rank_math_description', true);
+    }
 
-        if ($stored_title === '') {
-            $title = 'Free Online ' . $term->name . ' (' . $term->count . '+ Tools) | ToolsHall';
+    /* The fallback copy lives in tg_seo_fallback_title() /
+       tg_seo_fallback_description() (section A2b) so that a page with no
+       stored meta reads the same whether RankMath renders it through these
+       filters or the theme renders it itself. */
+    if ($stored_title === '') {
+        $title = tg_seo_fallback_title();
+        if ($title !== '') {
             add_filter('rank_math/frontend/title', function () use ($title) {
                 return $title;
             });
         }
+    }
 
-        if ($stored_desc === '') {
-            $desc = 'Browse ' . $term->count . '+ free online ' . strtolower($term->name) . '. No download, no signup required. Works in any browser.';
+    if ($stored_desc === '') {
+        $desc = tg_seo_fallback_description();
+        if ($desc !== '') {
             add_filter('rank_math/frontend/description', function () use ($desc) {
                 return $desc;
             });
