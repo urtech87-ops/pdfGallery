@@ -292,6 +292,29 @@
     el.style.color = 'transparent';
   }
 
+  /* Caret at the tapped point. Only used when the browser did NOT focus the
+     field itself, so native caret placement is never overridden. */
+  function placeCaretFromPoint(el, x, y) {
+    if (typeof x !== 'number' || typeof y !== 'number') return;
+    try {
+      var range = null;
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(x, y);
+      } else if (document.caretPositionFromPoint) {
+        var pos = document.caretPositionFromPoint(x, y);
+        if (pos) {
+          range = document.createRange();
+          range.setStart(pos.offsetNode, pos.offset);
+        }
+      }
+      if (!range || !el.contains(range.startContainer)) return;
+      range.collapse(true);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) { /* selection API unavailable — caret stays where focus put it */ }
+  }
+
   function renderTextLayer(pageState) {
     var layer = _optionsEl.querySelector('#ep-text-layer');
     if (!layer) return;
@@ -325,24 +348,32 @@
         rec.changed = rec.newStr !== rec.str;
       });
 
-      /* Touch input only (mouse is deliberately left alone): keep the tap from
-         travelling on to anything that could hand focus back to the canvas.
-         Never preventDefault here — that would suppress the caret and the
-         on-screen keyboard. */
-      el.addEventListener('touchstart', function (e) {
+      /* Put the real glyphs under the finger before the browser places the
+         caret: the resting state is color:transparent, which some mobile
+         browsers hit-test poorly. Reverted if the tap turns into a scroll. */
+      el.addEventListener('pointerdown', function () {
         if (_mode !== 'edit') return;
-        e.stopPropagation();
-      }, { passive: true });
-      el.addEventListener('pointerdown', function (e) {
-        if (_mode !== 'edit' || e.pointerType === 'mouse') return;
-        e.stopPropagation();
+        applyLiveStyle(el, rec);
       });
-      /* Make focus stick: the tap is a user gesture, so focusing here is what
-         actually opens (and keeps open) the on-screen keyboard. Skipped when the
-         browser already focused the field, so native caret placement wins. */
-      el.addEventListener('touchend', function () {
+      ['pointercancel', 'touchcancel'].forEach(function (evt) {
+        el.addEventListener(evt, function () {
+          if (document.activeElement !== el && !rec.changed) clearLiveStyle(el);
+        });
+      });
+
+      /* Focus fallback on CLICK — the last event a tap produces. The browser
+         focuses the field and places the caret on the compatibility mousedown
+         just before it, so this is a no-op whenever native handling worked.
+         It must not run any earlier: focusing on touchstart/touchend opens the
+         keyboard straight away, the shrinking visual viewport scrolls the page,
+         and the compatibility mousedown that arrives afterwards lands on
+         whatever is now under the original tap coordinates — blurring the field
+         and closing the keyboard again. A click handler is still inside the
+         user gesture, so focusing here opens the keyboard just the same. */
+      el.addEventListener('click', function (e) {
         if (_mode !== 'edit' || document.activeElement === el) return;
         try { el.focus({ preventScroll: true }); } catch (err) { el.focus(); }
+        placeCaretFromPoint(el, e.clientX, e.clientY);
       });
 
       layer.appendChild(el);
