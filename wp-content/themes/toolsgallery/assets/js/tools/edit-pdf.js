@@ -48,13 +48,21 @@
   function getOptionsHTML() {
     return '<style>' +
       '.ep-text-item{position:absolute;color:transparent;caret-color:#111;white-space:pre;' +
-        'line-height:1.15;padding:0 1px;outline:none;z-index:3;transform-origin:0 0;}' +
+        'line-height:1.15;padding:0 1px;outline:none;z-index:3;transform-origin:0 0;' +
+        'touch-action:manipulation;-webkit-user-select:text;user-select:text;}' +
       '.ep-text-item:hover{outline:1px dashed #E07B39;cursor:text;}' +
       '.ep-text-item:focus{outline:2px solid #E07B39;}' +
       '.ep-text-item--live{color:inherit;}' +
       '.ep-mode-btn--active{background:#E07B39 !important;color:#fff !important;}' +
       '#ep-text-layer{position:absolute;top:0;left:0;right:0;bottom:0;z-index:3;}' +
       '#ep-stage-inner .canvas-container{position:absolute !important;top:0;left:0;z-index:2;}' +
+      /* Edit mode ONLY: the text overlays sit above the Fabric canvas and the
+         canvas ignores pointer/touch input, so a tap on a text box can never be
+         handled by Fabric (which would blur the field and close the mobile
+         keyboard). Every other mode keeps the default stacking so the Fabric
+         canvas still receives taps for addtext / whiteout / shape / draw. */
+      '#ep-stage-inner.ep-mode-edit #ep-text-layer{z-index:6;}' +
+      '#ep-stage-inner.ep-mode-edit .canvas-container{z-index:1;pointer-events:none !important;}' +
     '</style>' +
     '<div id="ep-editor" hidden>' +
       '<div id="ep-toolbar" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px;padding:8px;background:#f5f5f5;border-radius:6px;">' +
@@ -115,6 +123,8 @@
       if (hint) hint.textContent = HINTS[mode] || '';
       var textLayer = _optionsEl.querySelector('#ep-text-layer');
       if (textLayer) textLayer.style.pointerEvents = (mode === 'edit') ? 'auto' : 'none';
+      var stageInner = _optionsEl.querySelector('#ep-stage-inner');
+      if (stageInner) stageInner.classList.toggle('ep-mode-edit', mode === 'edit');
     }
     if (_fabricCanvas) {
       _fabricCanvas.isDrawingMode = (mode === 'draw');
@@ -313,6 +323,26 @@
       el.addEventListener('input', function () {
         rec.newStr = (el.textContent || '').replace(/[\r\n]+/g, ' ');
         rec.changed = rec.newStr !== rec.str;
+      });
+
+      /* Touch input only (mouse is deliberately left alone): keep the tap from
+         travelling on to anything that could hand focus back to the canvas.
+         Never preventDefault here — that would suppress the caret and the
+         on-screen keyboard. */
+      el.addEventListener('touchstart', function (e) {
+        if (_mode !== 'edit') return;
+        e.stopPropagation();
+      }, { passive: true });
+      el.addEventListener('pointerdown', function (e) {
+        if (_mode !== 'edit' || e.pointerType === 'mouse') return;
+        e.stopPropagation();
+      });
+      /* Make focus stick: the tap is a user gesture, so focusing here is what
+         actually opens (and keeps open) the on-screen keyboard. Skipped when the
+         browser already focused the field, so native caret placement wins. */
+      el.addEventListener('touchend', function () {
+        if (_mode !== 'edit' || document.activeElement === el) return;
+        try { el.focus({ preventScroll: true }); } catch (err) { el.focus(); }
       });
 
       layer.appendChild(el);
