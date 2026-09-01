@@ -33,6 +33,163 @@
   var _keysWired = false;
   /* Per page-number: { textItems, fabricJSON, cssW, cssH, built } */
   var _pages = {};
+  /* Page number whose items are currently mounted in #ep-text-layer. */
+  var _textLayerPage = null;
+  /* Timestamp of the last touch-driven focus, so a stray compatibility
+     click that slips through cannot re-focus and fight it. */
+  var _lastTouchFocus = 0;
+
+  /* -----------------------------------------------
+     DEBUG HARNESS  —  off unless the page URL carries ?epdebug=1
+     Logs the full focus/pointer/render timeline to the console and to an
+     on-screen panel, so the sequence can be read on a real phone (the panel)
+     or over chrome://inspect (the console).
+  ----------------------------------------------- */
+  var EPDEBUG = (function () {
+    try { return /[?&]epdebug=1(?:&|$)/.test(window.location.search); } catch (e) { return false; }
+  }());
+  var _epT0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  var _epPanel = null;
+  var _epGlobalsWired = false;
+  var _epLastScrollLog = 0;
+
+  function epNow() {
+    var t = (window.performance && window.performance.now) ? window.performance.now() : Date.now();
+    return Math.round(t - _epT0);
+  }
+
+  function epDesc(node) {
+    if (!node) return 'null';
+    if (node === document) return 'document';
+    if (node === window) return 'window';
+    if (node === document.body) return 'body';
+    var n = node.nodeName ? String(node.nodeName).toLowerCase() : String(node);
+    if (node.id) n += '#' + node.id;
+    else if (node.className && typeof node.className === 'string' && node.className.trim()) {
+      n += '.' + node.className.trim().split(/\s+/).join('.');
+    }
+    if (node.classList && node.classList.contains('ep-text-item')) {
+      var idx = node.parentNode ? Array.prototype.indexOf.call(node.parentNode.children, node) : -1;
+      n += '[#' + idx + ' "' + String(node.textContent || '').slice(0, 16) + '"]';
+    }
+    return n;
+  }
+
+  function epMakePanel() {
+    if (_epPanel || !document.body) return _epPanel;
+    var wrap = document.createElement('div');
+    wrap.id = 'ep-debug-panel';
+    wrap.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:2147483647;' +
+      'background:rgba(0,0,0,.87);color:#7CFC7C;font:11px/1.35 ui-monospace,Menlo,Consolas,monospace;' +
+      'border-top:2px solid #E07B39;';
+    var bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:8px;align-items:center;padding:4px 8px;background:#E07B39;color:#fff;font-weight:700;';
+    bar.appendChild(document.createTextNode('epdebug'));
+    var spacer = document.createElement('span');
+    spacer.style.cssText = 'flex:1;';
+    bar.appendChild(spacer);
+    ['clear', 'hide'].forEach(function (label) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.style.cssText = 'font:inherit;padding:2px 8px;border:0;border-radius:3px;background:#fff;color:#333;';
+      /* Buttons steal the tap on purpose; the log body must not. */
+      b.addEventListener('click', function () {
+        if (label === 'clear') { log.textContent = ''; } else { wrap.style.display = 'none'; }
+      });
+      bar.appendChild(b);
+    });
+    var log = document.createElement('div');
+    log.style.cssText = 'max-height:34vh;overflow:auto;padding:6px 8px;white-space:pre-wrap;' +
+      '-webkit-overflow-scrolling:touch;overscroll-behavior:contain;';
+    wrap.appendChild(bar);
+    wrap.appendChild(log);
+    document.body.appendChild(wrap);
+    _epPanel = log;
+    return _epPanel;
+  }
+
+  function epLog(msg, extra) {
+    if (!EPDEBUG) return;
+    var line = '+' + epNow() + 'ms  ' + msg + (extra ? '   ' + extra : '');
+    try { console.log('[epdebug] ' + line); } catch (e) {}
+    var panel = epMakePanel();
+    if (!panel) return;
+    var atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 6;
+    panel.appendChild(document.createTextNode(line + '\n'));
+    while (panel.childNodes.length > 500) panel.removeChild(panel.firstChild);
+    if (atBottom) panel.scrollTop = panel.scrollHeight;
+  }
+
+  /* Document-level timeline: focusin/focusout answer the key question —
+     after 'focus' fires on a text item, what takes the focus away? */
+  function epWireGlobals() {
+    if (!EPDEBUG || _epGlobalsWired) return;
+    _epGlobalsWired = true;
+    epLog('epdebug ON — tap a text line, then read the order below.');
+    epLog('viewport', 'inner=' + window.innerWidth + 'x' + window.innerHeight);
+
+    document.addEventListener('focusin', function (e) {
+      epLog('DOC focusin ', 'target=' + epDesc(e.target));
+    }, true);
+    document.addEventListener('focusout', function (e) {
+      epLog('DOC focusout', 'target=' + epDesc(e.target) + ' relatedTarget=' + epDesc(e.relatedTarget));
+      setTimeout(function () {
+        epLog('   ...settled', 'activeElement=' + epDesc(document.activeElement));
+      }, 0);
+    }, true);
+    document.addEventListener('selectionchange', function () {
+      var sel = window.getSelection();
+      var anchor = sel && sel.anchorNode ? sel.anchorNode : null;
+      var host = anchor && anchor.nodeType === 3 ? anchor.parentNode : anchor;
+      epLog('selectionchange', 'anchorHost=' + epDesc(host) + ' collapsed=' + (sel ? sel.isCollapsed : '?'));
+    });
+
+    window.addEventListener('resize', function () {
+      epLog('WINDOW resize', 'inner=' + window.innerWidth + 'x' + window.innerHeight +
+        ' active=' + epDesc(document.activeElement));
+    });
+    window.addEventListener('orientationchange', function () {
+      epLog('orientationchange', 'angle=' + (window.orientation !== undefined ? window.orientation : '?'));
+    });
+    window.addEventListener('scroll', function (e) {
+      var now = epNow();
+      if (now - _epLastScrollLog < 120) return;
+      _epLastScrollLog = now;
+      epLog('scroll', 'on=' + epDesc(e.target) + ' active=' + epDesc(document.activeElement));
+    }, true);
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', function () {
+        epLog('visualViewport resize', 'h=' + Math.round(window.visualViewport.height) +
+          ' active=' + epDesc(document.activeElement));
+      });
+      window.visualViewport.addEventListener('scroll', function () {
+        var now = epNow();
+        if (now - _epLastScrollLog < 120) return;
+        _epLastScrollLog = now;
+        epLog('visualViewport scroll', 'offsetTop=' + Math.round(window.visualViewport.offsetTop));
+      });
+    }
+  }
+
+  /* Per-item timeline. Only attached when ?epdebug=1 is present. */
+  function epInstrumentItem(el, idx) {
+    if (!EPDEBUG) return;
+    ['pointerdown', 'touchstart', 'pointerup', 'touchend', 'pointercancel', 'touchcancel',
+     'mousedown', 'mouseup', 'click', 'focus', 'blur', 'input'].forEach(function (type) {
+      el.addEventListener(type, function (e) {
+        var extra = 'active=' + epDesc(document.activeElement);
+        if (type === 'blur') extra = 'relatedTarget=' + epDesc(e.relatedTarget) + ' ' + extra;
+        if (e.changedTouches && e.changedTouches[0]) {
+          extra += ' at=' + Math.round(e.changedTouches[0].clientX) + ',' + Math.round(e.changedTouches[0].clientY);
+        } else if (typeof e.clientX === 'number') {
+          extra += ' at=' + Math.round(e.clientX) + ',' + Math.round(e.clientY);
+        }
+        epLog(type.toUpperCase() + ' item#' + idx, extra);
+      }, true);
+    });
+  }
 
   var HINTS = {
     edit: '✎ Click any text on the page to edit it in place. Changed text is saved with a matching font.',
@@ -114,6 +271,7 @@
   }
 
   function setMode(mode) {
+    epLog('setMode(' + mode + ')', 'active=' + epDesc(document.activeElement));
     _mode = mode;
     if (_optionsEl) {
       _optionsEl.querySelectorAll('.ep-mode-btn').forEach(function (btn) {
@@ -315,11 +473,87 @@
     } catch (e) { /* selection API unavailable — caret stays where focus put it */ }
   }
 
-  function renderTextLayer(pageState) {
+  /* Caret position inside the layer, as a plain {index, offset} pair that
+     survives the nodes being replaced. */
+  function captureCaret(layer) {
+    var ae = document.activeElement;
+    if (!ae || ae.parentNode !== layer) return null;
+    var index = Array.prototype.indexOf.call(layer.children, ae);
+    if (index < 0) return null;
+    var offset = 0;
+    try {
+      var sel = window.getSelection();
+      if (sel && sel.rangeCount && ae.contains(sel.anchorNode)) {
+        var live = sel.getRangeAt(0);
+        var probe = document.createRange();
+        probe.selectNodeContents(ae);
+        probe.setEnd(live.endContainer, live.endOffset);
+        offset = probe.toString().length;
+      }
+    } catch (e) { /* selection API unavailable — caret returns to the start */ }
+    return { index: index, offset: offset };
+  }
+
+  function restoreCaret(layer, snap) {
+    if (!snap) return;
+    var el = layer.children[snap.index];
+    if (!el) return;
+    try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    try {
+      var node = el.firstChild;
+      var range = document.createRange();
+      if (node && node.nodeType === 3) {
+        range.setStart(node, Math.min(snap.offset, node.nodeValue.length));
+        range.collapse(true);
+      } else {
+        range.selectNodeContents(el);
+        range.collapse(false);
+      }
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) { /* caret stays where focus put it */ }
+    epLog('renderTextLayer: caret restored', 'item#' + snap.index + ' offset=' + snap.offset);
+  }
+
+  /* Focus a text item and put the caret under the tap. Used by both input
+     paths; only the touch path asks the browser to scroll the field into
+     view, because that is what makes room for the software keyboard. */
+  function focusTextItem(el, rec, x, y, allowScroll) {
+    applyLiveStyle(el, rec);
+    if (document.activeElement !== el) {
+      if (allowScroll) {
+        el.focus();
+      } else {
+        try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+      }
+    }
+    placeCaretFromPoint(el, x, y);
+  }
+
+  function renderTextLayer(pageState, pageNum) {
     var layer = _optionsEl.querySelector('#ep-text-layer');
     if (!layer) return;
+
+    /* Rebuilding replaces every node in the layer, which blurs whatever the
+       user is editing and closes the software keyboard. Nothing about the
+       overlays depends on the viewport, so a page that is already mounted is
+       left alone — that makes any repeat call (mode switch, a re-render
+       triggered by the keyboard resizing the viewport, a future caller)
+       harmless instead of destructive. */
+    if (_textLayerPage === pageNum && layer.childElementCount === pageState.textItems.length) {
+      epLog('renderTextLayer: SKIPPED rebuild', 'page=' + pageNum + ' active=' + epDesc(document.activeElement));
+      layer.style.pointerEvents = (_mode === 'edit') ? 'auto' : 'none';
+      return;
+    }
+
+    var caret = captureCaret(layer);
+    epLog('renderTextLayer: REBUILD', 'page=' + pageNum + ' items=' + pageState.textItems.length +
+      ' hadFocus=' + (caret ? 'item#' + caret.index : 'no'));
     layer.innerHTML = '';
-    pageState.textItems.forEach(function (rec) {
+    _textLayerPage = null;
+
+    pageState.textItems.forEach(function (rec, idx) {
       var el = document.createElement('div');
       el.className = 'ep-text-item';
       el.contentEditable = 'true';
@@ -334,6 +568,8 @@
       el.style.fontWeight = rec.font.bold ? '700' : '400';
       el.style.fontStyle = rec.font.italic ? 'italic' : 'normal';
       if (rec.changed) applyLiveStyle(el, rec);
+
+      epInstrumentItem(el, idx);
 
       el.addEventListener('focus', function () { applyLiveStyle(el, rec); });
       el.addEventListener('blur', function () {
@@ -361,24 +597,63 @@
         });
       });
 
-      /* Focus fallback on CLICK — the last event a tap produces. The browser
-         focuses the field and places the caret on the compatibility mousedown
-         just before it, so this is a no-op whenever native handling worked.
-         It must not run any earlier: focusing on touchstart/touchend opens the
-         keyboard straight away, the shrinking visual viewport scrolls the page,
-         and the compatibility mousedown that arrives afterwards lands on
-         whatever is now under the original tap coordinates — blurring the field
-         and closing the keyboard again. A click handler is still inside the
-         user gesture, so focusing here opens the keyboard just the same. */
+      /* ── Touch: focus on touchend and cancel the compatibility mouse events ──
+         A tap on a touch screen is replayed as mousedown/mouseup/click AFTER
+         the finger lifts. The mousedown focuses the field and the software
+         keyboard opens, which shrinks the viewport and scrolls the page; the
+         mouseup that follows is then hit-tested at the same screen point
+         against the new layout and lands somewhere else. A mousedown inside an
+         editing host followed by a mouseup outside it is a selection drag, so
+         the browser moves the selection out of the host — the field loses
+         focus and the keyboard closes again. That is the "keyboard flashes and
+         closes" bug, and it is why z-index, pointer-events, stopPropagation
+         and transparent-glyph fixes all missed: none of them stop the replayed
+         mouse sequence.
+
+         preventDefault() on touchend cancels that whole sequence, so nothing
+         arrives afterwards that can take the focus away. touchend is a user
+         gesture, so focus() opens the keyboard exactly as the mousedown did.
+         Only stationary short taps are claimed — scrolls and long presses fall
+         through to native handling so text selection still works. */
+      var tapStart = null;
+      el.addEventListener('touchstart', function (e) {
+        tapStart = null;
+        if (_mode !== 'edit' || e.touches.length !== 1) return;
+        var t = e.touches[0];
+        tapStart = { x: t.clientX, y: t.clientY, at: Date.now() };
+      }, { passive: true });
+
+      el.addEventListener('touchend', function (e) {
+        var start = tapStart;
+        tapStart = null;
+        if (_mode !== 'edit' || !start || e.changedTouches.length !== 1) return;
+        var t = e.changedTouches[0];
+        if (Math.abs(t.clientX - start.x) > 10 || Math.abs(t.clientY - start.y) > 10) return; /* scroll */
+        if (Date.now() - start.at > 600) return; /* long press — leave selection to the browser */
+        if (e.cancelable) e.preventDefault();
+        _lastTouchFocus = Date.now();
+        epLog('TAP handled item#' + idx, 'preventDefault=' + e.cancelable);
+        focusTextItem(el, rec, t.clientX, t.clientY, true);
+      }, { passive: false });
+
+      /* ── Mouse / pen: unchanged desktop path ──
+         Focus on CLICK, the last event a mouse press produces. The browser
+         focuses the field and places the caret on mousedown, so this is a
+         no-op whenever native handling worked. Taps handled above never reach
+         here, because their compatibility click was cancelled; the timestamp
+         guard covers the odd browser that sends one anyway. */
       el.addEventListener('click', function (e) {
         if (_mode !== 'edit' || document.activeElement === el) return;
-        try { el.focus({ preventScroll: true }); } catch (err) { el.focus(); }
-        placeCaretFromPoint(el, e.clientX, e.clientY);
+        if (Date.now() - _lastTouchFocus < 800) return;
+        focusTextItem(el, rec, e.clientX, e.clientY, false);
       });
 
       layer.appendChild(el);
     });
+
+    _textLayerPage = pageNum;
     layer.style.pointerEvents = (_mode === 'edit') ? 'auto' : 'none';
+    restoreCaret(layer, caret);
   }
 
   /* -----------------------------------------------
@@ -439,6 +714,7 @@
   }
 
   async function renderPage(num) {
+    epLog('renderPage(' + num + ')');
     var page = await _pdfjsDoc.getPage(num);
     var vp = page.getViewport({ scale: RENDER_SCALE });
     var cssW = Math.round(vp.width);
@@ -471,7 +747,7 @@
       };
     }
 
-    renderTextLayer(_pages[num]);
+    renderTextLayer(_pages[num], num);
 
     _fabricCanvas.clear();
     if (_pages[num].fabricJSON) {
@@ -503,6 +779,7 @@
      EDITOR SETUP (file selected) — run() only exports
   ----------------------------------------------- */
   function onFileReady(file, optionsEl) {
+    epWireGlobals();
     wireOptions(optionsEl);
     _optionsEl = optionsEl;
 
@@ -522,6 +799,7 @@
 
     _file = file;
     _pages = {};
+    _textLayerPage = null;
     _currentPage = 1;
     _mode = 'edit';
 
