@@ -39,6 +39,20 @@
      click that slips through cannot re-focus and fight it. */
   var _lastTouchFocus = 0;
 
+  /* Touch devices take a different in-place editing path (see MOBILE
+     ACTIVE-EDIT SESSION below). Everything guarded by IS_TOUCH is additive:
+     when it is false the desktop code runs exactly as it did before. */
+  var IS_TOUCH = (function () {
+    try { return ('ontouchstart' in window) || navigator.maxTouchPoints > 0; } catch (e) { return false; }
+  }());
+  /* The mobile editing session, or null: { el, rec, idx, page, at, ... } */
+  var _activeEdit = null;
+  var _doneBar = null;
+  var _mobileGuardsWired = false;
+  /* Bumped by every touchstart anywhere in the document. A blur with no new
+     touch behind it did not come from the user (see mobileBlurGuard). */
+  var _touchSeq = 0;
+
   /* -----------------------------------------------
      DEBUG HARNESS  —  off unless the page URL carries ?epdebug=1
      Logs the full focus/pointer/render timeline to the console and to an
@@ -46,7 +60,10 @@
      or over chrome://inspect (the console).
   ----------------------------------------------- */
   var EPDEBUG = (function () {
-    try { return /[?&]epdebug=1(?:&|$)/.test(window.location.search); } catch (e) { return false; }
+    try {
+      var m = /[?&]epdebug(?:=([^&]*))?(?:&|$)/.exec(window.location.search);
+      return !!m && m[1] !== '0';
+    } catch (e) { return false; }
   }());
   var _epT0 = (window.performance && performance.now) ? performance.now() : Date.now();
   var _epPanel = null;
@@ -128,6 +145,8 @@
     _epGlobalsWired = true;
     epLog('epdebug ON — tap a text line, then read the order below.');
     epLog('viewport', 'inner=' + window.innerWidth + 'x' + window.innerHeight);
+    epLog('env', 'IS_TOUCH=' + IS_TOUCH + ' (' + (IS_TOUCH ? 'mobile edit path' : 'desktop edit path') +
+      ') maxTouchPoints=' + (navigator.maxTouchPoints || 0));
 
     document.addEventListener('focusin', function (e) {
       epLog('DOC focusin ', 'target=' + epDesc(e.target));
@@ -210,6 +229,15 @@
       '.ep-text-item:hover{outline:1px dashed #E07B39;cursor:text;}' +
       '.ep-text-item:focus{outline:2px solid #E07B39;}' +
       '.ep-text-item--live{color:inherit;}' +
+      /* MOBILE ONLY (added by the touch path): the block being edited is
+         promoted to a visible, opaque, outlined box — Sejda-style — so the
+         browser is focusing real text instead of an invisible empty div. */
+      '.ep-text-item--editing{z-index:9;border-radius:2px;outline:2px solid #E07B39 !important;' +
+        'box-shadow:0 0 0 3px rgba(224,123,57,.30),0 2px 10px rgba(0,0,0,.28);}' +
+      '#ep-done-bar{position:fixed;top:8px;right:8px;z-index:2147483000;display:flex;gap:6px;}' +
+      '#ep-done-bar button{font:700 14px/1 system-ui,-apple-system,Segoe UI,sans-serif;' +
+        'padding:11px 18px;border:0;border-radius:22px;background:#E07B39;color:#fff;' +
+        'box-shadow:0 2px 10px rgba(0,0,0,.35);}' +
       '.ep-mode-btn--active{background:#E07B39 !important;color:#fff !important;}' +
       '#ep-text-layer{position:absolute;top:0;left:0;right:0;bottom:0;z-index:3;}' +
       '#ep-stage-inner .canvas-container{position:absolute !important;top:0;left:0;z-index:2;}' +
@@ -272,6 +300,9 @@
 
   function setMode(mode) {
     epLog('setMode(' + mode + ')', 'active=' + epDesc(document.activeElement));
+    /* Mobile: switching to addtext/whiteout/shape/draw ends the in-place edit
+       first, so its text is written back before the field goes away. */
+    if (IS_TOUCH && _activeEdit && mode !== 'edit') endMobileEdit(true, true);
     _mode = mode;
     if (_optionsEl) {
       _optionsEl.querySelectorAll('.ep-mode-btn').forEach(function (btn) {
@@ -450,6 +481,166 @@
     el.style.color = 'transparent';
   }
 
+  /* -----------------------------------------------
+     MOBILE ACTIVE-EDIT SESSION      (only runs when IS_TOUCH is true)
+
+     Desktop edits an overlay that stays at color:transparent — the glyphs the
+     user sees are the ones PDF.js painted on the base canvas underneath, and
+     with a mouse that is fine. A mobile browser, though, has to focus an
+     invisible, visually empty contentEditable and hold a caret in it, which is
+     the case they handle worst: the keyboard opens and immediately closes.
+
+     So on touch the tapped item is promoted to what Sejda actually edits — a
+     visible, opaque, outlined block of real text — and every redraw path is
+     frozen for as long as that block is being edited (the keyboard opening is
+     itself a viewport resize, and a rebuild triggered by it would replace the
+     focused node). The session ends on blur or on the Done button, which is
+     where the text is written back to the record the exporter reads.
+  ----------------------------------------------- */
+  function showDoneBar() {
+    if (!IS_TOUCH) return;
+    if (_doneBar) { _doneBar.style.display = 'flex'; return; }
+    var bar = document.createElement('div');
+    bar.id = 'ep-done-bar';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '✓ Done';
+    /* Swallow the press itself: without this the button steals focus from the
+       field before we have written the text back, and the keyboard closes
+       under the user's finger. The commit happens on touchend instead. */
+    btn.addEventListener('touchstart', function (e) {
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+    btn.addEventListener('touchend', function (e) {
+      if (e.cancelable) e.preventDefault();
+      epLog('DONE tapped');
+      endMobileEdit(true, true);
+    }, { passive: false });
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      endMobileEdit(true, true);
+    });
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+    _doneBar = bar;
+  }
+
+  function hideDoneBar() {
+    if (_doneBar) _doneBar.style.display = 'none';
+  }
+
+  function beginMobileEdit(el, rec, idx, x, y) {
+    if (_activeEdit && _activeEdit.el === el) {
+      placeCaretFromPoint(el, x, y);
+      return;
+    }
+    if (_activeEdit) endMobileEdit(true, false);
+
+    _activeEdit = {
+      el: el, rec: rec, idx: idx, page: _textLayerPage,
+      at: Date.now(), touchSeq: _touchSeq, refocused: false, ending: false,
+    };
+
+    /* Visible and opaque BEFORE focus, so the browser is asked to focus a
+       normal block of readable text rather than an empty transparent box. */
+    applyLiveStyle(el, rec);
+    el.classList.add('ep-text-item--editing');
+
+    /* Direct focus() inside the touchend user gesture — this is what opens the
+       software keyboard. Scrolling is left enabled here (and only here):
+       it is what makes room for the keyboard. */
+    el.focus();
+    placeCaretFromPoint(el, x, y);
+    showDoneBar();
+    epLog('MOBILE EDIT begin item#' + idx, 'active=' + epDesc(document.activeElement) +
+      ' text="' + String(rec.newStr).slice(0, 20) + '"');
+  }
+
+  /* commit: write the element text back to the record (false only when the
+     caller has a newer value already). blurEl: also drop focus, which closes
+     the keyboard — used by Done and by page/mode changes, not by blur itself. */
+  function endMobileEdit(commit, blurEl) {
+    var session = _activeEdit;
+    if (!session || session.ending) return;
+    session.ending = true;
+    _activeEdit = null;
+
+    var el = session.el, rec = session.rec;
+    if (commit !== false) {
+      rec.newStr = (el.textContent || '').replace(/[\r\n]+/g, ' ');
+      rec.changed = rec.newStr !== rec.str;
+    }
+    el.classList.remove('ep-text-item--editing');
+    /* An unchanged item goes back to resting transparent so the original PDF
+       glyphs show through again. A CHANGED item stays visible and opaque: the
+       base canvas underneath still shows the OLD text, so hiding the overlay
+       would make the edit look lost. Export reads rec, never the DOM. */
+    if (!rec.changed) clearLiveStyle(el);
+    hideDoneBar();
+    if (blurEl && document.activeElement === el) el.blur();
+    epLog('MOBILE EDIT end item#' + session.idx, 'changed=' + rec.changed +
+      ' text="' + String(rec.newStr).slice(0, 24) + '"');
+  }
+
+  /* A blur that arrives shortly after the tap, with no new touch behind it and
+     nothing else having taken the focus, is the browser dropping the field —
+     the "keyboard flashes and closes" symptom — not the user tapping away.
+     Claim the focus back exactly once per session. Any real tap elsewhere
+     bumps _touchSeq and so always wins, however quickly it follows.
+     Returns true when the session is being kept alive. */
+  function mobileBlurGuard(el) {
+    var session = _activeEdit;
+    if (!session || session.el !== el) return false;
+    var age = Date.now() - session.at;
+    var ae = document.activeElement;
+    var stolen = !!(ae && ae !== el && ae !== document.body && ae !== document.documentElement);
+    if (session.refocused || stolen || age > 1500) return false;
+    if (_touchSeq !== session.touchSeq) {
+      epLog('MOBILE blur after a new touch — user left item#' + session.idx);
+      return false;
+    }
+
+    session.refocused = true;
+    epLog('MOBILE blur after ' + age + 'ms with nothing focused — refocusing item#' + session.idx);
+    try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    if (document.activeElement === el) return true;
+    setTimeout(function () {
+      if (_activeEdit !== session) return;
+      try { el.focus({ preventScroll: true }); } catch (e2) { el.focus(); }
+      var ok = document.activeElement === el;
+      epLog('MOBILE refocus (async)', 'ok=' + ok);
+      if (!ok) endMobileEdit(true, false);
+    }, 0);
+    return true;
+  }
+
+  /* The software keyboard opening fires window resize and visualViewport
+     resize, and on some browsers scrolls the page as well. This module does no
+     layout work in response to any of them while an edit is active; these
+     listeners exist so the on-screen log proves that, right next to the
+     focus/blur events. A real orientation change is not the keyboard, so that
+     one ends the session cleanly instead. */
+  function wireMobileGuards() {
+    if (!IS_TOUCH || _mobileGuardsWired) return;
+    _mobileGuardsWired = true;
+    function ignored(what) {
+      return function () {
+        if (!_activeEdit) return;
+        epLog(what + ' IGNORED (mobile edit active)', 'item#' + _activeEdit.idx +
+          ' active=' + epDesc(document.activeElement));
+      };
+    }
+    document.addEventListener('touchstart', function () { _touchSeq++; }, true);
+    window.addEventListener('resize', ignored('window resize'));
+    window.addEventListener('orientationchange', function () {
+      if (_activeEdit) endMobileEdit(true, true);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', ignored('visualViewport resize'));
+      window.visualViewport.addEventListener('scroll', ignored('visualViewport scroll'));
+    }
+  }
+
   /* Caret at the tapped point. Only used when the browser did NOT focus the
      field itself, so native caret placement is never overridden. */
   function placeCaretFromPoint(el, x, y) {
@@ -535,6 +726,17 @@
     var layer = _optionsEl.querySelector('#ep-text-layer');
     if (!layer) return;
 
+    /* MOBILE: an item is being edited right now. Any rebuild replaces its
+       node, which blurs it and closes the keyboard — and the keyboard opening
+       is itself a viewport resize that can lead here. This is a hard stop, not
+       the item-count heuristic below: nothing may touch the layer until the
+       session ends. Never reached on desktop. */
+    if (IS_TOUCH && _activeEdit) {
+      epLog('renderTextLayer: BLOCKED (mobile edit active)',
+        'page=' + pageNum + ' item#' + _activeEdit.idx);
+      return;
+    }
+
     /* Rebuilding replaces every node in the layer, which blurs whatever the
        user is editing and closes the software keyboard. Nothing about the
        overlays depends on the viewport, so a page that is already mounted is
@@ -573,6 +775,11 @@
 
       el.addEventListener('focus', function () { applyLiveStyle(el, rec); });
       el.addEventListener('blur', function () {
+        if (IS_TOUCH && _activeEdit && _activeEdit.el === el) {
+          if (mobileBlurGuard(el)) return; /* spurious blur — session kept */
+          endMobileEdit(true, false);
+          return;
+        }
         if (!rec.changed) clearLiveStyle(el);
       });
       el.addEventListener('keydown', function (e) {
@@ -593,6 +800,10 @@
       });
       ['pointercancel', 'touchcancel'].forEach(function (evt) {
         el.addEventListener(evt, function () {
+          /* Mobile: the item being edited is never reverted from here — a
+             cancelled pointer during an active session (the keyboard opening
+             under the finger, a stray second touch) must not blank it out. */
+          if (IS_TOUCH && _activeEdit && _activeEdit.el === el) return;
           if (document.activeElement !== el && !rec.changed) clearLiveStyle(el);
         });
       });
@@ -633,7 +844,11 @@
         if (e.cancelable) e.preventDefault();
         _lastTouchFocus = Date.now();
         epLog('TAP handled item#' + idx, 'preventDefault=' + e.cancelable);
-        focusTextItem(el, rec, t.clientX, t.clientY, true);
+        if (IS_TOUCH) {
+          beginMobileEdit(el, rec, idx, t.clientX, t.clientY);
+        } else {
+          focusTextItem(el, rec, t.clientX, t.clientY, true);
+        }
       }, { passive: false });
 
       /* ── Mouse / pen: unchanged desktop path ──
@@ -715,6 +930,16 @@
 
   async function renderPage(num) {
     epLog('renderPage(' + num + ')');
+    /* MOBILE: re-rendering the page rebuilds the text layer underneath the
+       caret. If the edit is on this page, refuse outright; a move to another
+       page commits it first. Never reached on desktop. */
+    if (IS_TOUCH && _activeEdit) {
+      if (_activeEdit.page === num) {
+        epLog('renderPage: BLOCKED (mobile edit active)', 'page=' + num);
+        return;
+      }
+      endMobileEdit(true, true);
+    }
     var page = await _pdfjsDoc.getPage(num);
     var vp = page.getViewport({ scale: RENDER_SCALE });
     var cssW = Math.round(vp.width);
@@ -780,6 +1005,7 @@
   ----------------------------------------------- */
   function onFileReady(file, optionsEl) {
     epWireGlobals();
+    wireMobileGuards();
     wireOptions(optionsEl);
     _optionsEl = optionsEl;
 
@@ -796,6 +1022,11 @@
   async function initEditor(file) {
     if (!window.pdfjsLib) throw new Error('PDF.js not loaded. Please refresh the page.');
     if (!window.fabric) throw new Error('Fabric.js not loaded. Please refresh the page.');
+
+    /* A new file wipes the records the open session points at — drop it
+       without committing, so the guards in renderPage cannot block the first
+       render of the new document. */
+    if (IS_TOUCH && _activeEdit) endMobileEdit(false, true);
 
     _file = file;
     _pages = {};
@@ -847,6 +1078,9 @@
       throw new Error('The editor is still loading. Wait for the page preview to appear, then save again.');
     }
 
+    /* Mobile: the user can hit Save with the keyboard still open — commit the
+       field being edited before its text is read back below. */
+    if (IS_TOUCH && _activeEdit) endMobileEdit(true, true);
     snapshotCurrentPage();
 
     onProgress && onProgress(0.05, 'Preparing PDF...');
