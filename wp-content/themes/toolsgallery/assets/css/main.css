@@ -5073,6 +5073,29 @@ textarea {
    canvases stop lining up. */
 .tg-img-preview-frame--flush { padding: 0; overflow: hidden; }
 
+/* Standalone before/after preview canvases used by the background tools
+   (remove-bg, change-bg, blur-bg). These sit in a plain flex row rather
+   than a .tg-img-preview-frame, so they carry their own border. */
+.tg-img-preview-canvas {
+  max-width: 280px;
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-sm);
+}
+/* Checkerboard behind a transparent result, so "no background" reads as
+   transparent instead of white. */
+.tg-img-checker {
+  background: repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 0 0 / 14px 14px;
+}
+/* Quiet helper line under a slider. */
+.tg-opt-hint {
+  font-size: 0.75rem;
+  opacity: 0.75;
+  margin-top: -0.25rem;
+}
+
 .tg-img-tools-bar {
   display: flex;
   flex-wrap: wrap;
@@ -5102,6 +5125,9 @@ textarea {
 /* Dark theme */
 [data-theme="dark"] .tg-img-preview-frame {
   background: #1e1e1e;
+  border-color: rgba(255,255,255,0.12);
+}
+[data-theme="dark"] .tg-img-preview-canvas {
   border-color: rgba(255,255,255,0.12);
 }
 

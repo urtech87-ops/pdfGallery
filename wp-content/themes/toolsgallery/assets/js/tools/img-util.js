@@ -588,6 +588,105 @@
       ctx.drawImage(subject, 0, 0, w, h);
       return canvas;
     },
+
+    /**
+     * maskFromCutout(subjectCanvas, maxDim) → mask (see detectBackgroundMask)
+     * Reads a transparent-PNG cutout back into a background mask, so a
+     * result that came from remove.bg or the on-device model can go through
+     * exactly the same applyMask() path as a locally detected one.
+     */
+    maskFromCutout: function (subjectCanvas, maxDim) {
+      var sw = subjectCanvas.width, sh = subjectCanvas.height;
+      var scale = Math.min(1, (maxDim || 1400) / Math.max(sw, sh));
+      var dw = Math.max(1, Math.round(sw * scale));
+      var dh = Math.max(1, Math.round(sh * scale));
+
+      var work = document.createElement('canvas');
+      work.width = dw;
+      work.height = dh;
+      var wctx = work.getContext('2d', { willReadFrequently: true });
+      wctx.drawImage(subjectCanvas, 0, 0, dw, dh);
+      var d = wctx.getImageData(0, 0, dw, dh).data;
+
+      var n = dw * dh;
+      var mask = new Uint8Array(n);
+      var alpha = new Uint8ClampedArray(n);
+      var bgCount = 0;
+      for (var i = 0; i < n; i++) {
+        var bg = 255 - d[i * 4 + 3];
+        alpha[i] = bg;
+        mask[i] = bg > 127 ? 1 : 0;
+        bgCount += mask[i];
+      }
+      mask.width = dw;
+      mask.height = dh;
+      mask.alpha = alpha;
+      mask.coverage = bgCount / n;
+      return mask;
+    },
+
+    /**
+     * autoCutout(source, options, onProgress)
+     *   → Promise<{ subjectCanvas, mask, width, height, method, coverage }>
+     *
+     * One entry point for all three background tools. Best available
+     * method wins:
+     *   1. remove.bg, when REMOVEBG_API_KEY is set in wp-config (this is
+     *      what TGSegment reaches for first, and it needs the original File)
+     *   2. the on-device model, when it can load
+     *   3. detectBackgroundMask — the always-available local path
+     *
+     * Every result carries a `mask`, so callers only ever need applyMask().
+     * Pass options.useModel = false to go straight to local detection —
+     * that is what a tolerance slider does.
+     */
+    autoCutout: function (source, options, onProgress) {
+      options = options || {};
+      var self = this;
+
+      function local(img) {
+        onProgress && onProgress(0.6, 'Detecting background...');
+        var mask = self.backgroundMaskFor(img, options);
+        return {
+          subjectCanvas: self.cutoutFromMask(img, mask),
+          mask: mask,
+          width: img.naturalWidth || img.width,
+          height: img.naturalHeight || img.height,
+          method: 'local',
+          coverage: mask.coverage,
+        };
+      }
+
+      var resolveImg = (source instanceof HTMLImageElement)
+        ? Promise.resolve(source)
+        : (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement)
+          ? Promise.resolve(source)
+          : this.loadImage(source);
+
+      return resolveImg.then(function (img) {
+        var canUseModel = options.useModel !== false && window.TGSegment;
+        if (!canUseModel) return local(img);
+
+        /* TGSegment ends in its own flood fill when both the API and the
+           model are unavailable; that result is discarded in favour of the
+           detection here, which despeckles and feathers. */
+        return Promise.resolve()
+          .then(function () { return window.TGSegment.cutout(source, onProgress); })
+          .then(function (res) {
+            if (!res || !res.subjectCanvas || res.method === 'floodfill') return local(img);
+            var mask = self.maskFromCutout(res.subjectCanvas, options.detectMaxDim || 1400);
+            return {
+              subjectCanvas: res.subjectCanvas,
+              mask: mask,
+              width: res.width,
+              height: res.height,
+              method: res.method,
+              coverage: mask.coverage,
+            };
+          })
+          .catch(function () { return local(img); });
+      });
+    },
   };
 })();
 
