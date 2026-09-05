@@ -41,6 +41,32 @@ while (have_posts()):
     $input_format = get_post_meta($post_id, '_tg_input_format', true) ?: '';
     $output_format = get_post_meta($post_id, '_tg_output_format', true) ?: '';
 
+    /* Intro. Saved with wp_kses_post() and printed with
+       wp_kses_post(wpautop()), so headings and paragraphs in the meta
+       survive — nothing here strips them. A long-form intro is split at
+       its first heading: the opening paragraph(s) stay in the definition
+       box as the direct answer, and everything from the first <h2>/<h3>
+       onward is rendered as a full section below the tool, where a
+       400-800 word article belongs. */
+    $tg_intro = get_post_meta($post_id, '_tg_intro', true);
+    $tg_intro_lead = '';
+    $tg_intro_rest = '';
+    if ($tg_intro) {
+        $tg_intro_html = wpautop($tg_intro);
+        if (preg_match('/<h[23][\s>]/i', $tg_intro_html)) {
+            $tg_intro_parts = preg_split('/(?=<h[23][\s>])/i', $tg_intro_html, 2);
+            $tg_intro_lead = trim($tg_intro_parts[0]);
+            $tg_intro_rest = isset($tg_intro_parts[1]) ? trim($tg_intro_parts[1]) : '';
+            /* An intro that opens straight into a heading keeps the whole
+               thing below rather than leaving the box empty. */
+            if ($tg_intro_lead === '') {
+                $tg_intro_rest = $tg_intro_html;
+            }
+        } else {
+            $tg_intro_lead = $tg_intro_html;
+        }
+    }
+
     $faqs = $faqs_raw ? json_decode($faqs_raw, true) : [];
     $features = $features_raw ? json_decode($features_raw, true) : [];
     $steps = $steps_raw ? json_decode($steps_raw, true) : [];
@@ -76,13 +102,23 @@ while (have_posts()):
                 <?php endif; ?>
                 <h1 class="tg-tool-title"><?php the_title(); ?></h1>
 
+                <!-- 1b. Last updated — visible, from the post's modified date -->
+                <p class="tg-tool-updated">
+                    <?php
+                    printf(
+                        /* translators: %s: date this tool page was last updated */
+                        esc_html__('Last updated: %s', 'toolsgallery'),
+                        esc_html(get_the_modified_date('', $post_id))
+                    );
+                    ?>
+                </p>
+
                 <!-- 2. Definition Box (AEO — AI assistants + featured snippets) -->
                 <div class="tg-definition-box">
                     <h2>What is <?php the_title(); ?>?</h2>
                     <?php
-                    $tg_intro = get_post_meta(get_the_ID(), '_tg_intro', true);
-                    if ($tg_intro) {
-                        echo wp_kses_post(wpautop($tg_intro));
+                    if ($tg_intro_lead) {
+                        echo wp_kses_post($tg_intro_lead);
                     } elseif (has_excerpt()) {
                         // Fallback only — no strtolower(), no self-promotional filler.
                         echo '<p>' . wp_kses_post(get_the_excerpt()) . '</p>';
@@ -338,6 +374,14 @@ while (have_posts()):
                 <!-- 4. In-content responsive ad -->
                 <?php echo tg_ad_slot('tool-in-content', 'responsive'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 
+                <!-- 4b. Long-form intro — the headed part of _tg_intro, rendered
+                     as real headings and paragraphs rather than one <p> -->
+                <?php if ($tg_intro_rest): ?>
+                    <section class="tg-tool-section tg-tool-longform" id="about">
+                        <?php echo wp_kses_post($tg_intro_rest); ?>
+                    </section>
+                <?php endif; ?>
+
                 <!-- 5. How to use -->
                 <section class="tg-tool-section tg-how-to-use" id="how-to-use">
                     <h2><?php esc_html_e('How to Use', 'toolsgallery'); ?>     <?php the_title(); ?></h2>
@@ -570,17 +614,19 @@ while (have_posts()):
                 <?php if (!empty($faqs)): ?>
                     <section class="tg-tool-section tg-faq-section" id="faq">
                         <h2><?php esc_html_e('Frequently Asked Questions', 'toolsgallery'); ?></h2>
-                        <div class="tg-faq-accordion">
+                        <!-- Questions and answers are both plain markup: an answer
+                             that only appears after a click is invisible to answer
+                             engines, so nothing here is collapsed. -->
+                        <div class="tg-faq-accordion tg-faq-list">
                             <?php foreach ($faqs as $faq): ?>
-                                <details class="tg-faq-item">
-                                    <summary class="tg-faq-question">
+                                <div class="tg-faq-item">
+                                    <h3 class="tg-faq-question">
                                         <?php echo esc_html($faq['q'] ?? ''); ?>
-                                        <span class="tg-faq-chevron" aria-hidden="true"></span>
-                                    </summary>
+                                    </h3>
                                     <div class="tg-faq-answer">
                                         <?php echo wp_kses_post($faq['a'] ?? ''); ?>
                                     </div>
-                                </details>
+                                </div>
                             <?php endforeach; ?>
                         </div>
                     </section>

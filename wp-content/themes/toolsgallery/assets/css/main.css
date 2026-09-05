@@ -2406,6 +2406,34 @@ footer .tg-logo {
   to   { opacity: 1; transform: none; }
 }
 
+/* FAQ answers are always present AND always visible. They used to sit in
+   a <details>, which reads as "collapsed" — an answer a reader (or an
+   answer engine) has to click for is worth less than one that is simply
+   on the page. The card styling above is reused as-is; only the bits that
+   assumed a clickable <summary> are unwound here. */
+.tg-faq-list .tg-faq-question {
+  display: block;
+  margin: 0;
+  cursor: default;
+  user-select: text;
+}
+
+/* Last-updated line under the H1. */
+.tg-tool-updated {
+  margin: 0.25rem 0 1rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #6B7280);
+}
+[data-theme="dark"] .tg-tool-updated { color: #A0A0A0; }
+
+/* Long-form part of the tool intro — real headings and paragraphs, not
+   one runaway <p>. */
+.tg-tool-longform > h2 { margin-top: 1.5rem; }
+.tg-tool-longform > h3 { margin-top: 1.25rem; }
+.tg-tool-longform > p,
+.tg-tool-longform > ul,
+.tg-tool-longform > ol { line-height: 1.75; }
+
 /* FIX 7 — BLOG SIDEBAR */
 .tg-blog-sidebar {
   display: flex;
@@ -3027,6 +3055,10 @@ footer .tg-logo {
 /* ===================================
    FAQ ACCORDION — COMPLETE FIX
    =================================== */
+[data-theme="dark"] .tg-faq-list .tg-faq-question {
+  color: #F0F0F0 !important;
+}
+
 [data-theme="dark"] .tg-faq-accordion {
   background: transparent !important;
   border: none !important;
