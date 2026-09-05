@@ -5096,6 +5096,26 @@ textarea {
   margin-top: -0.25rem;
 }
 
+/* Gradient presets for the Change Background tool. */
+.tg-grad-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.tg-grad-swatch {
+  width: 40px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--color-gray-200);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  /* The swatch IS the preview — no label, so keep the hit area >=28px. */
+  transition: border-color var(--transition), transform var(--transition);
+}
+.tg-grad-swatch:hover { transform: translateY(-1px); }
+.tg-grad-swatch.is-active { border-color: var(--color-primary); }
+[data-theme="dark"] .tg-grad-swatch { border-color: rgba(255,255,255,0.18); }
+
 .tg-img-tools-bar {
   display: flex;
   flex-wrap: wrap;
