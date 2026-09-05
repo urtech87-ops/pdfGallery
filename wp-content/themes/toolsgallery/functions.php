@@ -2750,8 +2750,8 @@ function tg_render_steps_meta_box($post)
             <label for="tg_intro"
                 style="font-weight:600;display:block;margin-bottom:4px;font-size:13px;">Intro (unique tool description)</label>
             <textarea id="tg_intro" name="tg_intro" style="width:100%;height:130px;"
-                placeholder="~80–150 words of original prose about THIS specific tool. Shown in the &quot;What is …?&quot; box above the tool. Leave blank to fall back to the excerpt."><?php echo esc_textarea($tg_intro); ?></textarea>
-            <p style="font-size:12px;color:#666;margin:6px 0 0;">Write unique copy for this tool (~80–150 words). Replaces the
+                placeholder="~400–800 words, with &lt;h2&gt; sections, of original prose about THIS specific tool. The opening paragraph shows in the &quot;What is …?&quot; box above the tool; everything from the first &lt;h2&gt; onward renders as a full section below it. Leave blank to fall back to the excerpt."><?php echo esc_textarea($tg_intro); ?></textarea>
+            <p style="font-size:12px;color:#666;margin:6px 0 0;">Write unique copy for this tool (~400–800 words, with &lt;h2&gt; sections). Replaces the
                 old templated intro so pages aren't near-duplicates.</p>
         </div>
         <style>

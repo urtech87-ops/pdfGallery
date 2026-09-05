@@ -2406,6 +2406,34 @@ footer .tg-logo {
   to   { opacity: 1; transform: none; }
 }
 
+/* FAQ answers are always present AND always visible. They used to sit in
+   a <details>, which reads as "collapsed" — an answer a reader (or an
+   answer engine) has to click for is worth less than one that is simply
+   on the page. The card styling above is reused as-is; only the bits that
+   assumed a clickable <summary> are unwound here. */
+.tg-faq-list .tg-faq-question {
+  display: block;
+  margin: 0;
+  cursor: default;
+  user-select: text;
+}
+
+/* Last-updated line under the H1. */
+.tg-tool-updated {
+  margin: 0.25rem 0 1rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #6B7280);
+}
+[data-theme="dark"] .tg-tool-updated { color: #A0A0A0; }
+
+/* Long-form part of the tool intro — real headings and paragraphs, not
+   one runaway <p>. */
+.tg-tool-longform > h2 { margin-top: 1.5rem; }
+.tg-tool-longform > h3 { margin-top: 1.25rem; }
+.tg-tool-longform > p,
+.tg-tool-longform > ul,
+.tg-tool-longform > ol { line-height: 1.75; }
+
 /* FIX 7 — BLOG SIDEBAR */
 .tg-blog-sidebar {
   display: flex;
@@ -3027,6 +3055,10 @@ footer .tg-logo {
 /* ===================================
    FAQ ACCORDION — COMPLETE FIX
    =================================== */
+[data-theme="dark"] .tg-faq-list .tg-faq-question {
+  color: #F0F0F0 !important;
+}
+
 [data-theme="dark"] .tg-faq-accordion {
   background: transparent !important;
   border: none !important;
@@ -5073,6 +5105,49 @@ textarea {
    canvases stop lining up. */
 .tg-img-preview-frame--flush { padding: 0; overflow: hidden; }
 
+/* Standalone before/after preview canvases used by the background tools
+   (remove-bg, change-bg, blur-bg). These sit in a plain flex row rather
+   than a .tg-img-preview-frame, so they carry their own border. */
+.tg-img-preview-canvas {
+  max-width: 280px;
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-sm);
+}
+/* Checkerboard behind a transparent result, so "no background" reads as
+   transparent instead of white. */
+.tg-img-checker {
+  background: repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 0 0 / 14px 14px;
+}
+/* Quiet helper line under a slider. */
+.tg-opt-hint {
+  font-size: 0.75rem;
+  opacity: 0.75;
+  margin-top: -0.25rem;
+}
+
+/* Gradient presets for the Change Background tool. */
+.tg-grad-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.tg-grad-swatch {
+  width: 40px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--color-gray-200);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  /* The swatch IS the preview — no label, so keep the hit area >=28px. */
+  transition: border-color var(--transition), transform var(--transition);
+}
+.tg-grad-swatch:hover { transform: translateY(-1px); }
+.tg-grad-swatch.is-active { border-color: var(--color-primary); }
+[data-theme="dark"] .tg-grad-swatch { border-color: rgba(255,255,255,0.18); }
+
 .tg-img-tools-bar {
   display: flex;
   flex-wrap: wrap;
@@ -5102,6 +5177,9 @@ textarea {
 /* Dark theme */
 [data-theme="dark"] .tg-img-preview-frame {
   background: #1e1e1e;
+  border-color: rgba(255,255,255,0.12);
+}
+[data-theme="dark"] .tg-img-preview-canvas {
   border-color: rgba(255,255,255,0.12);
 }
 

@@ -203,6 +203,490 @@
       });
       return this._scriptCache[src];
     },
+
+    /* =====================================================================
+       Background detection — shared by remove-bg, change-bg and blur-bg.
+
+       Nothing here is model-based: it is a border-seeded flood fill, which
+       is what the background tools fall back to whenever remove.bg is not
+       configured and the on-device model cannot load. Keeping it in one
+       place means all three tools get the same edges.
+       ===================================================================== */
+
+    /**
+     * detectBackgroundMask(imageData, options) → Uint8Array
+     *   One entry per pixel: 1 = background, 0 = subject.
+     *
+     * How it decides:
+     *   1. Sample a band a few pixels deep along all four edges and reduce
+     *      it to a small set of candidate background colours.
+     *   2. Flood-fill inward from every outer-edge pixel, accepting a pixel
+     *      when it is within `tolerance` of one of those colours (or, on a
+     *      smooth backdrop, close to the pixel it was reached from).
+     *   3. Only pixels REACHABLE FROM AN EDGE become background — that is
+     *      what keeps interior subject pixels (a face, the middle of a
+     *      logo) intact even when they happen to match the backdrop.
+     *   4. Despeckle, then feather the edge so the cutout is not jagged.
+     *
+     * options: { tolerance = 30 (RGB euclidean distance), edgeBand = 3,
+     *            feather = 2, despeckle = 1, followGradient = true,
+     *            gradientFactor = 0.5 }
+     *
+     * The returned array also carries:
+     *   .width / .height — the size it was computed at
+     *   .alpha           — Uint8ClampedArray, 0–255 "how background is this
+     *                      pixel" after feathering (255 = fully background).
+     *                      applyMask() prefers it so edges come out soft
+     *                      instead of stair-stepped.
+     */
+    detectBackgroundMask: function (imageData, options) {
+      options = options || {};
+      var w = imageData.width;
+      var h = imageData.height;
+      var px = imageData.data;
+      var n = w * h;
+
+      var tolerance = options.tolerance == null ? 30 : Math.max(1, options.tolerance);
+      var band = options.edgeBand == null ? 3 : Math.max(1, options.edgeBand);
+      var feather = options.feather == null ? 2 : Math.max(0, options.feather);
+      var despeckle = options.despeckle == null ? 1 : Math.max(0, options.despeckle);
+      /* Local continuity lets a smooth backdrop (studio gradient, sky) go on
+         filling past the colours sampled at the border. Deliberately tighter
+         than the main tolerance so it cannot creep into the subject. */
+      var gradFactor = options.followGradient === false
+        ? 0
+        : (options.gradientFactor == null ? 0.5 : options.gradientFactor);
+
+      var tol2 = tolerance * tolerance;
+      var local2 = (tolerance * gradFactor) * (tolerance * gradFactor);
+
+      /* ── 1. Candidate background colours from the edge band ──
+         Colours are collected at least `tolerance` apart, so a plain
+         backdrop yields one candidate and a busy border yields a handful.
+
+         Collecting them is not enough on its own: a person cropped at the
+         bottom of the frame puts their shirt in the border band, and if
+         that colour is treated as background the fill eats the subject.
+         So each candidate is scored, and only ones that behave like a
+         backdrop are kept — present in a corner (corners are background in
+         almost every photo), or covering a large share of the border. */
+      var cand = [];                  // { r, g, b, count, corner }
+      var MAX_CANDIDATES = 48;
+      var minShare = options.minRepShare == null ? 0.2 : options.minRepShare;
+
+      function findCandidate(list, r, g, b) {
+        for (var k = 0; k < list.length; k++) {
+          var dr = r - list[k].r, dg = g - list[k].g, db = b - list[k].b;
+          if (dr * dr + dg * dg + db * db <= tol2) return list[k];
+        }
+        return null;
+      }
+
+      function sampleEdge(x, y) {
+        var o = (y * w + x) * 4;
+        var r = px[o], g = px[o + 1], b = px[o + 2];
+        var hit = findCandidate(cand, r, g, b);
+        if (hit) { hit.count++; return; }
+        if (cand.length >= MAX_CANDIDATES) return;
+        cand.push({ r: r, g: g, b: b, count: 1, corner: false });
+      }
+
+      var bandY = Math.min(band, h);
+      var bandX = Math.min(band, w);
+      var x, y, i;
+      var edgeTotal = 0;
+      for (y = 0; y < bandY; y++) {
+        for (x = 0; x < w; x++) { sampleEdge(x, y); sampleEdge(x, h - 1 - y); edgeTotal += 2; }
+      }
+      for (x = 0; x < bandX; x++) {
+        for (y = 0; y < h; y++) { sampleEdge(x, y); sampleEdge(w - 1 - x, y); edgeTotal += 2; }
+      }
+
+      /* Corner patches — the strongest "this really is the backdrop" vote. */
+      var patch = Math.max(2, Math.round(Math.min(w, h) * 0.02));
+      var corners = [[0, 0], [w - patch, 0], [0, h - patch], [w - patch, h - patch]];
+      for (var c = 0; c < corners.length; c++) {
+        for (y = 0; y < patch; y++) {
+          for (x = 0; x < patch; x++) {
+            var px0 = Math.min(w - 1, corners[c][0] + x);
+            var py0 = Math.min(h - 1, corners[c][1] + y);
+            var oc = (py0 * w + px0) * 4;
+            var hitC = findCandidate(cand, px[oc], px[oc + 1], px[oc + 2]);
+            if (hitC) hitC.corner = true;
+          }
+        }
+      }
+
+      var reps = [];                  // flat [r,g,b, r,g,b, …] — the kept ones
+      for (i = 0; i < cand.length; i++) {
+        if (cand[i].corner || cand[i].count >= edgeTotal * minShare) {
+          reps.push(cand[i].r, cand[i].g, cand[i].b);
+        }
+      }
+      /* Nothing looked like a backdrop (every edge is busy) — fall back to
+         the single most common border colour rather than giving up. */
+      if (!reps.length && cand.length) {
+        var best = cand[0];
+        for (i = 1; i < cand.length; i++) if (cand[i].count > best.count) best = cand[i];
+        reps.push(best.r, best.g, best.b);
+      }
+
+      function matchesRep(r, g, b) {
+        for (var k = 0; k < reps.length; k += 3) {
+          var dr = r - reps[k], dg = g - reps[k + 1], db = b - reps[k + 2];
+          if (dr * dr + dg * dg + db * db <= tol2) return true;
+        }
+        return false;
+      }
+
+      var mask = new Uint8Array(n);   // 1 = background
+      var seen = new Uint8Array(n);
+      /* Every pixel enters the stack at most once (marked on push), so a
+         plain Int32Array is big enough and costs no reallocation. */
+      var stack = new Int32Array(n);
+      var top = 0;
+
+      function push(idx, r, g, b) {
+        if (seen[idx]) return;
+        seen[idx] = 1;
+        if (!matchesRep(r, g, b)) return;
+        mask[idx] = 1;
+        stack[top++] = idx;
+      }
+
+      /* ── 2. Seed from the outer edge ── */
+      for (x = 0; x < w; x++) {
+        var tIdx = x, bIdx = (h - 1) * w + x;
+        push(tIdx, px[tIdx * 4], px[tIdx * 4 + 1], px[tIdx * 4 + 2]);
+        push(bIdx, px[bIdx * 4], px[bIdx * 4 + 1], px[bIdx * 4 + 2]);
+      }
+      for (y = 0; y < h; y++) {
+        var lIdx = y * w, rIdx = y * w + w - 1;
+        push(lIdx, px[lIdx * 4], px[lIdx * 4 + 1], px[lIdx * 4 + 2]);
+        push(rIdx, px[rIdx * 4], px[rIdx * 4 + 1], px[rIdx * 4 + 2]);
+      }
+
+      /* ── 3. Grow inward, 4-connected ── */
+      while (top > 0) {
+        var cur = stack[--top];
+        var cx = cur % w, cy = (cur / w) | 0;
+        var co = cur * 4;
+        var cr = px[co], cg = px[co + 1], cb = px[co + 2];
+
+        for (var d = 0; d < 4; d++) {
+          var nx = cx + (d === 0 ? 1 : d === 1 ? -1 : 0);
+          var ny = cy + (d === 2 ? 1 : d === 3 ? -1 : 0);
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+          var ni = ny * w + nx;
+          if (seen[ni]) continue;
+          seen[ni] = 1;
+          var no = ni * 4;
+          var nr = px[no], ng = px[no + 1], nb = px[no + 2];
+          var ok = matchesRep(nr, ng, nb);
+          if (!ok && local2 > 0) {
+            var lr = nr - cr, lg = ng - cg, lb = nb - cb;
+            ok = (lr * lr + lg * lg + lb * lb) <= local2;
+          }
+          if (!ok) continue;
+          mask[ni] = 1;
+          stack[top++] = ni;
+        }
+      }
+
+      /* ── 4a. Despeckle: 3×3 majority vote, so single stray pixels on
+         either side of the boundary do not survive as holes or dots. ── */
+      for (var pass = 0; pass < despeckle; pass++) {
+        var prev = mask.slice();
+        for (y = 0; y < h; y++) {
+          for (x = 0; x < w; x++) {
+            var idx = y * w + x;
+            var count = 0;
+            for (var dy = -1; dy <= 1; dy++) {
+              var sy = y + dy;
+              if (sy < 0 || sy >= h) continue;
+              for (var dx = -1; dx <= 1; dx++) {
+                var sx = x + dx;
+                if (sx < 0 || sx >= w || (dx === 0 && dy === 0)) continue;
+                count += prev[sy * w + sx];
+              }
+            }
+            if (prev[idx] && count <= 2) mask[idx] = 0;
+            else if (!prev[idx] && count >= 6) mask[idx] = 1;
+          }
+        }
+      }
+
+      /* ── 4b. Feather: a 1–2px box blur of the hard mask, kept alongside
+         it so callers can have soft edges without losing the binary
+         answer the mask is documented to give. ── */
+      var alpha = new Uint8ClampedArray(n);
+      if (feather > 0) {
+        var radius = Math.max(1, Math.round(feather));
+        var src = new Float32Array(n);
+        for (i = 0; i < n; i++) src[i] = mask[i] ? 255 : 0;
+        var mid = new Float32Array(n);
+        var span = radius * 2 + 1;
+        var acc, k2;
+        for (y = 0; y < h; y++) {
+          var row = y * w;
+          acc = 0;
+          for (k2 = -radius; k2 <= radius; k2++) {
+            acc += src[row + Math.min(w - 1, Math.max(0, k2))];
+          }
+          for (x = 0; x < w; x++) {
+            mid[row + x] = acc / span;
+            acc += src[row + Math.min(w - 1, x + radius + 1)] - src[row + Math.max(0, x - radius)];
+          }
+        }
+        for (x = 0; x < w; x++) {
+          acc = 0;
+          for (k2 = -radius; k2 <= radius; k2++) {
+            acc += mid[Math.min(h - 1, Math.max(0, k2)) * w + x];
+          }
+          for (y = 0; y < h; y++) {
+            alpha[y * w + x] = acc / span;
+            acc += mid[Math.min(h - 1, y + radius + 1) * w + x] - mid[Math.max(0, y - radius) * w + x];
+          }
+        }
+      } else {
+        for (i = 0; i < n; i++) alpha[i] = mask[i] ? 255 : 0;
+      }
+
+      var bgCount = 0;
+      for (i = 0; i < n; i++) bgCount += mask[i];
+
+      mask.width = w;
+      mask.height = h;
+      mask.alpha = alpha;
+      /* Share of the picture judged background — a tool can warn when it
+         comes back near 0 (nothing detected) or near 1 (subject eaten). */
+      mask.coverage = bgCount / n;
+      return mask;
+    },
+
+    /**
+     * backgroundMaskFor(source, options) → mask (see detectBackgroundMask)
+     * Convenience wrapper: detection runs on a copy capped at
+     * options.detectMaxDim (default 1400px) so a 6000px phone photo does not
+     * spend seconds in the flood fill. applyMask() scales the mask back up.
+     */
+    backgroundMaskFor: function (source, options) {
+      options = options || {};
+      var sw = source.naturalWidth || source.width;
+      var sh = source.naturalHeight || source.height;
+      var maxDim = options.detectMaxDim == null ? 1400 : options.detectMaxDim;
+      var scale = Math.min(1, maxDim / Math.max(sw, sh));
+      var dw = Math.max(1, Math.round(sw * scale));
+      var dh = Math.max(1, Math.round(sh * scale));
+
+      var work = document.createElement('canvas');
+      work.width = dw;
+      work.height = dh;
+      var wctx = work.getContext('2d', { willReadFrequently: true });
+      wctx.drawImage(source, 0, 0, dw, dh);
+      return this.detectBackgroundMask(wctx.getImageData(0, 0, dw, dh), options);
+    },
+
+    /* White-on-transparent canvas of the SUBJECT alpha, at mask resolution.
+       Used with destination-in compositing; drawImage scales it to the
+       target size, which also smooths the boundary a little further. */
+    maskToCanvas: function (mask) {
+      var mw = mask.width, mh = mask.height;
+      var canvas = document.createElement('canvas');
+      canvas.width = mw;
+      canvas.height = mh;
+      var ctx = canvas.getContext('2d');
+      var id = ctx.createImageData(mw, mh);
+      var d = id.data;
+      var a = mask.alpha;
+      for (var i = 0, n = mw * mh; i < n; i++) {
+        var bg = a ? a[i] : (mask[i] ? 255 : 0);
+        var o = i * 4;
+        d[o] = 255; d[o + 1] = 255; d[o + 2] = 255;
+        d[o + 3] = 255 - bg;
+      }
+      ctx.putImageData(id, 0, 0);
+      return canvas;
+    },
+
+    /* The subject on a transparent canvas, at the source's own resolution. */
+    cutoutFromMask: function (source, mask) {
+      var w = source.naturalWidth || source.width;
+      var h = source.naturalHeight || source.height;
+      var out = document.createElement('canvas');
+      out.width = w;
+      out.height = h;
+      var ctx = out.getContext('2d');
+      ctx.drawImage(source, 0, 0, w, h);
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(this.maskToCanvas(mask), 0, 0, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+      return out;
+    },
+
+    /**
+     * applyMask(canvas, mask, mode, options) → the same canvas
+     *
+     * mode:
+     *   'transparent' — background pixels are erased (PNG cutout)
+     *   'fill'        — solid options.color, or options.gradient
+     *                   { from, to } behind the subject
+     *   'image'       — options.image drawn behind the subject, cover-fit
+     *                   without distorting its aspect ratio
+     *   'blur'        — the picture itself blurred by options.blur px
+     *                   behind the sharp subject
+     *
+     * The canvas is repainted in place, so a caller can size it, draw the
+     * photo, and hand it straight here.
+     */
+    applyMask: function (canvas, mask, mode, options) {
+      options = options || {};
+      var w = canvas.width;
+      var h = canvas.height;
+      var ctx = canvas.getContext('2d');
+
+      /* Snapshot the untouched picture first — every mode paints it back
+         on top of whatever the new background is. */
+      var source = document.createElement('canvas');
+      source.width = w;
+      source.height = h;
+      source.getContext('2d').drawImage(canvas, 0, 0);
+
+      var subject = this.cutoutFromMask(source, mask);
+
+      ctx.clearRect(0, 0, w, h);
+
+      if (mode === 'fill') {
+        if (options.gradient) {
+          var grad = ctx.createLinearGradient(0, 0, w, h);
+          grad.addColorStop(0, options.gradient.from || '#ffffff');
+          grad.addColorStop(1, options.gradient.to || '#000000');
+          ctx.fillStyle = grad;
+        } else {
+          ctx.fillStyle = options.color || '#ffffff';
+        }
+        ctx.fillRect(0, 0, w, h);
+      } else if (mode === 'image' && options.image) {
+        var bg = options.image;
+        var bw = bg.naturalWidth || bg.width;
+        var bh = bg.naturalHeight || bg.height;
+        /* Cover-fit: scale by the LARGER ratio and centre, so the image
+           fills the frame and never stretches. */
+        var s = Math.max(w / bw, h / bh);
+        var dw = bw * s, dh = bh * s;
+        ctx.drawImage(bg, (w - dw) / 2, (h - dh) / 2, dw, dh);
+      } else if (mode === 'blur') {
+        /* Unblurred pass first so the canvas edges do not fade out, then
+           the blurred pass over it. */
+        ctx.drawImage(source, 0, 0);
+        ctx.filter = 'blur(' + Math.max(1, options.blur || 8) + 'px)';
+        ctx.drawImage(source, 0, 0);
+        ctx.filter = 'none';
+      }
+      /* 'transparent' paints no background at all. */
+
+      ctx.drawImage(subject, 0, 0, w, h);
+      return canvas;
+    },
+
+    /**
+     * maskFromCutout(subjectCanvas, maxDim) → mask (see detectBackgroundMask)
+     * Reads a transparent-PNG cutout back into a background mask, so a
+     * result that came from remove.bg or the on-device model can go through
+     * exactly the same applyMask() path as a locally detected one.
+     */
+    maskFromCutout: function (subjectCanvas, maxDim) {
+      var sw = subjectCanvas.width, sh = subjectCanvas.height;
+      var scale = Math.min(1, (maxDim || 1400) / Math.max(sw, sh));
+      var dw = Math.max(1, Math.round(sw * scale));
+      var dh = Math.max(1, Math.round(sh * scale));
+
+      var work = document.createElement('canvas');
+      work.width = dw;
+      work.height = dh;
+      var wctx = work.getContext('2d', { willReadFrequently: true });
+      wctx.drawImage(subjectCanvas, 0, 0, dw, dh);
+      var d = wctx.getImageData(0, 0, dw, dh).data;
+
+      var n = dw * dh;
+      var mask = new Uint8Array(n);
+      var alpha = new Uint8ClampedArray(n);
+      var bgCount = 0;
+      for (var i = 0; i < n; i++) {
+        var bg = 255 - d[i * 4 + 3];
+        alpha[i] = bg;
+        mask[i] = bg > 127 ? 1 : 0;
+        bgCount += mask[i];
+      }
+      mask.width = dw;
+      mask.height = dh;
+      mask.alpha = alpha;
+      mask.coverage = bgCount / n;
+      return mask;
+    },
+
+    /**
+     * autoCutout(source, options, onProgress)
+     *   → Promise<{ subjectCanvas, mask, width, height, method, coverage }>
+     *
+     * One entry point for all three background tools. Best available
+     * method wins:
+     *   1. remove.bg, when REMOVEBG_API_KEY is set in wp-config (this is
+     *      what TGSegment reaches for first, and it needs the original File)
+     *   2. the on-device model, when it can load
+     *   3. detectBackgroundMask — the always-available local path
+     *
+     * Every result carries a `mask`, so callers only ever need applyMask().
+     * Pass options.useModel = false to go straight to local detection —
+     * that is what a tolerance slider does.
+     */
+    autoCutout: function (source, options, onProgress) {
+      options = options || {};
+      var self = this;
+
+      function local(img) {
+        onProgress && onProgress(0.6, 'Detecting background...');
+        var mask = self.backgroundMaskFor(img, options);
+        return {
+          subjectCanvas: self.cutoutFromMask(img, mask),
+          mask: mask,
+          width: img.naturalWidth || img.width,
+          height: img.naturalHeight || img.height,
+          method: 'local',
+          coverage: mask.coverage,
+        };
+      }
+
+      var resolveImg = (source instanceof HTMLImageElement)
+        ? Promise.resolve(source)
+        : (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement)
+          ? Promise.resolve(source)
+          : this.loadImage(source);
+
+      return resolveImg.then(function (img) {
+        var canUseModel = options.useModel !== false && window.TGSegment;
+        if (!canUseModel) return local(img);
+
+        /* TGSegment ends in its own flood fill when both the API and the
+           model are unavailable; that result is discarded in favour of the
+           detection here, which despeckles and feathers. */
+        return Promise.resolve()
+          .then(function () { return window.TGSegment.cutout(source, onProgress); })
+          .then(function (res) {
+            if (!res || !res.subjectCanvas || res.method === 'floodfill') return local(img);
+            var mask = self.maskFromCutout(res.subjectCanvas, options.detectMaxDim || 1400);
+            return {
+              subjectCanvas: res.subjectCanvas,
+              mask: mask,
+              width: res.width,
+              height: res.height,
+              method: res.method,
+              coverage: mask.coverage,
+            };
+          })
+          .catch(function () { return local(img); });
+      });
+    },
   };
 })();
 
