@@ -43,11 +43,11 @@ while (have_posts()):
 
     /* Intro. Saved with wp_kses_post() and printed with
        wp_kses_post(wpautop()), so headings and paragraphs in the meta
-       survive — nothing here strips them. A long-form intro is split at
-       its first heading: the opening paragraph(s) stay in the definition
-       box as the direct answer, and everything from the first <h2>/<h3>
-       onward is rendered as a full section below the tool, where a
-       400-800 word article belongs. */
+       survive — nothing here strips them. A long-form intro is still split
+       at its first heading: the opening paragraph(s) become the lead of
+       the intro section and everything from the first <h2>/<h3> onward is
+       the article body after it. Both parts render *below* the tool — the
+       interface comes first on the page, prose second. */
     $tg_intro = get_post_meta($post_id, '_tg_intro', true);
     $tg_intro_lead = '';
     $tg_intro_rest = '';
@@ -65,6 +65,14 @@ while (have_posts()):
         } else {
             $tg_intro_lead = $tg_intro_html;
         }
+    }
+
+    /* Short tagline for above the tool. Only a hand-written excerpt is
+       used, and only when it really is one line — anything longer belongs
+       to the intro section below the tool. */
+    $tg_tagline = has_excerpt() ? trim(wp_strip_all_tags(get_the_excerpt())) : '';
+    if (mb_strlen($tg_tagline) > 90) {
+        $tg_tagline = '';
     }
 
     $faqs = $faqs_raw ? json_decode($faqs_raw, true) : [];
@@ -113,18 +121,14 @@ while (have_posts()):
                     ?>
                 </p>
 
-                <!-- 2. Definition Box (AEO — AI assistants + featured snippets) -->
-                <div class="tg-definition-box">
-                    <h2>What is <?php the_title(); ?>?</h2>
-                    <?php
-                    if ($tg_intro_lead) {
-                        echo wp_kses_post($tg_intro_lead);
-                    } elseif (has_excerpt()) {
-                        // Fallback only — no strtolower(), no self-promotional filler.
-                        echo '<p>' . wp_kses_post(get_the_excerpt()) . '</p>';
-                    }
-                    ?>
-                </div>
+                <!-- 2. One-line tagline. The intro itself — lead and
+                     long-form alike — now renders below the tool (4b): a
+                     350-word block here pushed the interface off the bottom
+                     of a phone screen, so readers thought the page had no
+                     tool on it. Only a single short line may sit here. -->
+                <?php if ($tg_tagline): ?>
+                    <p class="tg-tool-tagline"><?php echo esc_html($tg_tagline); ?></p>
+                <?php endif; ?>
 
                 <!-- 2c. Trust meta bar -->
                 <div class="tg-tool-meta-bar">
@@ -374,11 +378,28 @@ while (have_posts()):
                 <!-- 4. In-content responsive ad -->
                 <?php echo tg_ad_slot('tool-in-content', 'responsive'); // phpcs:ignore WordPress.Security.EscapeOutput ?>
 
-                <!-- 4b. Long-form intro — the headed part of _tg_intro, rendered
-                     as real headings and paragraphs rather than one <p> -->
-                <?php if ($tg_intro_rest): ?>
+                <!-- 4b. Tool intro — all of _tg_intro, below the interface.
+                     The lead paragraph opens the section as the direct
+                     "what is this" answer (still .tg-definition-box, which
+                     the SpeakableSpecification schema points at); anything
+                     from the first <h2>/<h3> onward follows it as the
+                     long-form article. -->
+                <?php if ($tg_intro_lead || $tg_intro_rest || has_excerpt()): ?>
                     <section class="tg-tool-section tg-tool-longform" id="about">
-                        <?php echo wp_kses_post($tg_intro_rest); ?>
+                        <div class="tg-definition-box">
+                            <h2>What is <?php the_title(); ?>?</h2>
+                            <?php
+                            if ($tg_intro_lead) {
+                                echo wp_kses_post($tg_intro_lead);
+                            } elseif (has_excerpt()) {
+                                // Fallback only — no strtolower(), no self-promotional filler.
+                                echo '<p>' . wp_kses_post(get_the_excerpt()) . '</p>';
+                            }
+                            ?>
+                        </div>
+                        <?php if ($tg_intro_rest): ?>
+                            <?php echo wp_kses_post($tg_intro_rest); ?>
+                        <?php endif; ?>
                     </section>
                 <?php endif; ?>
 

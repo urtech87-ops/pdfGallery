@@ -5196,3 +5196,83 @@ textarea {
   color: var(--color-primary) !important;
   border-color: var(--color-primary);
 }
+
+/* =============================================
+   TOOL PAGE — TOOL FIRST ON SMALL SCREENS
+   The long intro now renders below the tool box (see single-tg_tool.php,
+   section 4b). These rules keep everything that is still above it small
+   enough that a phone shows the upload area without scrolling.
+   ============================================= */
+
+/* One-line tagline under the H1, in place of the old 350-word intro. */
+.tg-tool-tagline {
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--color-gray-600);
+}
+[data-theme="dark"] .tg-tool-tagline { color: #C0C0C0; }
+
+/* Trust bar — a single compact row of chips. It used to be four
+   unstyled inline spans that wrapped to three lines of text and pushed
+   the tool further down. */
+.tg-tool-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 1rem;
+}
+.tg-tool-meta-item {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-full);
+  background: var(--color-gray-100);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-gray-600);
+  white-space: nowrap;
+}
+[data-theme="dark"] .tg-tool-meta-item {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
+  color: #C0C0C0 !important;
+}
+
+/* The intro's lead paragraph now opens a full section rather than sitting
+   in a box above the tool, so its heading matches the other section
+   headings instead of staying at body size. */
+.tg-tool-longform .tg-definition-box h2 {
+  font-size: 1.375rem;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+.tg-tool-longform .tg-definition-box { margin-bottom: 0; font-size: inherit; }
+
+/* Grid items default to min-width:auto, so one wide child (the scrolling
+   trust bar below, a wide table in an intro) stretches the whole column
+   and gives the page a horizontal scrollbar. */
+.tg-tool-page-layout > .tg-tool-page-main { min-width: 0; }
+
+@media (max-width: 1024px) {
+  /* tool.css stacks the sidebar first on narrow screens (order: -1), which
+     put its widgets and ads between the breadcrumbs and the tool — the same
+     "where is the tool?" problem the intro caused. Higher specificity so it
+     wins over that rule regardless of stylesheet order. */
+  .tg-tool-page-layout > .tg-tool-page-sidebar { order: 1; }
+}
+
+@media (max-width: 600px) {
+  /* Keep the chips to one scrollable row on a phone. */
+  .tg-tool-meta-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tg-tool-meta-bar::-webkit-scrollbar { display: none; }
+  .tg-tool-cat-badge { margin-bottom: 8px; }
+  .tg-tool-title { margin-bottom: 8px; }
+  .tg-tool-updated { margin: 0.25rem 0 0.75rem; }
+  .tg-tool-tagline { margin-bottom: 0.75rem; }
+}
